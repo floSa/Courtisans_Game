@@ -12,3 +12,7 @@ courtisans_env/
 
 # Editor
 .vscode/
+
+# Trained models (générés par `python main.py train`).
+# Forcer l'ajout d'un checkpoint particulier : `git add -f models/<file>.pth`.
+models/*.pth

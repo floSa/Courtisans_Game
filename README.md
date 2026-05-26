@@ -48,6 +48,26 @@ uv pip install -r requirements.txt
 > (par ex. `github.com-perso`), remplace l'URL par
 > `git@github.com-perso:floSa/Courtisans_Game.git`.
 
+### Premier modèle (bootstrap)
+
+Le fichier `models/model_2.pth` n'est plus commité (cf.
+[`documentations/ameliorations.md`](documentations/ameliorations.md) point #23).
+Pour disposer d'une IA fonctionnelle, soit on en initialise une rapidement,
+soit on en entraîne une vraie :
+
+```bash
+# Option A — bootstrap rapide (poids aléatoires, joue au hasard)
+python scripts/bootstrap_model.py
+
+# Option B — petit entraînement (~5 min CPU)
+python main.py train --iterations 50
+
+# Option C — entraînement sérieux
+python main.py train --iterations 500 --num-sims 50
+```
+
+Sans modèle, l'app fonctionne quand même : l'IA joue alors au hasard.
+
 ### Lancer l'interface
 
 ```bash
