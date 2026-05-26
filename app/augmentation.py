@@ -139,6 +139,26 @@ def permute_policy(
     return new_policy
 
 
+def augment_target_sample(
+    state_vec: np.ndarray,
+    policy: np.ndarray,
+    mapper: ActionMapper,
+    sigma: tuple[int, ...] | None = None,
+    rng: np.random.Generator | None = None,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Augmentation d'un sample en mode "target" (B2).
+
+    Seul l'état est permuté ; la policy target (sur les slots de cibles +
+    skip) est invariante par symétrie de famille car les slots indexent
+    les positions dans `plateau_indices`, pas les identités.
+    """
+    if sigma is None:
+        sigma = random_family_permutation(rng)
+    permutable_size = permutable_state_size(mapper.num_players)
+    new_state = permute_state_vec(state_vec, sigma, permutable_size=permutable_size)
+    return new_state, policy.copy()
+
+
 def augment_sample(
     state_vec: np.ndarray,
     policy: np.ndarray,
