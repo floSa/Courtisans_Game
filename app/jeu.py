@@ -173,7 +173,7 @@ class GameEnv:
         self.pending_assassin_context: dict | None = None
         # File d'attente des assassins du joueur humain restant à résoudre dans le tour
         self._pending_assassins_queue: list[Carte] = []
-        self._rng = random.Random(seed) if seed is not None else random
+        self._rng: random.Random = random.Random(seed) if seed is not None else random.Random()
         self.reset()
 
     def reset(self) -> GameEnv:
