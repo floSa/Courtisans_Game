@@ -56,9 +56,12 @@ Points notables :
 - `get_state_vector()` : encodage **information imparfaite** — les cartes
   cachées d'un adversaire (espions retournés) ne figurent pas dans l'entrée
   du réseau.
-- `clone_determinized()` : aujourd'hui un simple `deepcopy` (oracle parfait).
-  Une vraie déterminisation PIMC reste à implémenter — voir
-  [`ameliorations.md`](ameliorations.md) point #8.
+- `clone_determinized(randomize=True)` : **déterminisation PIMC**. On
+  `deepcopy` puis on permute les identités `(famille, role)` des cartes que
+  le joueur courant ne peut pas voir (main adverse + espions cachés
+  adverses + pioche). Contrainte préservée : un slot face cachée dans le
+  domaine d'un adversaire ne reçoit qu'une identité ESPION.
+  `randomize=False` permet un clone fidèle (utile pour les tests).
 
 ---
 
@@ -66,10 +69,15 @@ Points notables :
 
 ### Réseau (`CourtisansNet`)
 
-ResNet 5 blocs résiduels, sortie double :
+ResNet 5 blocs résiduels avec **LayerNorm** (et non BatchNorm — robuste au
+batch=1 typique des évaluations MCTS), sortie double :
 
 - **Policy** : vecteur de logits de taille `action_dim`.
 - **Value** : scalaire dans `[-1, +1]` (`tanh`).
+
+> Note : un checkpoint issu d'une ancienne version BatchNorm n'est plus
+> chargeable. `load_model()` détecte la mismatch de clés et logge une
+> instruction de ré-entraînement plutôt que de planter.
 
 ### MCTS
 
@@ -96,8 +104,20 @@ TrainConfig(
     warmup_iters=20, epsilon_random=0.10,
     dirichlet_alpha=0.3, dirichlet_epsilon=0.25,
     checkpoint_every=25, model_dir="models", seed=None,
+    arena_every=50, arena_games=20, arena_num_sims=30, arena_win_threshold=0.55,
 )
 ```
+
+### Arena (champion vs candidat)
+
+- `arena(challenger, champion, num_games, num_sims, num_players)` joue
+  `num_games` parties à positions alternées (équilibrage de l'avantage du
+  premier joueur), renvoie `{wins, losses, draws, winrate}`.
+- Convention de fichiers :
+  - `models/model_{N}.pth` → **best**, chargé par Streamlit / `play_vs_ai`.
+  - `models/model_{N}_candidate.pth` → dernier candidat entraîné.
+- Promotion : tous les `arena_every` épisodes, si `winrate ≥ arena_win_threshold`,
+  le candidat remplace le best sur disque (et en mémoire).
 
 ### Boucle d'entraînement (`train`)
 
@@ -108,7 +128,11 @@ TrainConfig(
 3. Mini-batch SGD (Adam) : loss = cross-entropy(policy) + MSE(value).
 4. Checkpoint intermédiaire tous les `checkpoint_every` épisodes
    → `models/model_{N}_ckpt_{iter}.pth`.
-5. Sauvegarde finale → `models/model_{N}.pth`.
+5. Évaluation arena tous les `arena_every` épisodes ; promotion candidat → best
+   si winrate ≥ `arena_win_threshold`.
+6. Sauvegarde finale : `models/model_{N}_candidate.pth` (dernier candidat) et
+   `models/model_{N}.pth` (best — peut rester le best initial si aucune
+   promotion n'a eu lieu).
 
 ### Chargement (`load_model`)
 
@@ -126,7 +150,7 @@ modules et du flux d'interaction.
 
 ## 4. Tests
 
-`tests/` contient 30 tests pytest :
+`tests/` contient 44 tests pytest :
 
 - `test_action_mapper.py` : bijection `encode/decode`, espace d'action, erreurs.
 - `test_game_engine.py` : invariants de `GameEnv` (deck, main triée,
@@ -134,6 +158,11 @@ modules et du flux d'interaction.
   indépendant).
 - `test_assassin.py` : ciblage par zone Reine, par domaine, exclusions
   Garde / Assassin.
+- `test_pimc.py` : déterminisation — préservation de l'inventaire global,
+  de la main du joueur courant, des cartes visibles ; contrainte espion
+  pour les slots face cachée adverses ; randomisation effective ; N joueurs.
+- `test_arena.py` : statistiques `arena()` (wins/losses/draws/winrate),
+  alternance des positions de départ.
 
 CI : `.github/workflows/ci.yml` lance `ruff check .` puis `pytest` à chaque
 push et PR sur `main`.
