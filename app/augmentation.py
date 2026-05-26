@@ -31,22 +31,38 @@ def random_family_permutation(rng: np.random.Generator | None = None) -> tuple[i
     return tuple(int(x) for x in rng.permutation(NUM_FAMILLES))
 
 
-def permute_state_vec(state_vec: np.ndarray, sigma: tuple[int, ...]) -> np.ndarray:
+def permute_state_vec(
+    state_vec: np.ndarray,
+    sigma: tuple[int, ...],
+    permutable_size: int | None = None,
+) -> np.ndarray:
     """Permute les blocs de famille dans le state vector.
 
     `sigma[i] = j` signifie « la famille i devient j » (la valeur stockée en
     cellule de famille i passe en cellule de famille j, dans chaque zone).
 
-    Le vecteur d'état est organisé en zones de NUM_CARD_TYPES = 30 cellules,
-    chaque zone étant elle-même 6 groupes de NUM_ROLES = 5 cellules
-    (un groupe par famille).
+    Le vecteur d'état contient :
+      - une section permutable de `permutable_size` cellules, organisée en
+        zones de `NUM_CARD_TYPES = 30` cellules, chaque zone étant 6 blocs
+        famille × `NUM_ROLES = 5` rôles ;
+      - une section non permutable (compteurs d'espions cachés par
+        (zone, poseur) — invariants par symétrie de famille).
+
+    Si `permutable_size` est None, on assume que tout le vecteur est
+    permutable (rétro-compat).
     """
     assert len(sigma) == NUM_FAMILLES, f"sigma doit avoir {NUM_FAMILLES} éléments"
     assert sorted(sigma) == list(range(NUM_FAMILLES)), f"sigma doit être une permutation : {sigma}"
-    assert state_vec.size % NUM_CARD_TYPES == 0, "Taille de state_vec incohérente"
 
-    num_zones = state_vec.size // NUM_CARD_TYPES
-    new_vec = np.zeros_like(state_vec)
+    if permutable_size is None:
+        permutable_size = state_vec.size
+    assert permutable_size % NUM_CARD_TYPES == 0, "permutable_size doit être un multiple de NUM_CARD_TYPES"
+    assert permutable_size <= state_vec.size, "permutable_size dépasse la taille du vecteur"
+
+    # Copie initiale : la section non permutable est conservée telle quelle.
+    new_vec = state_vec.copy()
+
+    num_zones = permutable_size // NUM_CARD_TYPES
     for z in range(num_zones):
         zone_offset = z * NUM_CARD_TYPES
         for i in range(NUM_FAMILLES):
@@ -55,6 +71,15 @@ def permute_state_vec(state_vec: np.ndarray, sigma: tuple[int, ...]) -> np.ndarr
             dst = zone_offset + j * NUM_ROLES
             new_vec[dst : dst + NUM_ROLES] = state_vec[src : src + NUM_ROLES]
     return new_vec
+
+
+def permutable_state_size(num_players: int) -> int:
+    """Taille de la section "identités par famille" (permutable par σ)
+    du state vector. Doit rester synchronisée avec
+    `GameEnv._permutable_section_size`.
+    """
+    total_zones = 2 + num_players + 1  # Estime + Disgrace + N domaines + main
+    return total_zones * NUM_CARD_TYPES
 
 
 def compute_position_map(
@@ -124,13 +149,17 @@ def augment_sample(
 ) -> tuple[np.ndarray, np.ndarray, tuple[int, int, int]]:
     """Applique une permutation de familles (tirée au sort ou fournie) à un
     sample complet (state, policy, hand_keys). La valeur est inchangée — le
-    score final ne dépend pas du nommage des familles."""
+    score final ne dépend pas du nommage des familles.
+
+    La section "compteurs d'espions cachés" du state_vector (en fin de
+    vecteur) est invariante par σ et donc préservée à l'identique.
+    """
     if sigma is None:
         sigma = random_family_permutation(rng)
-    new_state = permute_state_vec(state_vec, sigma)
+    permutable_size = permutable_state_size(mapper.num_players)
+    new_state = permute_state_vec(state_vec, sigma, permutable_size=permutable_size)
     pos_map = compute_position_map(hand_keys, sigma)
     new_policy = permute_policy(policy, pos_map, mapper)
-    # Mise à jour des hand_keys (utile pour debug / éventuelles chaînes de σ).
     new_hand_keys = tuple(
         sorted(sigma[k // NUM_ROLES] * NUM_ROLES + (k % NUM_ROLES) for k in hand_keys)
     )

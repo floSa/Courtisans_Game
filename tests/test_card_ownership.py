@@ -143,6 +143,40 @@ def test_pimc_does_not_randomize_own_placed_spies() -> None:
         assert clone.cartes[spy_id].role == original_role
 
 
+def test_hidden_spy_counts_in_state_vector() -> None:
+    """La section "compteurs d'espions cachés" du state_vector doit refléter
+    qui a posé chaque espion face cachée et dans quelle zone."""
+    env = GameEnv(2, seed=42)
+    # Place deux espions face cachée : un posé par moi en Estime, un posé par
+    # l'adversaire en Disgrace.
+    my_spy = next(c for c in env.cartes if c.role == Role.ESPION)
+    my_spy.position = "Estime"
+    my_spy.visible = False
+    my_spy.proprietaire_idx = 0
+    my_spy.domaine_id = -1
+    env.plateau_indices.append(my_spy.id)
+
+    opp_spy = next(
+        c for c in env.cartes if c.role == Role.ESPION and c.id != my_spy.id
+    )
+    opp_spy.position = "Disgrace"
+    opp_spy.visible = False
+    opp_spy.proprietaire_idx = 1
+    opp_spy.domaine_id = -1
+    env.plateau_indices.append(opp_spy.id)
+
+    env.current_player = 0
+    counts = env._hidden_spy_counts().reshape(2 + env.num_players, env.num_players)
+    # Layout : counts[zone, placer_relatif]
+    # Estime, posé par moi (rel 0)
+    assert counts[0, 0] == 1
+    # Disgrace, posé par adv (rel 1)
+    assert counts[1, 1] == 1
+    # Tout le reste à zéro
+    other_cells = counts.sum() - counts[0, 0] - counts[1, 1]
+    assert other_cells == 0
+
+
 def test_pimc_can_randomize_opponent_placed_spy_at_queen() -> None:
     """Un espion posé par l'adversaire chez la Reine doit pouvoir être
     randomisé pour la perspective du joueur courant — son rôle reste

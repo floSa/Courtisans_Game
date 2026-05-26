@@ -20,6 +20,7 @@ import pytest
 from app.augmentation import (
     augment_sample,
     compute_position_map,
+    permutable_state_size,
     permute_policy,
     permute_state_vec,
     random_family_permutation,
@@ -34,7 +35,8 @@ def test_identity_permutation_keeps_state_vec() -> None:
     env = GameEnv(2, seed=42)
     s = env.get_state_vector()
     identity = tuple(range(NUM_FAMILLES))
-    assert np.array_equal(permute_state_vec(s, identity), s)
+    psize = permutable_state_size(2)
+    assert np.array_equal(permute_state_vec(s, identity, permutable_size=psize), s)
 
 
 def test_permute_state_vec_inverse_is_identity() -> None:
@@ -46,21 +48,22 @@ def test_permute_state_vec_inverse_is_identity() -> None:
     sigma_inv: list[int] = [0] * NUM_FAMILLES
     for i, j in enumerate(sigma):
         sigma_inv[j] = i
-    permuted = permute_state_vec(s, sigma)
-    back = permute_state_vec(permuted, tuple(sigma_inv))
+    psize = permutable_state_size(2)
+    permuted = permute_state_vec(s, sigma, permutable_size=psize)
+    back = permute_state_vec(permuted, tuple(sigma_inv), permutable_size=psize)
     assert np.array_equal(back, s)
 
 
 def test_permute_state_vec_swaps_family_cells() -> None:
     """Vérification micro : permuter (0↔1) doit échanger les cellules
-    famille-0 et famille-1 dans chaque zone."""
+    famille-0 et famille-1 dans chaque zone permutable."""
     env = GameEnv(2, seed=42)
     s = env.get_state_vector()
     sigma = (1, 0, 2, 3, 4, 5)
-    permuted = permute_state_vec(s, sigma)
-    # Pour chaque zone, le bloc famille-1 nouveau = bloc famille-0 ancien
+    psize = permutable_state_size(2)
+    permuted = permute_state_vec(s, sigma, permutable_size=psize)
     NUM_CARD_TYPES = NUM_FAMILLES * NUM_ROLES
-    num_zones = s.size // NUM_CARD_TYPES
+    num_zones = psize // NUM_CARD_TYPES
     for z in range(num_zones):
         off = z * NUM_CARD_TYPES
         np.testing.assert_array_equal(
@@ -71,6 +74,8 @@ def test_permute_state_vec_swaps_family_cells() -> None:
             permuted[off + 0 * NUM_ROLES : off + 1 * NUM_ROLES],
             s[off + 1 * NUM_ROLES : off + 2 * NUM_ROLES],
         )
+    # La section non permutable (compteurs d'espions cachés) est intacte.
+    np.testing.assert_array_equal(permuted[psize:], s[psize:])
 
 
 # --------------------------------------------------------------------------
