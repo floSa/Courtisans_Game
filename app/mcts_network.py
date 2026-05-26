@@ -45,6 +45,11 @@ class TrainConfig:
     checkpoint_every: int = 25
     model_dir: str = "models"
     seed: int | None = None
+    # Arena (évaluation candidate vs best)
+    arena_every: int = 50  # 0 pour désactiver
+    arena_games: int = 20
+    arena_num_sims: int = 30
+    arena_win_threshold: float = 0.55
 
 
 # ======================================================================================
@@ -287,6 +292,88 @@ def _seed_everything(seed: int | None) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def _play_one_arena_game(
+    net_a: CourtisansNet,
+    net_b: CourtisansNet,
+    num_players: int,
+    num_sims: int,
+    a_starts: bool,
+) -> int | None:
+    """Joue une partie entre net_a et net_b. Renvoie l'identifiant du gagnant
+    (0 = a, 1 = b) ou None en cas d'égalité.
+
+    Si `a_starts` est True, net_a joue le joueur 0 ; sinon net_b joue le 0.
+    """
+    env = GameEnv(num_players)
+    mcts_a = MCTS(net_a, num_sims=num_sims)
+    mcts_b = MCTS(net_b, num_sims=num_sims)
+
+    def net_for(player_idx: int) -> MCTS:
+        if (player_idx == 0) == a_starts:
+            return mcts_a
+        return mcts_b
+
+    while not env.is_done():
+        mcts = net_for(env.current_player)
+        probs = mcts.search(env)
+        action = int(np.argmax(probs))
+        _, _, _, info = env.step(action)
+        while info.get("assassin_pending"):
+            ctx = env.pending_assassin_context
+            victim = ctx["targets"][0] if ctx and ctx["targets"] else None
+            _, _, _, info = env.resolve_assassin_manual(victim)
+
+    scores = env._calcul_scores()
+    # Identifier le slot a/b
+    a_slot = 0 if a_starts else 1
+    b_slot = 1 if a_starts else 0
+    if scores[a_slot] > scores[b_slot]:
+        return 0  # a gagne
+    if scores[b_slot] > scores[a_slot]:
+        return 1  # b gagne
+    return None
+
+
+def arena(
+    challenger: CourtisansNet,
+    champion: CourtisansNet,
+    num_games: int = 20,
+    num_sims: int = 30,
+    num_players: int = 2,
+) -> dict[str, int | float]:
+    """Joue `num_games` parties entre `challenger` et `champion`.
+
+    Les positions de départ sont alternées pour neutraliser l'avantage du
+    premier joueur. Le résultat inclut `winrate` = victoires_challenger / parties_décisives.
+    """
+    challenger.eval()
+    champion.eval()
+
+    wins = losses = draws = 0
+    for g in range(num_games):
+        a_starts = (g % 2 == 0)
+        result = _play_one_arena_game(
+            challenger, champion, num_players, num_sims, a_starts=a_starts
+        )
+        if result is None:
+            draws += 1
+        elif result == 0:
+            wins += 1
+        else:
+            losses += 1
+
+    decisive = wins + losses
+    winrate = wins / decisive if decisive > 0 else 0.0
+    return {"wins": wins, "losses": losses, "draws": draws, "winrate": winrate}
+
+
+def _clone_network(src: CourtisansNet, env: GameEnv) -> CourtisansNet:
+    """Crée une copie indépendante du réseau (même architecture, mêmes poids)."""
+    tgt = CourtisansNet(env.get_state_vector_size(), env.mapper.get_action_space_size()).to(DEVICE)
+    tgt.load_state_dict({k: v.detach().clone() for k, v in src.state_dict().items()})
+    return tgt
+
+
 def train(
     config: TrainConfig | None = None,
     progress_callback: Callable[[float, str], None] | None = None,
@@ -319,6 +406,18 @@ def train(
 
     memory: deque[tuple[np.ndarray, np.ndarray, float]] = deque(maxlen=config.memory_size)
     os.makedirs(config.model_dir, exist_ok=True)
+
+    # Convention de fichiers :
+    #   models/model_{N}.pth            -> best (utilisé par Streamlit / play_vs_ai)
+    #   models/model_{N}_candidate.pth  -> dernier candidat entraîné
+    best_path = os.path.join(config.model_dir, f"model_{config.num_players}.pth")
+    candidate_path = os.path.join(config.model_dir, f"model_{config.num_players}_candidate.pth")
+
+    # Champion : best déjà sur disque s'il existe, sinon poids initiaux du net.
+    best_net = load_model(best_path, env_tmp)
+    if best_net is None:
+        best_net = _clone_network(net, env_tmp)
+        logger.info("Aucun champion préexistant — poids initiaux comme baseline.")
 
     for it in range(config.iterations):
         if progress_callback:
@@ -389,10 +488,48 @@ def train(
             torch.save(net.state_dict(), ckpt)
             logger.info("Checkpoint saved: %s", ckpt)
 
-    # Sauvegarde finale
-    final_path = os.path.join(config.model_dir, f"model_{config.num_players}.pth")
-    torch.save(net.state_dict(), final_path)
-    logger.info("Final model saved: %s", final_path)
+        # Arena : on confronte la version courante au meilleur connu.
+        if config.arena_every and (it + 1) % config.arena_every == 0:
+            stats = arena(
+                challenger=net,
+                champion=best_net,
+                num_games=config.arena_games,
+                num_sims=config.arena_num_sims,
+                num_players=config.num_players,
+            )
+            logger.info(
+                "Arena (iter %d): wins=%d losses=%d draws=%d winrate=%.2f",
+                it + 1,
+                stats["wins"],
+                stats["losses"],
+                stats["draws"],
+                stats["winrate"],
+            )
+            if stats["winrate"] >= config.arena_win_threshold:
+                best_net = _clone_network(net, env_tmp)
+                torch.save(best_net.state_dict(), best_path)
+                logger.info(
+                    "Champion promu : %s (winrate %.2f >= %.2f)",
+                    best_path,
+                    stats["winrate"],
+                    config.arena_win_threshold,
+                )
+            else:
+                logger.info(
+                    "Champion conservé (winrate %.2f < %.2f)",
+                    stats["winrate"],
+                    config.arena_win_threshold,
+                )
+
+    # Sauvegarde finale du candidat.
+    torch.save(net.state_dict(), candidate_path)
+    logger.info("Final candidate saved: %s", candidate_path)
+    # Si aucun champion n'a jamais été promu, on sauvegarde le best courant
+    # (initial ou dernière promotion) en model_{N}.pth pour que load_model
+    # côté UI/CLI trouve quelque chose à charger.
+    if not os.path.exists(best_path):
+        torch.save(best_net.state_dict(), best_path)
+        logger.info("Initial best saved: %s", best_path)
     return net
 
 
