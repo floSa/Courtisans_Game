@@ -158,7 +158,16 @@ class CourtisansNet(nn.Module):
 # 2. MCTS
 # ======================================================================================
 class MCTSNode:
-    __slots__ = ("parent", "children", "visit_count", "value_sum", "prior", "player")
+    __slots__ = (
+        "parent",
+        "children",
+        "visit_count",
+        "value_sum",
+        "prior",
+        "player",
+        "mode",
+        "target_to_victim",
+    )
 
     def __init__(
         self, parent: MCTSNode | None = None, prior: float = 0.0, player: int = 0
@@ -170,6 +179,14 @@ class MCTSNode:
         self.prior = prior
         # Joueur dont c'est le tour AU MOMENT où on entre dans ce nœud.
         self.player = player
+        # Mode (B2) : "main" (décision de coup principal, 12 actions) ou
+        # "target" (décision de ciblage d'assassin, MAX_TARGETS+1 actions).
+        # Le mode est fixé par `_expand` selon `env.pending_assassin_context`.
+        self.mode: str = "main"
+        # En mode target uniquement : mapping action_idx -> victim_id (None
+        # pour le slot "skip"). Aligné sur la liste des cibles candidates
+        # au moment de l'expansion.
+        self.target_to_victim: list[int | None] | None = None
 
     def value(self) -> float:
         if self.visit_count == 0:
@@ -224,13 +241,22 @@ class MCTS:
         """Lance `num_worlds` recherches MCTS indépendantes (déterminisations
         différentes) et renvoie la moyenne des visit_counts normalisée.
 
+        Détecte automatiquement le mode :
+          - `env.pending_assassin_context` None  → mode "main", taille `action_dim`.
+          - `env.pending_assassin_context` set   → mode "target", taille `MAX_TARGETS + 1`.
+            Le caller mappe `slot` → `victim_id` via :
+              env.pending_assassin_context["targets"][slot]  pour slot < N
+              None (skip)                                    pour slot == MAX_TARGETS
+
         Si `num_worlds == 1`, c'est le PIMC simple : une seule déterminisation.
         Pour `num_worlds > 1`, c'est du "PIMC multi-déterminisation" qui réduit
-        la variance liée au tirage du monde caché — au coût d'un facteur
-        linéaire en temps de calcul.
+        la variance liée au tirage du monde caché.
         """
-        action_dim = env.mapper.get_action_space_size()
-        accumulated = np.zeros(action_dim, dtype=np.float32)
+        if env.pending_assassin_context is not None:
+            size = MAX_TARGETS + 1
+        else:
+            size = env.mapper.get_action_space_size()
+        accumulated = np.zeros(size, dtype=np.float32)
 
         for _ in range(self.num_worlds):
             world_counts = self._search_single_world(env, add_root_noise=add_root_noise)
@@ -262,15 +288,19 @@ class MCTS:
 
         for _ in range(self.num_sims):
             node = root
-            sim_env = root_env.clone_determinized()
+            # Toutes les sims d'UN MÊME monde partagent la même
+            # déterminisation : on deepcopy sans re-randomiser, sinon
+            # les identités changeraient entre sims et casseraient la
+            # cohérence des modes (main/target) du tree.
+            sim_env = root_env.clone_determinized(randomize=False)
 
-            # 1. Sélection
+            # 1. Sélection — dispatch step/resolve selon le mode du parent.
             while node.children and not self._is_terminal(sim_env):
                 best_child, best_action = self._puct_select(node)
                 if best_child is None:
                     break
+                self._apply_action(node, sim_env, best_action)
                 node = best_child
-                sim_env.step(best_action)
 
             # 2. Expansion / Évaluation
             if not self._is_terminal(sim_env):
@@ -281,7 +311,29 @@ class MCTS:
             # 3. Backprop
             self._backprop(node, value)
 
-        counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
+        counts = self._counts_from_root(root, env)
+        return counts
+
+    def _apply_action(self, parent: MCTSNode, sim_env: GameEnv, action: int) -> None:
+        """Applique une action MCTS sur `sim_env` en respectant le mode du
+        parent : `step` pour les coups principaux, `resolve_assassin_manual`
+        pour les nœuds de ciblage."""
+        if parent.mode == "target":
+            assert parent.target_to_victim is not None, (
+                "Nœud target sans mapping target_to_victim"
+            )
+            victim = parent.target_to_victim[action]
+            sim_env.resolve_assassin_manual(victim)
+        else:
+            sim_env.step(action)
+
+    def _counts_from_root(self, root: MCTSNode, env: GameEnv) -> np.ndarray:
+        """Visit counts à la racine, dimensionnés selon le mode."""
+        if root.mode == "target":
+            size = MAX_TARGETS + 1
+        else:
+            size = env.mapper.get_action_space_size()
+        counts = np.zeros(size, dtype=np.float32)
         for act, child in root.children.items():
             counts[act] = child.visit_count
         return counts
@@ -322,19 +374,22 @@ class MCTS:
             pending: list[dict] = []
             for _ in range(n_collect):
                 node = root
-                sim_env = root_env.clone_determinized()
+                # Toutes les sims du même monde partagent la déterminisation
+                # racine ; pas de re-randomisation ici (sinon mode mismatch
+                # entre sims dans le tree).
+                sim_env = root_env.clone_determinized(randomize=False)
                 path: list[MCTSNode] = [node]
 
                 while node.children and not self._is_terminal(sim_env):
                     best_child, best_action = self._puct_select(node)
                     if best_child is None:
                         break
-                    # Application de la virtual loss : on inflate les visites
-                    # et on déprime la value pour décourager les ré-emprunts.
+                    # Virtual loss pour discourager les chemins déjà pris.
                     best_child.visit_count += self.VIRTUAL_LOSS
                     best_child.value_sum -= self.VIRTUAL_LOSS
+                    # Dispatch step / resolve selon le mode du parent.
+                    self._apply_action(node, sim_env, best_action)
                     node = best_child
-                    sim_env.step(best_action)
                     path.append(node)
 
                 terminal_v = (
@@ -359,21 +414,25 @@ class MCTS:
                 tensor = torch.from_numpy(states).to(DEVICE)
                 self.model.eval()
                 with torch.no_grad():
-                    logits_main_batch, _logits_target_batch, values_batch = self.model(tensor)
-                    # NB : logits_target n'est utilisé qu'en mode target ; pour
-                    # l'instant le batched evaluator n'est utilisé qu'en mode
-                    # main, on ignore donc cette sortie ici.
+                    logits_main_batch, logits_target_batch, values_batch = self.model(tensor)
 
                 for i, p in enumerate(non_terminal):
-                    self._expand_with_logits(
-                        p["node"], p["sim_env"], logits_main_batch[i]
-                    )
+                    # Dispatch main / target expansion selon l'état de la
+                    # feuille (env.pending_assassin_context).
+                    leaf_env = p["sim_env"]
+                    if leaf_env.pending_assassin_context is not None:
+                        targets = list(leaf_env.pending_assassin_context["targets"])
+                        self._expand_target_with_logits(
+                            p["node"], leaf_env, logits_target_batch[i], targets
+                        )
+                    else:
+                        self._expand_with_logits(
+                            p["node"], leaf_env, logits_main_batch[i]
+                        )
                     p["nn_value"] = float(values_batch[i].item())
 
             # ---- Phase 3 : annulation de la virtual loss + backprop ----
             for p in pending:
-                # Annuler la virtual loss accumulée sur les enfants traversés.
-                # On saute path[0] = root, qui n'a jamais reçu de virtual loss.
                 for n in p["path"][1:]:
                     n.visit_count -= self.VIRTUAL_LOSS
                     n.value_sum += self.VIRTUAL_LOSS
@@ -386,9 +445,7 @@ class MCTS:
 
             sims_done += n_collect
 
-        counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
-        for act, child in root.children.items():
-            counts[act] = child.visit_count
+        counts = self._counts_from_root(root, env)
         return counts
 
     def _puct_select(self, node: MCTSNode) -> tuple[MCTSNode | None, int]:
@@ -446,26 +503,31 @@ class MCTS:
         return float((my - avg) / 20.0)
 
     def _expand(self, node: MCTSNode, env: GameEnv) -> float:
-        """Forward `batch=1` puis expansion. Retourne la value estimée."""
+        """Forward `batch=1` + expansion. Retourne la value estimée.
+
+        Dispatch entre mode "main" (décision principale, 12 actions) et mode
+        "target" (ciblage d'un assassin, MAX_TARGETS+1 actions). Le mode est
+        déterminé par la présence de `env.pending_assassin_context`.
+        """
         vec = env.get_state_vector()
         tensor = torch.from_numpy(vec).unsqueeze(0).to(DEVICE)
 
         self.model.eval()
         with torch.no_grad():
-            logits_main, _logits_target, v = self.model(tensor)
+            logits_main, logits_target, v = self.model(tensor)
 
-        self._expand_with_logits(node, env, logits_main[0])
+        if env.pending_assassin_context is not None:
+            targets = list(env.pending_assassin_context["targets"])
+            self._expand_target_with_logits(node, env, logits_target[0], targets)
+        else:
+            self._expand_with_logits(node, env, logits_main[0])
         return float(v.item())
 
     def _expand_with_logits(
         self, node: MCTSNode, env: GameEnv, logits_1d: torch.Tensor
     ) -> None:
-        """Expansion à partir de logits déjà calculés (1-D, shape [action_dim]).
-
-        Factoré du chemin batché : le forward a déjà eu lieu sur un batch
-        regroupant plusieurs feuilles ; on alimente la policy de chaque feuille
-        avec les logits qui lui correspondent.
-        """
+        """Expansion mode "main" à partir de logits déjà calculés."""
+        node.mode = "main"
         legal = env.get_legal_actions()
         if not legal:
             return
@@ -475,7 +537,6 @@ class MCTS:
         mask[legal] = logits_1d[legal]
         probs = F.softmax(mask, dim=0).cpu().numpy()
 
-        # Sécurité numérique : si tout est nan (cas extrême), uniforme sur legal.
         if not np.isfinite(probs).all() or probs.sum() <= 0:
             probs = np.zeros_like(probs)
             probs[legal] = 1.0 / len(legal)
@@ -485,6 +546,59 @@ class MCTS:
             if probs[idx] > 0:
                 node.children[idx] = MCTSNode(
                     node, prior=float(probs[idx]), player=child_player
+                )
+
+    def _expand_target_with_logits(
+        self,
+        node: MCTSNode,
+        env: GameEnv,
+        logits_1d: torch.Tensor,
+        targets: list[int],
+    ) -> None:
+        """Expansion mode "target" : enfants = cibles candidates + skip.
+
+        Slots dans le vecteur de logits :
+          - 0..len(targets)-1  : index dans `targets` (= victim_id réel).
+          - MAX_TARGETS        : option "skip" (ne tuer personne).
+
+        `node.target_to_victim` est rempli pour la descente ultérieure.
+        """
+        node.mode = "target"
+        skip_idx = MAX_TARGETS
+        n = len(targets)
+
+        # Mapping action_slot -> victim_id (None pour skip).
+        target_to_victim: list[int | None] = [None] * (MAX_TARGETS + 1)
+        for i, tid in enumerate(targets):
+            if i >= MAX_TARGETS:
+                # Sécurité : si jamais on a plus de cibles que MAX_TARGETS,
+                # on tronque (cas pathologique, plateau saturé).
+                break
+            target_to_victim[i] = tid
+        target_to_victim[skip_idx] = None
+        node.target_to_victim = target_to_victim
+
+        # Slots légaux : N cibles (clampées à MAX_TARGETS) + skip.
+        n_used = min(n, MAX_TARGETS)
+        legal_slots = list(range(n_used)) + [skip_idx]
+
+        mask = torch.full_like(logits_1d, float("-inf"))
+        for s in legal_slots:
+            mask[s] = logits_1d[s]
+        probs = F.softmax(mask, dim=0).cpu().numpy()
+
+        if not np.isfinite(probs).all() or probs.sum() <= 0:
+            probs = np.zeros_like(probs)
+            for s in legal_slots:
+                probs[s] = 1.0 / len(legal_slots)
+
+        # Le tour ne change pas : c'est toujours le même joueur qui décide
+        # de la cible (il vient juste de jouer son assassin).
+        child_player = env.current_player
+        for s in legal_slots:
+            if probs[s] > 0:
+                node.children[s] = MCTSNode(
+                    node, prior=float(probs[s]), player=child_player
                 )
 
     @staticmethod
