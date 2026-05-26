@@ -289,16 +289,14 @@ class GameEnv:
         self.mains[self.current_player] = []
 
         # --- EFFETS ASSASSIN ---
+        # Le moteur enfile TOUS les assassins joués et raise `assassin_pending`
+        # pour le premier, peu importe qui joue. C'est au caller de résoudre
+        # la chaîne avec sa stratégie : MCTS (via mcts.search en mode target),
+        # heuristique (`resolve_pending_with_heuristic`), UI humaine, etc.
         assassins_joues = [c for c in (c_reine, c_soi, c_adv) if c.role == Role.ASSASSIN]
-
-        if assassins_joues and self.current_player == 0:
-            # Humain : on enfile et on demande une résolution manuelle pour le premier.
+        if assassins_joues:
             self._pending_assassins_queue = list(assassins_joues)
             return self._raise_first_pending_assassin()
-
-        # Bot : auto-résolution séquentielle de TOUS les assassins joués.
-        for ass in assassins_joues:
-            self._resolve_assassin_auto(ass)
 
         return self._finish_turn()
 
@@ -387,24 +385,20 @@ class GameEnv:
                 targets.append(i)
         return targets
 
-    def _resolve_assassin_auto(self, assassin_card: Carte) -> None:
-        """Heuristique informée pour les bots (B1).
-
-        Pour chaque cible candidate, on calcule l'avantage de score qu'aurait
-        le joueur qui a posé l'assassin si on retirait cette cible. On
-        choisit la cible avec le plus grand avantage. Tie-break aléatoire.
-
-        Fallback aléatoire si toutes les cibles sont équivalentes (sécurité).
+    def _pick_target_heuristic(
+        self, assassin_card: Carte, targets: list[int]
+    ) -> int | None:
+        """Heuristique B1 — choisit la cible qui maximise l'avantage de score
+        du joueur ayant posé l'assassin. Tie-break aléatoire. Renvoie l'id
+        de la cible, ou None si la liste est vide / pas de poseur connu.
         """
-        targets = self._get_valid_assassin_targets(assassin_card)
         if not targets:
-            return
+            return None
 
         assassin_player = assassin_card.proprietaire_idx
         if assassin_player < 0:
-            # Sécurité : si on ne sait pas qui a posé, on retombe sur le random.
-            self.plateau_indices.remove(self._rng.choice(targets))
-            return
+            # Sécurité : si on ne sait pas qui a posé, on retombe sur random.
+            return self._rng.choice(targets)
 
         best_advantage = -float("inf")
         candidates: list[int] = []
@@ -421,8 +415,39 @@ class GameEnv:
             elif advantage == best_advantage:
                 candidates.append(victim_id)
 
-        victim = self._rng.choice(candidates)
-        self.plateau_indices.remove(victim)
+        return self._rng.choice(candidates)
+
+    def _resolve_assassin_auto(self, assassin_card: Carte) -> None:
+        """Résout un assassin avec l'heuristique B1. Utilisé en tests ou
+        comme fallback hors-MCTS. Le code de jeu principal passe désormais
+        par `resolve_pending_with_heuristic`."""
+        targets = self._get_valid_assassin_targets(assassin_card)
+        victim = self._pick_target_heuristic(assassin_card, targets)
+        if victim is not None:
+            self.plateau_indices.remove(victim)
+
+    def resolve_pending_with_heuristic(self) -> tuple[np.ndarray, float, bool, dict]:
+        """Résout TOUS les assassins pending en chaîne avec l'heuristique B1.
+
+        Pour les callers qui ne veulent pas piloter le ciblage eux-mêmes
+        (tests, Streamlit AI sans MCTS, fallback). Le caller MCTS lui-même
+        boucle sur `resolve_assassin_manual` après ses propres décisions.
+        """
+        if not self.pending_assassin_context:
+            return self.get_state_vector(), 0.0, self.is_done(), {}
+        last_ret: tuple[np.ndarray, float, bool, dict] = (
+            self.get_state_vector(),
+            0.0,
+            self.is_done(),
+            {},
+        )
+        while self.pending_assassin_context:
+            ctx = self.pending_assassin_context
+            assassin = ctx["assassin_card"]
+            targets = ctx["targets"]
+            victim = self._pick_target_heuristic(assassin, targets) if targets else None
+            last_ret = self.resolve_assassin_manual(victim)
+        return last_ret
 
     @staticmethod
     def _player_advantage(scores: dict[int, int], player: int) -> float:

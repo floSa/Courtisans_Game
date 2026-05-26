@@ -531,10 +531,10 @@ def _play_one_arena_game(
         probs = mcts.search(env)
         action = int(np.argmax(probs))
         _, _, _, info = env.step(action)
-        while info.get("assassin_pending"):
-            ctx = env.pending_assassin_context
-            victim = ctx["targets"][0] if ctx and ctx["targets"] else None
-            _, _, _, info = env.resolve_assassin_manual(victim)
+        if info.get("assassin_pending"):
+            # Arena : résolution heuristique pour comparer les deux modèles
+            # sur leur policy principale, sans biaiser par MCTS targeting.
+            env.resolve_pending_with_heuristic()
 
     scores = env._calcul_scores()
     # Identifier le slot a/b
@@ -671,12 +671,10 @@ def train(
             history.append((s_vec, probs, env.current_player, hand_keys))
             _, _, done, info = env.step(action)
             move_in_game += 1
-            # Si un assassin pending arrive durant le self-play (joueur 0 IA aussi),
-            # on auto-résout en choisissant la première cible — placeholder simple.
-            while info.get("assassin_pending"):
-                ctx = env.pending_assassin_context
-                victim = ctx["targets"][0] if ctx["targets"] else None
-                _, _, done, info = env.resolve_assassin_manual(victim)
+            # Résolution heuristique des assassins en attente pendant le
+            # self-play (B2 étape γ va remplacer ça par du ciblage MCTS).
+            if info.get("assassin_pending"):
+                _, _, done, _ = env.resolve_pending_with_heuristic()
 
         # Reward final attribué à chaque état selon le joueur qui devait jouer.
         scores = env._calcul_scores()
@@ -847,10 +845,11 @@ def play_vs_ai(model_path: str = "models/model_2.pth", num_sims: int = 50) -> No
             action = int(np.argmax(probs))
             _, _, _, info = env.step(action)
 
-        while info.get("assassin_pending"):
-            ctx = env.pending_assassin_context
-            victim = ctx["targets"][0] if ctx["targets"] else None
-            _, _, _, info = env.resolve_assassin_manual(victim)
+        if info.get("assassin_pending"):
+            # play_vs_ai console : résolution heuristique pour l'IA.
+            # Note : pour le joueur humain on pourrait afficher un menu
+            # console, ici on garde simple en utilisant la même heuristique.
+            env.resolve_pending_with_heuristic()
 
     print("Scores:", env._calcul_scores())
 
