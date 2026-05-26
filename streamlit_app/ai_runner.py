@@ -20,13 +20,14 @@ def pick_ai_action(env: GameEnv, net: CourtisansNet | None, num_sims: int = 30) 
 
 
 def auto_resolve_assassins(env: GameEnv, info: dict) -> tuple[bool, dict]:
-    """Tant qu'un assassin (IA) est en attente, on résout en prenant la première cible.
+    """Résolution heuristique B1 des assassins en attente (côté IA).
+
+    Pour le joueur humain, la résolution se fait via l'UI Streamlit
+    (modal dédié) ; cette fonction n'est appelée qu'après les coups de l'IA.
 
     Retourne (done, last_info).
     """
-    done = False
-    while info.get("assassin_pending"):
-        ctx = env.pending_assassin_context
-        victim = ctx["targets"][0] if ctx and ctx["targets"] else None
-        _, _, done, info = env.resolve_assassin_manual(victim)
-    return done, info
+    if not info.get("assassin_pending"):
+        return False, info
+    _, _, done, last_info = env.resolve_pending_with_heuristic()
+    return done, last_info
