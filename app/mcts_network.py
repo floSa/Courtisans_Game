@@ -53,6 +53,11 @@ class TrainConfig:
     # multiplié par une permutation aléatoire des 6 familles (state + policy
     # sont remappés en cohérence). Coût : négligeable.
     family_augmentation: bool = True
+    # L3#3.1 : taille du batch de l'évaluateur MCTS.
+    #   1  -> code séquentiel historique (un forward par simulation).
+    #   >1 -> évaluateur batché avec virtual loss. Recommandé : 8-16 sur CPU,
+    #         32-64 sur GPU.
+    mcts_batch_size: int = 1
     # Checkpoint
     checkpoint_every: int = 25
     model_dir: str = "models"
@@ -159,6 +164,11 @@ class MCTS:
         approximation suffisante pour notre reward de fin de partie).
     """
 
+    # L3#3.1 : magnitude de la "virtual loss" appliquée aux nœuds traversés
+    # pendant une descente batchée. Plus grand = chemins déjà sélectionnés
+    # plus pénalisés pour les descentes suivantes du même batch.
+    VIRTUAL_LOSS: int = 3
+
     def __init__(
         self,
         model: CourtisansNet,
@@ -167,6 +177,7 @@ class MCTS:
         dirichlet_alpha: float = 0.3,
         dirichlet_epsilon: float = 0.25,
         num_worlds: int = 1,
+        batch_size: int = 1,
     ) -> None:
         self.model = model
         self.num_sims = num_sims
@@ -176,6 +187,11 @@ class MCTS:
         # L2#2.1 : nombre de déterminisations indépendantes par appel search().
         # Chaque monde a son propre arbre MCTS ; on agrège les visit_counts.
         self.num_worlds = max(1, num_worlds)
+        # L3#3.1 : taille du batch d'évaluation MCTS.
+        #   1  -> code séquentiel historique (un forward par sim).
+        #   >1 -> évaluateur batché : on collecte K feuilles avec virtual loss
+        #         puis un seul forward(batch=K). Gros gain sur GPU.
+        self.batch_size = max(1, batch_size)
 
     def search(self, env: GameEnv, add_root_noise: bool = False) -> np.ndarray:
         """Lance `num_worlds` recherches MCTS indépendantes (déterminisations
@@ -199,9 +215,17 @@ class MCTS:
         return accumulated
 
     def _search_single_world(self, env: GameEnv, add_root_noise: bool) -> np.ndarray:
-        """Une recherche MCTS dans une seule déterminisation. Renvoie les
-        visit_counts bruts (non normalisés), pour permettre l'agrégation par
-        `search()`."""
+        """Dispatcher : code séquentiel si `batch_size == 1`, sinon batché."""
+        if self.batch_size > 1:
+            return self._search_single_world_batched(env, add_root_noise)
+        return self._search_single_world_sequential(env, add_root_noise)
+
+    def _search_single_world_sequential(
+        self, env: GameEnv, add_root_noise: bool
+    ) -> np.ndarray:
+        """Une recherche MCTS dans une seule déterminisation, un `forward` par
+        simulation. Code historique, conservé pour `batch_size=1` et pour la
+        clarté pédagogique."""
         root_env = env.clone_determinized()
         root = MCTSNode(player=root_env.current_player)
         self._expand(root, root_env)
@@ -229,6 +253,106 @@ class MCTS:
 
             # 3. Backprop
             self._backprop(node, value)
+
+        counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
+        for act, child in root.children.items():
+            counts[act] = child.visit_count
+        return counts
+
+    def _search_single_world_batched(
+        self, env: GameEnv, add_root_noise: bool
+    ) -> np.ndarray:
+        """Évaluateur MCTS batché avec "virtual loss" (L3#3.1).
+
+        Algorithme :
+          1. Phase de descente : on collecte `batch_size` feuilles. À chaque
+             descente, on ajoute une *virtual loss* sur les enfants traversés
+             pour rendre ces chemins moins attractifs aux descentes suivantes
+             du même batch (sans ça, les K descentes prendraient la même
+             branche puisque les visit_count ne sont pas encore mis à jour).
+          2. Phase d'évaluation : un seul `forward(batch=K)` pour les feuilles
+             non terminales. Les feuilles terminales gardent leur value
+             calculée par `_terminal_value`.
+          3. Phase de backprop : on annule la virtual loss puis on applique la
+             vraie value, classique alternance de signes.
+
+        Gain attendu : x2-3 sur CPU (cache + matmul plus larges), x10-20 sur
+        GPU (saturation de la bande passante).
+        """
+        root_env = env.clone_determinized()
+        root = MCTSNode(player=root_env.current_player)
+        # L'expansion racine reste batch=1 (rare, une fois par appel).
+        self._expand(root, root_env)
+
+        if add_root_noise:
+            self._apply_dirichlet(root)
+
+        sims_done = 0
+        while sims_done < self.num_sims:
+            n_collect = min(self.batch_size, self.num_sims - sims_done)
+
+            # ---- Phase 1 : descente avec virtual loss ----
+            pending: list[dict] = []
+            for _ in range(n_collect):
+                node = root
+                sim_env = root_env.clone_determinized()
+                path: list[MCTSNode] = [node]
+
+                while node.children and not self._is_terminal(sim_env):
+                    best_child, best_action = self._puct_select(node)
+                    if best_child is None:
+                        break
+                    # Application de la virtual loss : on inflate les visites
+                    # et on déprime la value pour décourager les ré-emprunts.
+                    best_child.visit_count += self.VIRTUAL_LOSS
+                    best_child.value_sum -= self.VIRTUAL_LOSS
+                    node = best_child
+                    sim_env.step(best_action)
+                    path.append(node)
+
+                terminal_v = (
+                    self._terminal_value(sim_env) if self._is_terminal(sim_env) else None
+                )
+                pending.append(
+                    {
+                        "node": node,
+                        "sim_env": sim_env,
+                        "path": path,
+                        "terminal_value": terminal_v,
+                        "nn_value": None,
+                    }
+                )
+
+            # ---- Phase 2 : un forward batché pour les feuilles non terminales ----
+            non_terminal = [p for p in pending if p["terminal_value"] is None]
+            if non_terminal:
+                states = np.stack(
+                    [p["sim_env"].get_state_vector() for p in non_terminal]
+                )
+                tensor = torch.from_numpy(states).to(DEVICE)
+                self.model.eval()
+                with torch.no_grad():
+                    logits_batch, values_batch = self.model(tensor)
+
+                for i, p in enumerate(non_terminal):
+                    self._expand_with_logits(p["node"], p["sim_env"], logits_batch[i])
+                    p["nn_value"] = float(values_batch[i].item())
+
+            # ---- Phase 3 : annulation de la virtual loss + backprop ----
+            for p in pending:
+                # Annuler la virtual loss accumulée sur les enfants traversés.
+                # On saute path[0] = root, qui n'a jamais reçu de virtual loss.
+                for n in p["path"][1:]:
+                    n.visit_count -= self.VIRTUAL_LOSS
+                    n.value_sum += self.VIRTUAL_LOSS
+                value = (
+                    p["terminal_value"]
+                    if p["terminal_value"] is not None
+                    else p["nn_value"]
+                )
+                self._backprop(p["node"], value)
+
+            sims_done += n_collect
 
         counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
         for act, child in root.children.items():
@@ -461,6 +585,7 @@ def train(
         dirichlet_alpha=config.dirichlet_alpha,
         dirichlet_epsilon=config.dirichlet_epsilon,
         num_worlds=config.num_worlds,
+        batch_size=config.mcts_batch_size,
     )
 
     # Memory : (state, policy, value, hand_keys).
