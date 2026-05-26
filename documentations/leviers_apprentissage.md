@@ -494,23 +494,74 @@ def search_batched(self, env, batch_size=16, num_sims=64):
             sims_done += 1
 ```
 
-#### Gain attendu
+#### Implémentation effective dans ce projet
 
-- **CPU** : x2-3 (meilleure utilisation du cache mémoire, BLAS optimisé sur
-  matmul plus larges).
-- **GPU** : x10-20 (saturation de la bande passante GPU, amortissement des
-  transferts mémoire).
+**Combinaison des approches A + B** : on utilise l'approche B (batched leaf
+eval) **avec** la virtual loss de l'approche A. Sans la virtual loss, les K
+descentes du batch suivraient toutes le même chemin (les `visit_count` ne
+sont pas encore à jour entre les descentes) → on évaluerait K fois la même
+feuille. La virtual loss force la divergence des chemins **dans un même
+batch**.
 
-Sur ta 4060Ti, c'est *le* lever qui rentabilise vraiment le GPU.
+Algorithme effectif (dans `MCTS._search_single_world_batched`) :
 
-#### Pitfall
+```
+Phase 1 — Descente (×K)
+  Pour chaque descente :
+    node ← root
+    while node a des enfants ET pas terminal :
+       child ← PUCT_select(node)
+       child.visit_count += VIRTUAL_LOSS   # discourager la même branche
+       child.value_sum   -= VIRTUAL_LOSS   # pour les descentes suivantes
+       node ← child
+       sim_env.step(action)
+    Stocker (node, sim_env, path, terminal_value_si_applicable)
 
-- Le "virtual loss" est nécessaire si on parallélise réellement (sinon tous
-  les threads descendent dans la même branche). Pour l'approche B
-  séquentielle, on peut s'en passer mais on perd un peu d'efficacité MCTS
-  (deux feuilles consécutives peuvent être proches dans l'arbre).
-- L'ordre du backprop change : il faut s'assurer que les visit_counts et
-  value_sum sont mis à jour de façon cohérente.
+Phase 2 — Évaluation batchée
+  Empiler les state vectors des feuilles non terminales en un tensor (K, D)
+  Un seul forward → (logits batch, values batch)
+  Expander chaque feuille avec ses logits
+
+Phase 3 — Backprop
+  Pour chaque feuille :
+    Annuler la virtual loss le long du path (visit_count -= VL, value_sum += VL)
+    Backprop la vraie value avec alternance de signes
+```
+
+`VIRTUAL_LOSS = 3` (constante de classe `MCTS.VIRTUAL_LOSS`, tunable).
+
+#### Gain mesuré et attendu
+
+**Benchmark CPU réel** (i5 récent, réseau LayerNorm ~3M params,
+50 simulations, moyenne sur 3 appels `search()`) :
+
+| `batch_size` | Temps / search | Speedup |
+|---:|---:|---:|
+| 1 (séquentiel) | 85 ms | 1.0× |
+| 4 | 63 ms | 1.35× |
+| 8 | 71 ms | 1.2× |
+| 16 | **47 ms** | **1.8×** |
+
+Note : à batch_size=8 le speedup est légèrement inférieur à batch_size=4 sur
+ce poste — phénomène classique de cache CPU non saturé. C'est très
+machine-dépendant.
+
+**Gain attendu sur GPU 4060Ti** : x10-20. Le GPU sature à batch_size ~32-64
+et amortit les transferts mémoire CPU↔GPU.
+
+#### Risques évités (tests critiques)
+
+- **Fuite de virtual loss** : si on oublie d'annuler la virtual loss en
+  phase 3, les `visit_count` accumulent des visites fictives → policy MCTS
+  faussée silencieusement. Le test
+  `test_batched_search_leaves_no_residual_virtual_loss` vérifie que la
+  somme des visites racine = `num_sims` exactement. C'est la seule garde
+  qui rattrape ce bug.
+- **Compatibilité Dirichlet/PIMC multi** : tests dédiés
+  (`test_batched_search_with_root_noise`, `test_batched_search_with_multi_world`).
+- **Dispatch correct** : `batch_size=1` doit continuer d'appeler le code
+  séquentiel historique
+  (`test_batch_size_1_dispatches_to_sequential`).
 
 ---
 
