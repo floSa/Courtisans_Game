@@ -388,10 +388,51 @@ class GameEnv:
         return targets
 
     def _resolve_assassin_auto(self, assassin_card: Carte) -> None:
+        """Heuristique informée pour les bots (B1).
+
+        Pour chaque cible candidate, on calcule l'avantage de score qu'aurait
+        le joueur qui a posé l'assassin si on retirait cette cible. On
+        choisit la cible avec le plus grand avantage. Tie-break aléatoire.
+
+        Fallback aléatoire si toutes les cibles sont équivalentes (sécurité).
+        """
         targets = self._get_valid_assassin_targets(assassin_card)
-        if targets:
-            victim_idx = self._rng.choice(targets)
-            self.plateau_indices.remove(victim_idx)
+        if not targets:
+            return
+
+        assassin_player = assassin_card.proprietaire_idx
+        if assassin_player < 0:
+            # Sécurité : si on ne sait pas qui a posé, on retombe sur le random.
+            self.plateau_indices.remove(self._rng.choice(targets))
+            return
+
+        best_advantage = -float("inf")
+        candidates: list[int] = []
+        for victim_id in targets:
+            # Évaluation "et si on retire victim_id ?"
+            self.plateau_indices.remove(victim_id)
+            scores = self._calcul_scores()
+            advantage = self._player_advantage(scores, assassin_player)
+            self.plateau_indices.append(victim_id)
+
+            if advantage > best_advantage:
+                best_advantage = advantage
+                candidates = [victim_id]
+            elif advantage == best_advantage:
+                candidates.append(victim_id)
+
+        victim = self._rng.choice(candidates)
+        self.plateau_indices.remove(victim)
+
+    @staticmethod
+    def _player_advantage(scores: dict[int, int], player: int) -> float:
+        """Avantage du joueur `player` = son score moins la moyenne des autres."""
+        if player not in scores:
+            return 0.0
+        others = [v for k, v in scores.items() if k != player]
+        if not others:
+            return float(scores[player])
+        return float(scores[player] - sum(others) / len(others))
 
     # ------------------------------------------------------------------ scoring
     def _reveal_spies(self) -> None:
