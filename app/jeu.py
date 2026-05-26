@@ -54,7 +54,25 @@ class Zone(IntEnum):
 # 2. LOGIQUE DE JEU
 # ======================================================================================
 class Carte:
-    """Représente une carte unique du paquet (3 exemplaires par couple famille/role)."""
+    """Représente une carte unique du paquet (3 exemplaires par couple famille/role).
+
+    Champs :
+      - `famille`, `role`, `id`, `valeur` : identité de la carte.
+      - `visible` : True si la carte est posée face visible (vue par tous).
+        Seuls les espions se posent face cachée.
+      - `position` : "Estime" / "Disgrace" si chez la Reine, sinon None.
+      - `domaine_id` : index du joueur dans le domaine duquel est posée la
+        carte (-1 pour Reine / Deck). **C'est ce champ qui détermine le
+        scoring** (couplé à la majorité Estime/Disgrace de la famille).
+      - `proprietaire_idx` : index du joueur qui a **posé** la carte
+        (-1 tant qu'elle est dans la pioche). Utilisé pour :
+          * Affichage Streamlit (le joueur courant voit ses propres
+            espions face visible).
+          * Mémoire interne de l'IA des espions qu'elle a posés.
+          * Ciblage d'assassin (l'IA peut distinguer mes espions de ceux
+            de l'adversaire).
+        N'intervient PAS dans le calcul des points.
+    """
 
     __slots__ = (
         "famille",
@@ -73,7 +91,7 @@ class Carte:
         self.role = role
         self.id = uid
         self.valeur = 2 if role == Role.NOBLE else 1
-        self.proprietaire_idx = -1  # -1 pour Reine/Deck
+        self.proprietaire_idx = -1  # -1 tant que la carte est en pioche
         self.visible = False
         self.position: str | None = None  # 'Estime', 'Disgrace' pour Reine
         self.domaine_id = -1
@@ -240,10 +258,14 @@ class GameEnv:
         target_abs_idx = (self.current_player + 1 + target_relative_idx) % self.num_players
 
         # --- APPLICATION REINE ---
+        # Un espion posé chez la Reine reste face cachée (règle officielle).
+        # `proprietaire_idx` = joueur qui a posé la carte (info utile pour
+        # l'affichage et la mémoire des espions, pas pour le scoring).
         c_reine = self.cartes[c_reine_idx]
         c_reine.position = queen_pos
-        c_reine.visible = True
-        c_reine.proprietaire_idx = -1
+        c_reine.visible = c_reine.role != Role.ESPION
+        c_reine.proprietaire_idx = self.current_player
+        c_reine.domaine_id = -1  # chez la Reine, pas dans un domaine
         self.plateau_indices.append(c_reine_idx)
 
         # --- APPLICATION SOI ---
@@ -252,14 +274,15 @@ class GameEnv:
         c_soi.position = None
         c_soi.proprietaire_idx = self.current_player
         c_soi.visible = c_soi.role != Role.ESPION
-
         self.plateau_indices.append(c_soi_idx)
 
         # --- APPLICATION ADV ---
+        # La carte va dans le domaine de target_abs_idx (scoring), mais
+        # c'est le joueur courant qui l'a posée (proprietaire_idx).
         c_adv = self.cartes[c_adv_idx]
         c_adv.domaine_id = target_abs_idx
         c_adv.position = None
-        c_adv.proprietaire_idx = target_abs_idx
+        c_adv.proprietaire_idx = self.current_player
         c_adv.visible = c_adv.role != Role.ESPION
         self.plateau_indices.append(c_adv_idx)
 
@@ -405,6 +428,16 @@ class GameEnv:
         return scores
 
     # ---------------------------------------------------------------- encoding
+    def _knows_identity(self, c: Carte) -> bool:
+        """Le joueur courant connaît-il l'identité réelle de cette carte ?
+
+        Une carte est "connue" du joueur courant si :
+          - elle est face visible (vue de tous), OU
+          - elle a été posée par le joueur courant (mémoire des espions
+            via `proprietaire_idx`).
+        """
+        return c.visible or c.proprietaire_idx == self.current_player
+
     def get_state_vector(self) -> np.ndarray:
         """Encodage de l'état pour le réseau de neurones.
 
@@ -415,8 +448,10 @@ class GameEnv:
             (zone 2 = moi, zone 3 = adversaire suivant, …)
           - zone N+2 : main du joueur courant (count par type)
 
-        Les cartes cachées des adversaires ne sont pas encodées (information
-        imparfaite côté entrée du réseau).
+        Une carte n'est encodée que si le joueur courant en connaît
+        l'identité (`_knows_identity`) : les espions cachés posés par
+        d'autres joueurs ne figurent pas dans l'entrée du réseau —
+        le PIMC se charge d'en deviner l'identité pendant la simulation.
         """
         total_zones = 2 + 1 + (self.num_players - 1)
         vec_size = (total_zones * NUM_CARD_TYPES) + NUM_CARD_TYPES
@@ -428,6 +463,8 @@ class GameEnv:
 
         for i in self.plateau_indices:
             c = self.cartes[i]
+            if not self._knows_identity(c):
+                continue
             vid = c.vector_id
 
             if c.position == "Estime":
@@ -438,12 +475,7 @@ class GameEnv:
                 owner = c.domaine_id
                 rel_owner = (owner - self.current_player) % self.num_players
                 zone_idx = 2 + rel_owner
-
-                visible = True
-                if owner != self.current_player and not c.visible:
-                    visible = False
-                if visible:
-                    fill(zone_idx, vid)
+                fill(zone_idx, vid)
 
         # Main
         main_zone_idx = total_zones
@@ -467,12 +499,14 @@ class GameEnv:
         peut pas voir :
 
           - cartes en main des autres joueurs ;
-          - cartes face cachée (espions) dans le domaine des autres joueurs ;
+          - cartes face cachée que le joueur courant n'a PAS posées
+            (espions adverses, peu importe la zone — Reine ou domaine) ;
           - cartes encore dans la pioche.
 
-        Contrainte de cohérence : une carte face cachée dans le domaine d'un
-        adversaire est forcément un espion (`Role.ESPION`), donc on n'y
-        affecte que des identités ESPION.
+        Contrainte de cohérence : toute carte face cachée sur le plateau
+        est un espion (les autres rôles se posent face visible), donc ces
+        slots reçoivent forcément une identité `Role.ESPION` lors de la
+        randomisation.
 
         Mettre `randomize=False` permet de cloner sans toucher aux identités
         (utile pour les tests d'invariants).
@@ -483,53 +517,59 @@ class GameEnv:
         return clone
 
     def _randomize_unseen(self, perspective: int) -> None:
-        """Permute les identités des cartes non vues par `perspective`."""
-        # 1. Identifier les slots inconnus.
-        face_down_opp: list[int] = []
+        """Permute les identités des cartes non vues par `perspective`.
+
+        Critère "non vue" : `not c.visible AND c.proprietaire_idx != perspective`.
+        Le joueur courant garde donc la connaissance de l'identité de
+        TOUS les espions qu'il a posés, peu importe la zone (Reine,
+        domaine adverse, ou son propre domaine).
+        """
+        # 1. Slots cachés sur le plateau : forcément des espions par la règle
+        # (seuls les espions se posent face cachée).
+        hidden_plateau: list[int] = []
         for i in self.plateau_indices:
             c = self.cartes[i]
-            if c.domaine_id != -1 and c.domaine_id != perspective and not c.visible:
-                face_down_opp.append(i)
+            if not c.visible and c.proprietaire_idx != perspective:
+                hidden_plateau.append(i)
 
+        # 2. Mains adverses et pioche : identités libres.
         other_unseen: list[int] = []
         for p, hand in self.mains.items():
             if p != perspective:
                 other_unseen.extend(hand)
         other_unseen.extend(self.deck_indices)
 
-        if not face_down_opp and not other_unseen:
+        if not hidden_plateau and not other_unseen:
             return
 
-        # 2. Récupérer les identités actuellement à ces slots.
+        # 3. Récupérer les identités actuellement à ces slots.
         identities = [
             (self.cartes[i].famille, self.cartes[i].role)
-            for i in (face_down_opp + other_unseen)
+            for i in (hidden_plateau + other_unseen)
         ]
 
-        # 3. Partition espions / non-espions.
+        # 4. Partition espions / non-espions.
         espions = [t for t in identities if t[1] == Role.ESPION]
         non_espions = [t for t in identities if t[1] != Role.ESPION]
 
         # Par construction, le nb d'espions dans le pool inconnu est >= au nb
-        # de slots "face cachée chez adversaire" (qui contenaient eux-mêmes des
-        # espions avant la deepcopy).
-        assert len(espions) >= len(face_down_opp), (
-            f"Pool espions insuffisant : {len(espions)} pour {len(face_down_opp)} slots"
+        # de slots "face cachée" (qui contenaient eux-mêmes des espions avant
+        # la deepcopy).
+        assert len(espions) >= len(hidden_plateau), (
+            f"Pool espions insuffisant : {len(espions)} pour {len(hidden_plateau)} slots"
         )
 
         rng = random.Random()
-        # Seed dérivé du seed du moteur pour rester reproductible, sinon
-        # complètement aléatoire.
         rng.shuffle(espions)
         rng.shuffle(non_espions)
 
-        # 4. Assigner les K premiers espions aux slots face cachée.
-        for slot, ident in zip(face_down_opp, espions[: len(face_down_opp)], strict=True):
+        # 5. Assigner les K premiers espions aux slots face cachée du plateau.
+        for slot, ident in zip(hidden_plateau, espions[: len(hidden_plateau)], strict=True):
             self._set_card_identity(slot, ident)
 
-        # 5. Mélanger le reste (espions restants + non-espions) et l'assigner
-        # aux autres slots inconnus.
-        remaining = espions[len(face_down_opp) :] + non_espions
+        # 6. Mélanger le reste (espions restants + non-espions) et l'assigner
+        # aux mains adverses + pioche.
+        remaining = espions[len(hidden_plateau) :] + non_espions
         rng.shuffle(remaining)
         for slot, ident in zip(other_unseen, remaining, strict=True):
             self._set_card_identity(slot, ident)

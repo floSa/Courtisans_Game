@@ -11,11 +11,26 @@ from app.jeu import NUM_FAMILLES, Carte, Role
 from streamlit_app.ui.assets import load_image
 
 
-def render_stack(cards: list[Carte]) -> Image.Image | None:
-    """Construit une image composite de cartes empilées verticalement (overlap 1/6)."""
+def _visible_to(c: Carte, perspective: int | None) -> bool:
+    """Une carte est visible à `perspective` si elle est face visible OU
+    si elle a été posée par ce joueur (mémoire des espions, via
+    `proprietaire_idx`)."""
+    if c.visible:
+        return True
+    if perspective is not None and c.proprietaire_idx == perspective:
+        return True
+    return False
+
+
+def render_stack(cards: list[Carte], perspective: int | None = None) -> Image.Image | None:
+    """Construit une image composite de cartes empilées verticalement (overlap 1/6).
+
+    `perspective` : si fourni, les espions posés par ce joueur sont affichés
+    face visible même si `c.visible == False` côté moteur.
+    """
     if not cards:
         return None
-    imgs = [load_image(c.famille, c.role, visible=c.visible) for c in cards]
+    imgs = [load_image(c.famille, c.role, visible=_visible_to(c, perspective)) for c in cards]
     if not imgs:
         return None
     base_w, base_h = imgs[0].size
@@ -29,15 +44,28 @@ def render_stack(cards: list[Carte]) -> Image.Image | None:
     return composite
 
 
-def render_zone_7cols(cards: Iterable[Carte], label: str | None = None) -> None:
-    """Affiche une zone en 7 colonnes : Fam 1-3, Espions, Fam 4-6."""
+def render_zone_7cols(
+    cards: Iterable[Carte],
+    label: str | None = None,
+    perspective: int | None = None,
+) -> None:
+    """Affiche une zone en 7 colonnes : Fam 1-3, Espions, Fam 4-6.
+
+    `perspective` : index du joueur dont on adopte la perspective. Les
+    espions posés par ce joueur sont affichés face visible **dans leur
+    colonne de famille**, peu importe le `c.visible` côté moteur. Les
+    espions adverses cachés restent dans la colonne centrale "Espions",
+    face cachée.
+    """
     if label:
         st.markdown(f"#### {label}")
     cols = st.columns(7)
     buckets: dict[int, list[Carte]] = {i: [] for i in range(7)}
 
     for c in cards:
-        if c.role == Role.ESPION.value:
+        # Un espion *visible à la perspective* (parce que je l'ai posé)
+        # est rangé dans sa colonne de famille, comme une carte normale.
+        if c.role == Role.ESPION.value and not _visible_to(c, perspective):
             buckets[3].append(c)
         else:
             f_idx = c.famille
@@ -47,7 +75,7 @@ def render_zone_7cols(cards: Iterable[Carte], label: str | None = None) -> None:
         with cols[i]:
             current = buckets[i]
             if i == 3 and current:
-                # Colonne espions : forcer dos visible
+                # Colonne espions adverses : face cachée forcée.
                 imgs = [load_image(c.famille, c.role, visible=False) for c in current]
                 base_w, base_h = imgs[0].size
                 overlap_y = base_h // 6
@@ -59,7 +87,7 @@ def render_zone_7cols(cards: Iterable[Carte], label: str | None = None) -> None:
                     composite.paste(img, (0, k * overlap_y), img)
                 st.image(composite, use_container_width=True)
             elif current:
-                stack = render_stack(current)
+                stack = render_stack(current, perspective=perspective)
                 if stack:
                     st.image(stack, use_container_width=True)
             else:
