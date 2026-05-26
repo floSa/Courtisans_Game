@@ -51,29 +51,39 @@ class TrainConfig:
 # 1. RESEAU DE NEURONES (ResNet)
 # ======================================================================================
 class ResidualBlock(nn.Module):
+    """Bloc résiduel avec LayerNorm (robuste au batch=1, contrairement à BatchNorm)."""
+
     def __init__(self, hidden_dim: int) -> None:
         super().__init__()
         self.fc1 = nn.Linear(hidden_dim, hidden_dim)
-        self.bn1 = nn.BatchNorm1d(hidden_dim)
+        self.ln1 = nn.LayerNorm(hidden_dim)
         self.fc2 = nn.Linear(hidden_dim, hidden_dim)
-        self.bn2 = nn.BatchNorm1d(hidden_dim)
+        self.ln2 = nn.LayerNorm(hidden_dim)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         residual = x
-        out = F.relu(self.bn1(self.fc1(x)))
-        out = self.bn2(self.fc2(out))
+        out = F.relu(self.ln1(self.fc1(x)))
+        out = self.ln2(self.fc2(out))
         out += residual
         return F.relu(out)
 
 
 class CourtisansNet(nn.Module):
+    """ResNet (style AlphaZero) avec LayerNorm.
+
+    Format du checkpoint : `state_dict` standard. Les modèles entraînés avec
+    une version BatchNorm antérieure ne sont pas chargeables (clés différentes :
+    `*.bn1.*` → `*.ln1.*`) ; `load_model()` détecte la régression et logge un
+    avertissement clair.
+    """
+
     def __init__(self, input_dim: int, action_dim: int, num_blocks: int = 5) -> None:
         super().__init__()
         self.input_dim = input_dim
         self.action_dim = action_dim
 
         self.start_fc = nn.Linear(input_dim, 512)
-        self.bn_start = nn.BatchNorm1d(512)
+        self.ln_start = nn.LayerNorm(512)
         self.res_blocks = nn.ModuleList([ResidualBlock(512) for _ in range(num_blocks)])
 
         self.policy_head = nn.Sequential(
@@ -89,7 +99,7 @@ class CourtisansNet(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        x = F.relu(self.bn_start(self.start_fc(x)))
+        x = F.relu(self.ln_start(self.start_fc(x)))
         for block in self.res_blocks:
             x = block(x)
         return self.policy_head(x), self.value_head(x)
@@ -387,15 +397,33 @@ def train(
 
 
 def load_model(model_path: str, env: GameEnv) -> CourtisansNet | None:
-    """Charge un modèle si présent, sinon None. Utilise weights_only=True."""
+    """Charge un modèle si présent, sinon None. Utilise weights_only=True.
+
+    Si le checkpoint provient d'une ancienne architecture (BatchNorm), on
+    détecte la mismatch de clés et on logge une instruction de ré-entraînement
+    plutôt que de planter.
+    """
     if not os.path.exists(model_path):
         logger.info("No model at %s", model_path)
         return None
     net = CourtisansNet(env.get_state_vector_size(), env.mapper.get_action_space_size()).to(DEVICE)
     try:
-        net.load_state_dict(torch.load(model_path, map_location=DEVICE, weights_only=True))
-    except (FileNotFoundError, RuntimeError) as exc:
+        state = torch.load(model_path, map_location=DEVICE, weights_only=True)
+        net.load_state_dict(state)
+    except FileNotFoundError as exc:
         logger.warning("Could not load model %s : %s", model_path, exc)
+        return None
+    except RuntimeError as exc:
+        msg = str(exc)
+        if "bn1" in msg or "bn2" in msg or "bn_start" in msg or "Missing key(s)" in msg:
+            logger.warning(
+                "Le checkpoint %s semble provenir de l'ancienne architecture "
+                "BatchNorm — incompatible avec la version LayerNorm actuelle. "
+                "Ré-entraîner via: python main.py train --iterations 100",
+                model_path,
+            )
+        else:
+            logger.warning("Could not load model %s : %s", model_path, exc)
         return None
     net.eval()
     return net
