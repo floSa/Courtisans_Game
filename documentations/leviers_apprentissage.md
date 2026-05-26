@@ -572,17 +572,39 @@ peut masquer.
 
 ---
 
+## État d'implémentation
+
+| Levier | Statut | Param `TrainConfig` |
+|---|---|---|
+| #1.1 Replay buffer | ✅ activé par défaut | `memory_size=50_000` |
+| #1.2 num_sims | ✅ activé par défaut | `num_sims=50` |
+| #1.3 Température schedule | ✅ activé par défaut | `temperature_threshold=10` |
+| #1.4 AdamW + weight decay | ✅ activé par défaut | `weight_decay=1e-4` |
+| #2.1 PIMC multi-déterminisation | ⚙️ opt-in | `num_worlds=1` (mettre 3-5) |
+| #2.2 Augmentation familles | ✅ activé par défaut | `family_augmentation=True` |
+| #3.1 Evaluator batché | ❌ pas implémenté | — |
+
+Pour activer toutes les optimisations à fond sur la 4060Ti :
+
+```python
+TrainConfig(
+    iterations=5000,
+    num_sims=80,
+    num_worlds=3,
+    family_augmentation=True,
+    memory_size=100_000,
+)
+```
+
 ## Synthèse — Plan d'action recommandé
 
 Pour Courtisans, dans l'ordre d'investissement croissant :
 
 | Étape | Ce que tu fais | Quand |
 |-------|---------------|-------|
-| 1 | `num_sims=80, memory_size=50000, weight_decay=1e-4` | Avant de partir entraîner |
-| 2 | Température schedule (par-coup, T=1 pendant 10 coups) | 30 min de dev + tests |
-| 3 | Augmentation symétrie familles | 2-3 h de dev + tests robustes |
-| 4 | PIMC multi-déterminisation ($K=3$) | 1-2 h de dev + bench |
-| 5 | Evaluator batché | 1-2 jours de dev, refactor du MCTS |
+| 1 | Régler les hyper-paramètres et lancer un long run | Maintenant |
+| 2 | Activer PIMC multi (`num_worlds=3`) pour la qualité | Run suivant |
+| 3 | Evaluator batché (niveau 3.1) si CPU/GPU saturent | Si vraiment besoin |
 
 **Règle d'or** : ne pas activer plusieurs leviers d'un coup. Sinon, en cas de
 régression, tu ne sais pas lequel a cassé. Active 1 levier → run → mesure (via
