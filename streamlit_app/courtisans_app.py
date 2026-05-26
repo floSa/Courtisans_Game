@@ -12,8 +12,7 @@ import streamlit as st
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.jeu import GameEnv  # noqa: E402
-from app.mcts_network import load_model, train, TrainConfig  # noqa: E402
-
+from app.mcts_network import TrainConfig, load_model, train  # noqa: E402
 from streamlit_app import state as state_mod  # noqa: E402
 from streamlit_app.ai_runner import auto_resolve_assassins, pick_ai_action  # noqa: E402
 from streamlit_app.ui import board as board_ui  # noqa: E402

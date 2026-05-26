@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 import streamlit as st
 from PIL import Image
 
 from app.jeu import NUM_FAMILLES, Carte, Role
-
 from streamlit_app.ui.assets import load_image
 
 
