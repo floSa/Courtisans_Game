@@ -93,9 +93,13 @@ elif mode == "Jouer vs IA":
 # APP PRINCIPALE
 # ======================================================================================
 
+# Perspective du joueur humain : il voit ses propres espions face visible
+# (mémoire des espions), peu importe la zone où il les a posés.
+HUMAN = 0
+
 # Domaine IA
 ia_domain_cards = [env.cartes[i] for i in env.plateau_indices if env.cartes[i].domaine_id == 1]
-board_ui.render_zone_7cols(ia_domain_cards, "Domaine Adversaire (IA)")
+board_ui.render_zone_7cols(ia_domain_cards, "Domaine Adversaire (IA)", perspective=HUMAN)
 
 # Banquet Reine
 st.markdown("---")
@@ -103,15 +107,15 @@ reine_cards = [env.cartes[i] for i in env.plateau_indices if env.cartes[i].posit
 estime, disgrace = board_ui.split_reine(reine_cards)
 
 st.markdown("<h4 style='text-align: center;'>Estime</h4>", unsafe_allow_html=True)
-board_ui.render_zone_7cols(estime)
+board_ui.render_zone_7cols(estime, perspective=HUMAN)
 st.image(BOARD_IMG, use_container_width=True)
 st.markdown("<h4 style='text-align: center;'>Disgrâce</h4>", unsafe_allow_html=True)
-board_ui.render_zone_7cols(disgrace)
+board_ui.render_zone_7cols(disgrace, perspective=HUMAN)
 st.markdown("---")
 
 # Domaine joueur
 me_cards = [env.cartes[i] for i in env.plateau_indices if env.cartes[i].domaine_id == 0]
-board_ui.render_zone_7cols(me_cards, "Votre Domaine")
+board_ui.render_zone_7cols(me_cards, "Votre Domaine", perspective=HUMAN)
 
 # ======================================================================================
 # INTERACTION : MAIN DU JOUEUR
