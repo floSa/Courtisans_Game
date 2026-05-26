@@ -335,12 +335,21 @@ class GameEnv:
 
     # ---------------------------------------------------------------- assassins
     def _get_valid_assassin_targets(self, assassin_card: Carte) -> list[int]:
+        """Cartes pouvant être tuées par `assassin_card`.
+
+        Règles :
+          - On ne se tue pas soi-même (`c.id == assassin_card.id`).
+          - Seul le **Garde** est immunisé (un assassin peut tuer un autre
+            assassin).
+          - L'assassin tue dans sa propre zone (même position Reine, ou
+            même domaine de joueur).
+        """
         targets: list[int] = []
         for i in self.plateau_indices:
             c = self.cartes[i]
             if c.id == assassin_card.id:
                 continue
-            if c.role in (Role.GARDE, Role.ASSASSIN):
+            if c.role == Role.GARDE:
                 continue
 
             match = False

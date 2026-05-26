@@ -30,7 +30,8 @@ def test_assassin_targets_same_queen_zone() -> None:
     assert safe.id not in targets
 
 
-def test_assassin_does_not_target_guards_or_assassins() -> None:
+def test_assassin_does_not_target_guards() -> None:
+    """Seuls les Gardes sont immunisés contre les assassinats."""
     env = GameEnv(2, seed=42)
     assassin = _make_carte(env, 0, Role.ASSASSIN)
     assassin.position = "Estime"
@@ -40,14 +41,34 @@ def test_assassin_does_not_target_guards_or_assassins() -> None:
     garde.domaine_id = -1
     env.plateau_indices.append(garde.id)
 
+    targets = env._get_valid_assassin_targets(assassin)
+    assert garde.id not in targets
+
+
+def test_assassin_can_target_another_assassin() -> None:
+    """Règle officielle : un assassin peut tuer un autre assassin (seul le
+    Garde est immunisé)."""
+    env = GameEnv(2, seed=42)
+    assassin = _make_carte(env, 0, Role.ASSASSIN)
+    assassin.position = "Estime"
+
     other_ass = _make_carte(env, 2, Role.ASSASSIN)
     other_ass.position = "Estime"
     other_ass.domaine_id = -1
     env.plateau_indices.append(other_ass.id)
 
     targets = env._get_valid_assassin_targets(assassin)
-    assert garde.id not in targets
-    assert other_ass.id not in targets
+    assert other_ass.id in targets
+
+
+def test_assassin_does_not_target_itself() -> None:
+    """Un assassin ne se cible jamais lui-même, même si la zone match."""
+    env = GameEnv(2, seed=42)
+    assassin = _make_carte(env, 0, Role.ASSASSIN)
+    assassin.position = "Estime"
+    env.plateau_indices.append(assassin.id)
+    targets = env._get_valid_assassin_targets(assassin)
+    assert assassin.id not in targets
 
 
 def test_assassin_targets_same_domain() -> None:
