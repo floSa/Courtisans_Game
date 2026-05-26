@@ -43,6 +43,10 @@ class TrainConfig:
     temperature_threshold: int = 10
     dirichlet_alpha: float = 0.3
     dirichlet_epsilon: float = 0.25
+    # L2#2.1 : nb de déterminisations agrégées par appel MCTS.search().
+    # 1 = PIMC simple (un seul monde). >1 = PIMC multi (moins de variance,
+    # coût compute linéaire). Pour Courtisans, viser 3-5 sur CPU.
+    num_worlds: int = 1
     # Checkpoint
     checkpoint_every: int = 25
     model_dir: str = "models"
@@ -156,14 +160,42 @@ class MCTS:
         c_puct: float = 1.5,
         dirichlet_alpha: float = 0.3,
         dirichlet_epsilon: float = 0.25,
+        num_worlds: int = 1,
     ) -> None:
         self.model = model
         self.num_sims = num_sims
         self.c_puct = c_puct
         self.dirichlet_alpha = dirichlet_alpha
         self.dirichlet_epsilon = dirichlet_epsilon
+        # L2#2.1 : nombre de déterminisations indépendantes par appel search().
+        # Chaque monde a son propre arbre MCTS ; on agrège les visit_counts.
+        self.num_worlds = max(1, num_worlds)
 
     def search(self, env: GameEnv, add_root_noise: bool = False) -> np.ndarray:
+        """Lance `num_worlds` recherches MCTS indépendantes (déterminisations
+        différentes) et renvoie la moyenne des visit_counts normalisée.
+
+        Si `num_worlds == 1`, c'est le PIMC simple : une seule déterminisation.
+        Pour `num_worlds > 1`, c'est du "PIMC multi-déterminisation" qui réduit
+        la variance liée au tirage du monde caché — au coût d'un facteur
+        linéaire en temps de calcul.
+        """
+        action_dim = env.mapper.get_action_space_size()
+        accumulated = np.zeros(action_dim, dtype=np.float32)
+
+        for _ in range(self.num_worlds):
+            world_counts = self._search_single_world(env, add_root_noise=add_root_noise)
+            accumulated += world_counts
+
+        total = accumulated.sum()
+        if total > 0:
+            accumulated /= total
+        return accumulated
+
+    def _search_single_world(self, env: GameEnv, add_root_noise: bool) -> np.ndarray:
+        """Une recherche MCTS dans une seule déterminisation. Renvoie les
+        visit_counts bruts (non normalisés), pour permettre l'agrégation par
+        `search()`."""
         root_env = env.clone_determinized()
         root = MCTSNode(player=root_env.current_player)
         self._expand(root, root_env)
@@ -212,18 +244,12 @@ class MCTS:
             while cur is not None:
                 cur.value_sum += cur_value
                 cur.visit_count += 1
-                # On change de perspective à chaque remontée (approximation
-                # zéro-sum valide pour 2 joueurs, raisonnable pour N joueurs).
                 cur_value = -cur_value
                 cur = cur.parent
 
-        # Probas finales (visite-comptage normalisé)
         counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
         for act, child in root.children.items():
             counts[act] = child.visit_count
-        total = counts.sum()
-        if total > 0:
-            counts /= total
         return counts
 
     def _apply_dirichlet(self, root: MCTSNode) -> None:
@@ -405,6 +431,7 @@ def train(
         c_puct=config.c_puct,
         dirichlet_alpha=config.dirichlet_alpha,
         dirichlet_epsilon=config.dirichlet_epsilon,
+        num_worlds=config.num_worlds,
     )
 
     memory: deque[tuple[np.ndarray, np.ndarray, float]] = deque(maxlen=config.memory_size)

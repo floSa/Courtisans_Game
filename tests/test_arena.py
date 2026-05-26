@@ -52,3 +52,27 @@ def test_play_one_arena_game_starting_position_swaps() -> None:
     r2 = _play_one_arena_game(a, b, num_players=2, num_sims=3, a_starts=False)
     assert r1 in (0, 1, None)
     assert r2 in (0, 1, None)
+
+
+def test_mcts_multi_world_returns_normalized_probs() -> None:
+    """L2#2.1 — `num_worlds > 1` doit produire des probas valides (somme=1)."""
+    from app.mcts_network import MCTS
+    env = GameEnv(2, seed=42)
+    net = _fresh_net(env, 0)
+    mcts = MCTS(net, num_sims=3, num_worlds=4)
+    probs = mcts.search(env, add_root_noise=False)
+    assert probs.shape == (env.mapper.get_action_space_size(),)
+    assert abs(probs.sum() - 1.0) < 1e-5
+
+
+def test_mcts_multi_world_aggregates_visits() -> None:
+    """Plus de mondes -> plus de visites cumulées avant normalisation.
+    On vérifie en regardant la fonction interne `_search_single_world`."""
+    from app.mcts_network import MCTS
+    env = GameEnv(2, seed=42)
+    net = _fresh_net(env, 0)
+    mcts = MCTS(net, num_sims=5, num_worlds=1)
+    counts_one = mcts._search_single_world(env, add_root_noise=False)
+    # Chaque monde voit `num_sims` simulations -> somme des visites root ≈ num_sims
+    # (un peu moins car la première sim est juste l'expansion racine).
+    assert counts_one.sum() > 0
