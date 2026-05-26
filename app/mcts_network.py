@@ -6,8 +6,8 @@ import logging
 import os
 import random
 from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import numpy as np
 import torch
@@ -214,7 +214,7 @@ class MCTS:
             return
         actions = list(root.children.keys())
         noise = np.random.dirichlet([self.dirichlet_alpha] * len(actions))
-        for a, n in zip(actions, noise):
+        for a, n in zip(actions, noise, strict=True):
             root.children[a].prior = (
                 (1 - self.dirichlet_epsilon) * root.children[a].prior + self.dirichlet_epsilon * n
             )

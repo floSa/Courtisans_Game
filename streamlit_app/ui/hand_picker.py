@@ -6,7 +6,6 @@ import streamlit as st
 from PIL import Image
 
 from app.jeu import Carte
-
 from streamlit_app.ui.assets import load_image
 
 A_ITEMS = (
