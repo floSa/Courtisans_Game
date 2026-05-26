@@ -15,6 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
+from app.augmentation import augment_sample
 from app.jeu import GameEnv
 
 logger = logging.getLogger(__name__)
@@ -47,6 +48,11 @@ class TrainConfig:
     # 1 = PIMC simple (un seul monde). >1 = PIMC multi (moins de variance,
     # coût compute linéaire). Pour Courtisans, viser 3-5 sur CPU.
     num_worlds: int = 1
+    # L2#2.2 : augmentation par symétrie des familles.
+    # Si True, chaque sample tiré du buffer pendant l'optimisation est
+    # multiplié par une permutation aléatoire des 6 familles (state + policy
+    # sont remappés en cohérence). Coût : négligeable.
+    family_augmentation: bool = True
     # Checkpoint
     checkpoint_every: int = 25
     model_dir: str = "models"
@@ -434,7 +440,13 @@ def train(
         num_worlds=config.num_worlds,
     )
 
-    memory: deque[tuple[np.ndarray, np.ndarray, float]] = deque(maxlen=config.memory_size)
+    # Memory : (state, policy, value, hand_keys).
+    # `hand_keys` est requis pour l'augmentation famille (L2#2.2) : il
+    # permet de retrouver l'ordre du tri pré-permutation et de remapper la
+    # policy en conséquence.
+    memory: deque[tuple[np.ndarray, np.ndarray, float, tuple[int, int, int]]] = deque(
+        maxlen=config.memory_size
+    )
     os.makedirs(config.model_dir, exist_ok=True)
 
     # Convention de fichiers :
@@ -454,13 +466,18 @@ def train(
             progress_callback(it / max(1, config.iterations), f"Iteration {it}/{config.iterations}")
 
         env = GameEnv(config.num_players)
-        history: list[tuple[np.ndarray, np.ndarray, int]] = []
+        history: list[tuple[np.ndarray, np.ndarray, int, tuple[int, int, int]]] = []
         done = False
         move_in_game = 0
 
         # Self-play
         while not done:
             s_vec = env.get_state_vector()
+            # Capture la main triée AVANT le step (pour l'augmentation).
+            hand_keys = tuple(sorted(env.cartes[i].sort_key for i in env.mains[env.current_player]))
+            if len(hand_keys) != 3:
+                # Fin de partie technique : on ne peut pas former d'action.
+                break
             probs = mcts.search(env, add_root_noise=True)
 
             # L1#1.3 — Température schedule par-coup :
@@ -471,7 +488,7 @@ def train(
             else:
                 action = int(np.argmax(probs))
 
-            history.append((s_vec, probs, env.current_player))
+            history.append((s_vec, probs, env.current_player, hand_keys))
             _, _, done, info = env.step(action)
             move_in_game += 1
             # Si un assassin pending arrive durant le self-play (joueur 0 IA aussi),
@@ -483,19 +500,30 @@ def train(
 
         # Reward final attribué à chaque état selon le joueur qui devait jouer.
         scores = env._calcul_scores()
-        for s, p, player_id in history:
+        for s, p, player_id, hand_keys in history:
             my_score = scores[player_id]
             others = [v for k, v in scores.items() if k != player_id]
             avg_others = sum(others) / len(others)
             val = max(-1.0, min(1.0, (my_score - avg_others) / 20.0))
-            memory.append((s, p, val))
+            memory.append((s, p, val, hand_keys))
 
         # Étape d'optimisation
         if len(memory) > config.batch_size:
-            batch = random.sample(memory, config.batch_size)
-            bs = torch.from_numpy(np.array([x[0] for x in batch])).to(DEVICE)
-            bp = torch.from_numpy(np.array([x[1] for x in batch])).to(DEVICE)
-            bv = torch.from_numpy(np.array([x[2] for x in batch], dtype=np.float32)).unsqueeze(1).to(DEVICE)
+            raw_batch = random.sample(memory, config.batch_size)
+
+            # L2#2.2 — Augmentation par symétrie des familles, appliquée à la
+            # volée à chaque sample du mini-batch. Coût négligeable.
+            if config.family_augmentation:
+                aug_batch = []
+                for s, p, v, hand_keys in raw_batch:
+                    new_s, new_p, _ = augment_sample(s, p, hand_keys, env_tmp.mapper)
+                    aug_batch.append((new_s, new_p, v))
+            else:
+                aug_batch = [(s, p, v) for (s, p, v, _hk) in raw_batch]
+
+            bs = torch.from_numpy(np.array([x[0] for x in aug_batch])).to(DEVICE)
+            bp = torch.from_numpy(np.array([x[1] for x in aug_batch])).to(DEVICE)
+            bv = torch.from_numpy(np.array([x[2] for x in aug_batch], dtype=np.float32)).unsqueeze(1).to(DEVICE)
 
             net.train()
             pi_pred, v_pred = net(bs)
