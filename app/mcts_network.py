@@ -31,14 +31,16 @@ class TrainConfig:
 
     num_players: int = 2
     iterations: int = 100
-    num_sims: int = 30
+    num_sims: int = 50  # L1#1.2 : 30 -> 50 (meilleurs labels MCTS)
     c_puct: float = 1.5
     lr: float = 1e-3
-    memory_size: int = 5000
+    weight_decay: float = 1e-4  # L1#1.4 : AdamW regularization
+    memory_size: int = 50_000  # L1#1.1 : 5k -> 50k (moins de stale samples)
     batch_size: int = 64
-    # Exploration
-    warmup_iters: int = 20
-    epsilon_random: float = 0.10
+    # Exploration (L1#1.3 — température schedule par-coup)
+    # Pendant les `temperature_threshold` premiers coups d'une partie, on
+    # échantillonne selon les visites MCTS (T=1) ; au-delà, argmax (T -> 0).
+    temperature_threshold: int = 10
     dirichlet_alpha: float = 0.3
     dirichlet_epsilon: float = 0.25
     # Checkpoint
@@ -395,7 +397,8 @@ def train(
     action_dim = env_tmp.mapper.get_action_space_size()
 
     net = CourtisansNet(input_dim, action_dim).to(DEVICE)
-    optimizer = optim.Adam(net.parameters(), lr=config.lr)
+    # L1#1.4 : AdamW pour un decoupled weight decay propre.
+    optimizer = optim.AdamW(net.parameters(), lr=config.lr, weight_decay=config.weight_decay)
     mcts = MCTS(
         net,
         num_sims=config.num_sims,
@@ -426,22 +429,24 @@ def train(
         env = GameEnv(config.num_players)
         history: list[tuple[np.ndarray, np.ndarray, int]] = []
         done = False
+        move_in_game = 0
 
         # Self-play
         while not done:
             s_vec = env.get_state_vector()
             probs = mcts.search(env, add_root_noise=True)
 
-            if it < config.warmup_iters:
+            # L1#1.3 — Température schedule par-coup :
+            # T=1 (échantillonnage proportionnel aux visites) pendant les
+            # `temperature_threshold` premiers coups, puis T->0 (greedy).
+            if move_in_game < config.temperature_threshold:
                 action = int(np.random.choice(len(probs), p=probs))
             else:
-                if random.random() < config.epsilon_random:
-                    action = int(np.random.choice(len(probs), p=probs))
-                else:
-                    action = int(np.argmax(probs))
+                action = int(np.argmax(probs))
 
             history.append((s_vec, probs, env.current_player))
             _, _, done, info = env.step(action)
+            move_in_game += 1
             # Si un assassin pending arrive durant le self-play (joueur 0 IA aussi),
             # on auto-résout en choisissant la première cible — placeholder simple.
             while info.get("assassin_pending"):
