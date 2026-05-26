@@ -105,6 +105,7 @@ TrainConfig(
     temperature_threshold=10,
     dirichlet_alpha=0.3, dirichlet_epsilon=0.25,
     num_worlds=1, family_augmentation=True,
+    mcts_batch_size=1,  # bump to 8-16 (CPU) ou 32-64 (GPU) pour le batched eval
     checkpoint_every=25, model_dir="models", seed=None,
     arena_every=50, arena_games=20, arena_num_sims=30, arena_win_threshold=0.55,
 )
@@ -155,7 +156,7 @@ modules et du flux d'interaction.
 
 ## 4. Tests
 
-`tests/` contient 56 tests pytest :
+`tests/` contient 64 tests pytest :
 
 - `test_action_mapper.py` : bijection `encode/decode`, espace d'action, erreurs.
 - `test_game_engine.py` : invariants de `GameEnv` (deck, main triée,
@@ -171,6 +172,10 @@ modules et du flux d'interaction.
 - `test_augmentation.py` : symétrie famille — permutation d'état, mapping
   des positions, conservation de la mass policy, **équivalence physique**
   de l'action préférée sous σ.
+- `test_batched_mcts.py` : évaluateur MCTS batché — dispatch
+  séquentiel/batché, distribution valide, compatibilité avec Dirichlet et
+  PIMC multi, **annulation correcte de la virtual loss** (somme des
+  visites racine = `num_sims` exactement).
 
 CI : `.github/workflows/ci.yml` lance `ruff check .` puis `pytest` à chaque
 push et PR sur `main`.

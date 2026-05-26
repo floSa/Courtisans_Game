@@ -574,37 +574,49 @@ peut masquer.
 
 ## État d'implémentation
 
-| Levier | Statut | Param `TrainConfig` |
+| Levier | Statut | Param `TrainConfig` / CLI |
 |---|---|---|
-| #1.1 Replay buffer | ✅ activé par défaut | `memory_size=50_000` |
-| #1.2 num_sims | ✅ activé par défaut | `num_sims=50` |
-| #1.3 Température schedule | ✅ activé par défaut | `temperature_threshold=10` |
-| #1.4 AdamW + weight decay | ✅ activé par défaut | `weight_decay=1e-4` |
-| #2.1 PIMC multi-déterminisation | ⚙️ opt-in | `num_worlds=1` (mettre 3-5) |
-| #2.2 Augmentation familles | ✅ activé par défaut | `family_augmentation=True` |
-| #3.1 Evaluator batché | ❌ pas implémenté | — |
+| #1.1 Replay buffer | ✅ activé par défaut | `memory_size=50_000` · `--memory-size` |
+| #1.2 num_sims | ✅ activé par défaut | `num_sims=50` · `--num-sims` |
+| #1.3 Température schedule | ✅ activé par défaut | `temperature_threshold=10` · `--temperature-threshold` |
+| #1.4 AdamW + weight decay | ✅ activé par défaut | `weight_decay=1e-4` · `--weight-decay` |
+| #2.1 PIMC multi-déterminisation | ⚙️ opt-in | `num_worlds=1` · `--num-worlds N` |
+| #2.2 Augmentation familles | ✅ activé par défaut | `family_augmentation=True` · `--no-family-augmentation` |
+| #3.1 Evaluator MCTS batché | ⚙️ opt-in | `mcts_batch_size=1` · `--mcts-batch-size N` |
 
-Pour activer toutes les optimisations à fond sur la 4060Ti :
+### Recommandations de tuning
 
-```python
-TrainConfig(
-    iterations=5000,
-    num_sims=80,
-    num_worlds=3,
-    family_augmentation=True,
-    memory_size=100_000,
-)
+**CPU (validation locale)** :
+```bash
+python main.py train --iterations 200 --num-sims 50 --mcts-batch-size 8
 ```
+Le batch_size=8 donne déjà ~1.8× de speedup mesuré sur ce projet.
+
+**GPU 4060Ti (run sérieux)** :
+```bash
+python main.py train \
+  --iterations 5000 --num-sims 80 \
+  --mcts-batch-size 32 --num-worlds 3 \
+  --memory-size 100000
+```
+On combine : batched eval pour saturer le GPU + PIMC multi pour des labels
+de meilleure qualité + buffer plus large pour diversifier.
 
 ## Synthèse — Plan d'action recommandé
 
-Pour Courtisans, dans l'ordre d'investissement croissant :
+Tous les leviers sont implémentés et exposés au CLI. Plan d'expérimentation
+suggéré :
 
-| Étape | Ce que tu fais | Quand |
-|-------|---------------|-------|
-| 1 | Régler les hyper-paramètres et lancer un long run | Maintenant |
-| 2 | Activer PIMC multi (`num_worlds=3`) pour la qualité | Run suivant |
-| 3 | Evaluator batché (niveau 3.1) si CPU/GPU saturent | Si vraiment besoin |
+| Étape | Action | But |
+|-------|--------|-----|
+| 1 | Run baseline 200 itérations, défauts L1 + L2.2 | Mesurer le départ |
+| 2 | Mêmes 200 itérations + `--mcts-batch-size 8` | Vérifier le speedup, mêmes scores |
+| 3 | 500 itérations + `--num-worlds 3` | Qualité MCTS améliorée |
+| 4 | 5000 itérations + tout activé sur GPU | Le vrai entraînement |
+
+**Règle d'or** : à chaque étape, le `models/model_{N}.pth` (best) ne change que
+si l'arena valide le candidat. Tu peux donc empiler les étapes sans crainte
+d'écraser un meilleur modèle.
 
 **Règle d'or** : ne pas activer plusieurs leviers d'un coup. Sinon, en cas de
 régression, tu ne sais pas lequel a cassé. Active 1 levier → run → mesure (via
