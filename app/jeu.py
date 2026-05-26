@@ -450,14 +450,94 @@ class GameEnv:
         return total * NUM_CARD_TYPES
 
     # ---------------------------------------------------------------- MCTS hook
-    def clone_determinized(self) -> GameEnv:
-        """Clone pour la simulation MCTS.
+    def clone_determinized(self, randomize: bool = True) -> GameEnv:
+        """Déterminisation PIMC pour la simulation MCTS.
 
-        Pour l'instant : `deepcopy` (information parfaite, "triche").
-        Voir documentations/ameliorations.md (point #8) pour la vraie
-        déterminisation PIMC à implémenter ultérieurement.
+        Construit un clone profond, puis (si `randomize=True`) re-mélange les
+        identités (`famille`, `role`) des cartes que le joueur courant ne
+        peut pas voir :
+
+          - cartes en main des autres joueurs ;
+          - cartes face cachée (espions) dans le domaine des autres joueurs ;
+          - cartes encore dans la pioche.
+
+        Contrainte de cohérence : une carte face cachée dans le domaine d'un
+        adversaire est forcément un espion (`Role.ESPION`), donc on n'y
+        affecte que des identités ESPION.
+
+        Mettre `randomize=False` permet de cloner sans toucher aux identités
+        (utile pour les tests d'invariants).
         """
-        return copy.deepcopy(self)
+        clone = copy.deepcopy(self)
+        if randomize:
+            clone._randomize_unseen(perspective=self.current_player)
+        return clone
+
+    def _randomize_unseen(self, perspective: int) -> None:
+        """Permute les identités des cartes non vues par `perspective`."""
+        # 1. Identifier les slots inconnus.
+        face_down_opp: list[int] = []
+        for i in self.plateau_indices:
+            c = self.cartes[i]
+            if c.domaine_id != -1 and c.domaine_id != perspective and not c.visible:
+                face_down_opp.append(i)
+
+        other_unseen: list[int] = []
+        for p, hand in self.mains.items():
+            if p != perspective:
+                other_unseen.extend(hand)
+        other_unseen.extend(self.deck_indices)
+
+        if not face_down_opp and not other_unseen:
+            return
+
+        # 2. Récupérer les identités actuellement à ces slots.
+        identities = [
+            (self.cartes[i].famille, self.cartes[i].role)
+            for i in (face_down_opp + other_unseen)
+        ]
+
+        # 3. Partition espions / non-espions.
+        espions = [t for t in identities if t[1] == Role.ESPION]
+        non_espions = [t for t in identities if t[1] != Role.ESPION]
+
+        # Par construction, le nb d'espions dans le pool inconnu est >= au nb
+        # de slots "face cachée chez adversaire" (qui contenaient eux-mêmes des
+        # espions avant la deepcopy).
+        assert len(espions) >= len(face_down_opp), (
+            f"Pool espions insuffisant : {len(espions)} pour {len(face_down_opp)} slots"
+        )
+
+        rng = random.Random()
+        # Seed dérivé du seed du moteur pour rester reproductible, sinon
+        # complètement aléatoire.
+        rng.shuffle(espions)
+        rng.shuffle(non_espions)
+
+        # 4. Assigner les K premiers espions aux slots face cachée.
+        for slot, ident in zip(face_down_opp, espions[: len(face_down_opp)], strict=True):
+            self._set_card_identity(slot, ident)
+
+        # 5. Mélanger le reste (espions restants + non-espions) et l'assigner
+        # aux autres slots inconnus.
+        remaining = espions[len(face_down_opp) :] + non_espions
+        rng.shuffle(remaining)
+        for slot, ident in zip(other_unseen, remaining, strict=True):
+            self._set_card_identity(slot, ident)
+
+        # 6. Re-trier les mains adverses (le sort_key a changé).
+        for p in self.mains:
+            if p != perspective:
+                self.mains[p].sort(key=lambda idx: self.cartes[idx].sort_key)
+
+    def _set_card_identity(self, card_idx: int, identity: tuple[int, int]) -> None:
+        """Remplace (famille, role) d'une carte. Met à jour valeur et sort_key."""
+        fam, role = identity
+        c = self.cartes[card_idx]
+        c.famille = fam
+        c.role = role
+        c.valeur = 2 if role == Role.NOBLE else 1
+        c.sort_key = (fam * NUM_ROLES) + role
 
 
 if __name__ == "__main__":
