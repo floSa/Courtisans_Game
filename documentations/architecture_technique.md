@@ -156,7 +156,7 @@ modules et du flux d'interaction.
 
 ## 4. Tests
 
-`tests/` contient 64 tests pytest :
+`tests/` contient 83 tests pytest :
 
 - `test_action_mapper.py` : bijection `encode/decode`, espace d'action, erreurs.
 - `test_game_engine.py` : invariants de `GameEnv` (deck, main triée,
@@ -176,6 +176,16 @@ modules et du flux d'interaction.
   séquentiel/batché, distribution valide, compatibilité avec Dirichlet et
   PIMC multi, **annulation correcte de la virtual loss** (somme des
   visites racine = `num_sims` exactement).
+- `test_assassin_heuristic.py` : heuristique B1 — préfère les cartes
+  high-value, évite les cartes inutiles au scoring, gère le fallback.
+- `test_card_ownership.py` : `proprietaire_idx` correctement défini après
+  step, espion Reine reste face cachée, `_knows_identity` pour mes propres
+  cartes, PIMC ne randomise pas mes espions, scoring indépendant de
+  `proprietaire_idx`.
+- `test_target_mcts.py` : mode "target" dans MCTS (B2) — détection
+  automatique, taille de sortie, masque correct sur les slots légaux,
+  compatibilité batched + multi-monde, **régression** : 0 mismatch de mode
+  durant les descentes (le bug PIMC re-randomization a été locked-down ici).
 
 CI : `.github/workflows/ci.yml` lance `ruff check .` puis `pytest` à chaque
 push et PR sur `main`.
