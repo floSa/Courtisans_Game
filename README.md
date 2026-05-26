@@ -25,6 +25,7 @@ Règles complètes : voir [`documentations/regles.md`](documentations/regles.md)
 Détails techniques : [`documentations/architecture_technique.md`](documentations/architecture_technique.md).
 Audit & axes d'amélioration : [`documentations/ameliorations.md`](documentations/ameliorations.md).
 Leviers d'apprentissage (théorie + application) : [`documentations/leviers_apprentissage.md`](documentations/leviers_apprentissage.md).
+**Lancer un entraînement** (commandes, flags, monitoring, dépannage) : [`documentations/entrainement.md`](documentations/entrainement.md).
 
 ## Quick start
 
