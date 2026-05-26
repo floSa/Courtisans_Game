@@ -15,7 +15,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 
-from app.augmentation import augment_sample
+from app.augmentation import augment_sample, augment_target_sample
 from app.jeu import GameEnv
 
 logger = logging.getLogger(__name__)
@@ -734,13 +734,13 @@ def train(
         batch_size=config.mcts_batch_size,
     )
 
-    # Memory : (state, policy, value, hand_keys).
-    # `hand_keys` est requis pour l'augmentation famille (L2#2.2) : il
-    # permet de retrouver l'ordre du tri pré-permutation et de remapper la
-    # policy en conséquence.
-    memory: deque[tuple[np.ndarray, np.ndarray, float, tuple[int, int, int]]] = deque(
-        maxlen=config.memory_size
-    )
+    # Memory : (state, policy, value, hand_keys_or_None, mode).
+    #   mode in {"main", "target"} (B2 step γ).
+    #   hand_keys est requis pour l'augmentation famille du mode main ;
+    #   None pour les samples target (policy invariante par σ).
+    memory: deque[
+        tuple[np.ndarray, np.ndarray, float, tuple[int, int, int] | None, str]
+    ] = deque(maxlen=config.memory_size)
     os.makedirs(config.model_dir, exist_ok=True)
 
     # Convention de fichiers :
@@ -760,72 +760,139 @@ def train(
             progress_callback(it / max(1, config.iterations), f"Iteration {it}/{config.iterations}")
 
         env = GameEnv(config.num_players)
-        history: list[tuple[np.ndarray, np.ndarray, int, tuple[int, int, int]]] = []
+        # History entry : (state, policy, player, hand_keys_or_None, mode).
+        HistEntry = tuple[
+            np.ndarray, np.ndarray, int, tuple[int, int, int] | None, str
+        ]
+        history: list[HistEntry] = []
         done = False
         move_in_game = 0
 
         # Self-play
         while not done:
+            # --- Décision principale (mode "main") ---
             s_vec = env.get_state_vector()
-            # Capture la main triée AVANT le step (pour l'augmentation).
-            hand_keys = tuple(sorted(env.cartes[i].sort_key for i in env.mains[env.current_player]))
+            hand_keys = tuple(
+                sorted(env.cartes[i].sort_key for i in env.mains[env.current_player])
+            )
             if len(hand_keys) != 3:
-                # Fin de partie technique : on ne peut pas former d'action.
-                break
-            probs = mcts.search(env, add_root_noise=True)
+                break  # main < 3 cartes -> on ne peut pas jouer
 
-            # L1#1.3 — Température schedule par-coup :
-            # T=1 (échantillonnage proportionnel aux visites) pendant les
-            # `temperature_threshold` premiers coups, puis T->0 (greedy).
+            probs_main = mcts.search(env, add_root_noise=True)
             if move_in_game < config.temperature_threshold:
-                action = int(np.random.choice(len(probs), p=probs))
+                action = int(np.random.choice(len(probs_main), p=probs_main))
             else:
-                action = int(np.argmax(probs))
+                action = int(np.argmax(probs_main))
 
-            history.append((s_vec, probs, env.current_player, hand_keys))
+            history.append((s_vec, probs_main, env.current_player, hand_keys, "main"))
             _, _, done, info = env.step(action)
             move_in_game += 1
-            # Résolution heuristique des assassins en attente pendant le
-            # self-play (B2 étape γ va remplacer ça par du ciblage MCTS).
-            if info.get("assassin_pending"):
-                _, _, done, _ = env.resolve_pending_with_heuristic()
+
+            # --- Décisions de ciblage (mode "target", B2 step γ) ---
+            # Tant qu'il y a un assassin en attente, on demande à MCTS de
+            # choisir la cible. Chaque appel génère un sample target dans
+            # l'historique, qui servira à entraîner `policy_head_target`.
+            while info.get("assassin_pending") and not done:
+                target_state = env.get_state_vector()
+                target_player = env.current_player
+                ctx = env.pending_assassin_context
+                ctx_targets = list(ctx["targets"]) if ctx else []
+
+                probs_target = mcts.search(env, add_root_noise=False)
+                if move_in_game < config.temperature_threshold:
+                    slot = int(np.random.choice(len(probs_target), p=probs_target))
+                else:
+                    slot = int(np.argmax(probs_target))
+
+                # Map slot -> victim_id (None pour skip / slot hors cibles).
+                if 0 <= slot < len(ctx_targets):
+                    victim = ctx_targets[slot]
+                else:
+                    victim = None
+
+                history.append(
+                    (target_state, probs_target, target_player, None, "target")
+                )
+                _, _, done, info = env.resolve_assassin_manual(victim)
 
         # Reward final attribué à chaque état selon le joueur qui devait jouer.
         scores = env._calcul_scores()
-        for s, p, player_id, hand_keys in history:
+        for s, p, player_id, hk, mode in history:
             my_score = scores[player_id]
             others = [v for k, v in scores.items() if k != player_id]
             avg_others = sum(others) / len(others)
             val = max(-1.0, min(1.0, (my_score - avg_others) / 20.0))
-            memory.append((s, p, val, hand_keys))
+            memory.append((s, p, val, hk, mode))
 
         # Étape d'optimisation
         if len(memory) > config.batch_size:
             raw_batch = random.sample(memory, config.batch_size)
 
-            # L2#2.2 — Augmentation par symétrie des familles, appliquée à la
-            # volée à chaque sample du mini-batch. Coût négligeable.
-            if config.family_augmentation:
-                aug_batch = []
-                for s, p, v, hand_keys in raw_batch:
-                    new_s, new_p, _ = augment_sample(s, p, hand_keys, env_tmp.mapper)
-                    aug_batch.append((new_s, new_p, v))
-            else:
-                aug_batch = [(s, p, v) for (s, p, v, _hk) in raw_batch]
+            # Pré-augmenter chaque sample. Les samples main subissent
+            # `augment_sample` (état + remap policy). Les samples target
+            # subissent `augment_target_sample` (état seul ; policy
+            # invariante par σ).
+            aug_states: list[np.ndarray] = []
+            aug_values: list[float] = []
+            aug_modes: list[str] = []
+            aug_main_policies: list[np.ndarray] = []
+            aug_target_policies: list[np.ndarray] = []
+            for s, p, v, hk, mode in raw_batch:
+                if mode == "main":
+                    if config.family_augmentation and hk is not None:
+                        new_s, new_p, _ = augment_sample(s, p, hk, env_tmp.mapper)
+                    else:
+                        new_s, new_p = s, p
+                    aug_states.append(new_s)
+                    aug_values.append(v)
+                    aug_modes.append("main")
+                    aug_main_policies.append(new_p)
+                else:  # target
+                    if config.family_augmentation:
+                        new_s, new_p = augment_target_sample(s, p, env_tmp.mapper)
+                    else:
+                        new_s, new_p = s, p
+                    aug_states.append(new_s)
+                    aug_values.append(v)
+                    aug_modes.append("target")
+                    aug_target_policies.append(new_p)
 
-            bs = torch.from_numpy(np.array([x[0] for x in aug_batch])).to(DEVICE)
-            bp = torch.from_numpy(np.array([x[1] for x in aug_batch])).to(DEVICE)
-            bv = torch.from_numpy(np.array([x[2] for x in aug_batch], dtype=np.float32)).unsqueeze(1).to(DEVICE)
+            states_tensor = torch.from_numpy(np.array(aug_states)).to(DEVICE)
+            values_tensor = torch.from_numpy(
+                np.array(aug_values, dtype=np.float32)
+            ).unsqueeze(1).to(DEVICE)
 
             net.train()
-            pi_main_pred, _pi_target_pred, v_pred = net(bs)
-            # B2 v1 : on n'entraîne pour l'instant que la policy_head_main.
-            # La policy_head_target reste à ses poids initiaux (priors quasi
-            # uniformes après softmax), et MCTS fera l'essentiel du travail
-            # de ciblage via l'exploration de l'arbre.
-            loss_pi = -torch.sum(bp * F.log_softmax(pi_main_pred, dim=1)) / config.batch_size
-            loss_v = F.mse_loss(v_pred, bv)
-            loss = loss_pi + loss_v
+            pi_main_pred, pi_target_pred, v_pred = net(states_tensor)
+
+            # Indices des samples par mode (pour slicer les sorties).
+            main_idx = [i for i, m in enumerate(aug_modes) if m == "main"]
+            target_idx = [i for i, m in enumerate(aug_modes) if m == "target"]
+
+            zero = torch.zeros((), device=DEVICE)
+            loss_pi_main = zero
+            loss_pi_target = zero
+
+            if main_idx:
+                main_logits = pi_main_pred[main_idx]
+                main_targets = torch.from_numpy(np.array(aug_main_policies)).to(DEVICE)
+                loss_pi_main = (
+                    -torch.sum(main_targets * F.log_softmax(main_logits, dim=1))
+                    / len(main_idx)
+                )
+
+            if target_idx:
+                target_logits = pi_target_pred[target_idx]
+                target_targets = torch.from_numpy(np.array(aug_target_policies)).to(
+                    DEVICE
+                )
+                loss_pi_target = (
+                    -torch.sum(target_targets * F.log_softmax(target_logits, dim=1))
+                    / len(target_idx)
+                )
+
+            loss_v = F.mse_loss(v_pred, values_tensor)
+            loss = loss_pi_main + loss_pi_target + loss_v
 
             optimizer.zero_grad()
             loss.backward()
