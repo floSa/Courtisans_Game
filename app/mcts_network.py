@@ -215,24 +215,7 @@ class MCTS:
 
             # 1. Sélection
             while node.children and not self._is_terminal(sim_env):
-                best_score = -float("inf")
-                best_child: MCTSNode | None = None
-                best_action = -1
-                total_visits = sum(c.visit_count for c in node.children.values())
-                sqrt_total = np.sqrt(total_visits) if total_visits > 0 else 1.0
-
-                for action, child in node.children.items():
-                    # Q vu depuis le parent : pour 2 joueurs c'est -child.value()
-                    # (somme nulle). Pour N joueurs on garde l'approximation
-                    # zéro-sum entre node.player et le reste.
-                    q_value = -child.value()
-                    u = self.c_puct * child.prior * sqrt_total / (1 + child.visit_count)
-                    score = q_value + u
-                    if score > best_score:
-                        best_score = score
-                        best_action = action
-                        best_child = child
-
+                best_child, best_action = self._puct_select(node)
                 if best_child is None:
                     break
                 node = best_child
@@ -245,18 +228,45 @@ class MCTS:
                 value = self._terminal_value(sim_env)
 
             # 3. Backprop
-            cur = node
-            cur_value = value
-            while cur is not None:
-                cur.value_sum += cur_value
-                cur.visit_count += 1
-                cur_value = -cur_value
-                cur = cur.parent
+            self._backprop(node, value)
 
         counts = np.zeros(env.mapper.get_action_space_size(), dtype=np.float32)
         for act, child in root.children.items():
             counts[act] = child.visit_count
         return counts
+
+    def _puct_select(self, node: MCTSNode) -> tuple[MCTSNode | None, int]:
+        """Sélection PUCT standard. Renvoie (meilleur enfant, action).
+
+        Q vu depuis le parent : pour 2 joueurs c'est `-child.value()` (somme
+        nulle). Pour N joueurs on garde la même approximation zéro-sum.
+        """
+        best_score = -float("inf")
+        best_child: MCTSNode | None = None
+        best_action = -1
+        total_visits = sum(c.visit_count for c in node.children.values())
+        sqrt_total = float(np.sqrt(total_visits)) if total_visits > 0 else 1.0
+
+        for action, child in node.children.items():
+            q_value = -child.value()
+            u = self.c_puct * child.prior * sqrt_total / (1 + child.visit_count)
+            score = q_value + u
+            if score > best_score:
+                best_score = score
+                best_action = action
+                best_child = child
+        return best_child, best_action
+
+    @staticmethod
+    def _backprop(leaf: MCTSNode, value: float) -> None:
+        """Remonte la value le long du chemin, en alternant les signes."""
+        cur: MCTSNode | None = leaf
+        cur_value = value
+        while cur is not None:
+            cur.value_sum += cur_value
+            cur.visit_count += 1
+            cur_value = -cur_value
+            cur = cur.parent
 
     def _apply_dirichlet(self, root: MCTSNode) -> None:
         if not root.children:
@@ -280,6 +290,7 @@ class MCTS:
         return float((my - avg) / 20.0)
 
     def _expand(self, node: MCTSNode, env: GameEnv) -> float:
+        """Forward `batch=1` puis expansion. Retourne la value estimée."""
         vec = env.get_state_vector()
         tensor = torch.from_numpy(vec).unsqueeze(0).to(DEVICE)
 
@@ -287,14 +298,26 @@ class MCTS:
         with torch.no_grad():
             logits, v = self.model(tensor)
 
+        self._expand_with_logits(node, env, logits[0])
+        return float(v.item())
+
+    def _expand_with_logits(
+        self, node: MCTSNode, env: GameEnv, logits_1d: torch.Tensor
+    ) -> None:
+        """Expansion à partir de logits déjà calculés (1-D, shape [action_dim]).
+
+        Factoré du chemin batché : le forward a déjà eu lieu sur un batch
+        regroupant plusieurs feuilles ; on alimente la policy de chaque feuille
+        avec les logits qui lui correspondent.
+        """
         legal = env.get_legal_actions()
         if not legal:
-            return float(v.item())
+            return
 
-        # Masquage AVANT softmax : on met les logits illégaux à -inf.
-        mask = torch.full_like(logits, float("-inf"))
-        mask[0, legal] = logits[0, legal]
-        probs = F.softmax(mask, dim=1).cpu().numpy()[0]
+        # Masquage AVANT softmax : logits illégaux à -inf.
+        mask = torch.full_like(logits_1d, float("-inf"))
+        mask[legal] = logits_1d[legal]
+        probs = F.softmax(mask, dim=0).cpu().numpy()
 
         # Sécurité numérique : si tout est nan (cas extrême), uniforme sur legal.
         if not np.isfinite(probs).all() or probs.sum() <= 0:
@@ -304,9 +327,9 @@ class MCTS:
         child_player = env.current_player
         for idx in legal:
             if probs[idx] > 0:
-                node.children[idx] = MCTSNode(node, prior=float(probs[idx]), player=child_player)
-
-        return float(v.item())
+                node.children[idx] = MCTSNode(
+                    node, prior=float(probs[idx]), player=child_player
+                )
 
     @staticmethod
     def _is_terminal(env: GameEnv) -> bool:
