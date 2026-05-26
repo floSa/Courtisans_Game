@@ -1,6 +1,5 @@
 """Tests sur l'évaluateur MCTS batché (L3 #3.1)."""
 
-import numpy as np
 import torch
 
 from app.jeu import GameEnv
@@ -112,8 +111,6 @@ def test_batched_search_leaves_no_residual_virtual_loss() -> None:
     mcts = MCTS(net, num_sims=num_sims, batch_size=4)
 
     # On accède au seul "monde" via la méthode interne pour inspecter l'arbre.
-    # On ré-implémente la logique de search() de manière minimale :
-    root_env = env.clone_determinized()
     counts = mcts._search_single_world_batched(env, add_root_noise=False)
 
     # Total des visits des enfants du root = num_sims exactement
