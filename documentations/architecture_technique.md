@@ -99,14 +99,19 @@ Dataclass centralisant les hyper-paramètres :
 
 ```python
 TrainConfig(
-    num_players=2, iterations=100, num_sims=30, c_puct=1.5,
-    lr=1e-3, memory_size=5000, batch_size=64,
-    warmup_iters=20, epsilon_random=0.10,
+    num_players=2, iterations=100, num_sims=50, c_puct=1.5,
+    lr=1e-3, weight_decay=1e-4,
+    memory_size=50_000, batch_size=64,
+    temperature_threshold=10,
     dirichlet_alpha=0.3, dirichlet_epsilon=0.25,
+    num_worlds=1, family_augmentation=True,
     checkpoint_every=25, model_dir="models", seed=None,
     arena_every=50, arena_games=20, arena_num_sims=30, arena_win_threshold=0.55,
 )
 ```
+
+Voir [`leviers_apprentissage.md`](leviers_apprentissage.md) pour la théorie
+et les recommandations de tuning de chaque hyper-paramètre.
 
 ### Arena (champion vs candidat)
 
@@ -150,7 +155,7 @@ modules et du flux d'interaction.
 
 ## 4. Tests
 
-`tests/` contient 44 tests pytest :
+`tests/` contient 56 tests pytest :
 
 - `test_action_mapper.py` : bijection `encode/decode`, espace d'action, erreurs.
 - `test_game_engine.py` : invariants de `GameEnv` (deck, main triée,
@@ -162,7 +167,10 @@ modules et du flux d'interaction.
   de la main du joueur courant, des cartes visibles ; contrainte espion
   pour les slots face cachée adverses ; randomisation effective ; N joueurs.
 - `test_arena.py` : statistiques `arena()` (wins/losses/draws/winrate),
-  alternance des positions de départ.
+  alternance des positions de départ, multi-mondes MCTS.
+- `test_augmentation.py` : symétrie famille — permutation d'état, mapping
+  des positions, conservation de la mass policy, **équivalence physique**
+  de l'action préférée sous σ.
 
 CI : `.github/workflows/ci.yml` lance `ruff check .` puis `pytest` à chaque
 push et PR sur `main`.
