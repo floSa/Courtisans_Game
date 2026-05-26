@@ -438,57 +438,111 @@ class GameEnv:
         """
         return c.visible or c.proprietaire_idx == self.current_player
 
+    # Taille de la partie "permutable par symétrie de familles" du state_vector.
+    # Section 1 : (Reine Estime + Reine Disgrâce + N domaines + main du joueur)
+    # × NUM_CARD_TYPES.
+    def _permutable_section_size(self) -> int:
+        total_zones = 2 + self.num_players + 1  # +1 pour la main
+        return total_zones * NUM_CARD_TYPES
+
+    # Section 2 (non permutable) : compteurs d'espions cachés par (zone, poseur).
+    def _hidden_spy_section_size(self) -> int:
+        # zones : Estime, Disgrace, et N domaines. Pas la main (pas d'espions
+        # cachés en main pendant qu'on joue).
+        num_zones = 2 + self.num_players
+        return num_zones * self.num_players
+
+    def _hidden_spy_counts(self) -> np.ndarray:
+        """Renvoie un vecteur aplati de shape (num_zones × num_players,).
+
+        Chaque cellule `(z, p_rel)` = nombre d'espions face cachée dans la
+        zone `z`, posés par le joueur relatif `p_rel` (relatif au
+        `current_player`). Zones :
+          z=0 : Reine Estime
+          z=1 : Reine Disgrâce
+          z=2 + rel_owner : domaine du joueur dont rel_owner est l'index
+                            relatif (z=2 = moi).
+        """
+        num_zones = 2 + self.num_players
+        counts = np.zeros((num_zones, self.num_players), dtype=np.float32)
+        for i in self.plateau_indices:
+            c = self.cartes[i]
+            if c.role != Role.ESPION or c.visible:
+                continue
+            # Type de zone
+            if c.position == "Estime":
+                z = 0
+            elif c.position == "Disgrace":
+                z = 1
+            elif c.domaine_id != -1:
+                z = 2 + (c.domaine_id - self.current_player) % self.num_players
+            else:
+                continue
+            # Poseur relatif (0 = moi, 1 = adv suivant, ...).
+            if c.proprietaire_idx < 0:
+                continue
+            rel_placer = (c.proprietaire_idx - self.current_player) % self.num_players
+            counts[z, rel_placer] += 1
+        return counts.flatten()
+
     def get_state_vector(self) -> np.ndarray:
         """Encodage de l'état pour le réseau de neurones.
 
-        Structure du vecteur :
-          - zone 0 : Reine — Estime (multi-hot par type de carte)
-          - zone 1 : Reine — Disgrâce
-          - zone 2..N+1 : domaines des joueurs relatifs au joueur courant
-            (zone 2 = moi, zone 3 = adversaire suivant, …)
-          - zone N+2 : main du joueur courant (count par type)
+        Structure du vecteur (deux sections) :
 
-        Une carte n'est encodée que si le joueur courant en connaît
-        l'identité (`_knows_identity`) : les espions cachés posés par
-        d'autres joueurs ne figurent pas dans l'entrée du réseau —
-        le PIMC se charge d'en deviner l'identité pendant la simulation.
+        SECTION 1 — Counts par type (famille × rôle), permutable par σ familles :
+          - zone 0 : Reine — Estime
+          - zone 1 : Reine — Disgrâce
+          - zone 2..N+1 : domaines (rel : 2 = moi, 3 = adv suivant, …)
+          - zone N+2 : main du joueur courant
+
+        SECTION 2 — Compteurs d'espions cachés par (zone, poseur relatif) :
+          Pour chaque (zone, joueur relatif), nb d'espions face cachée que
+          ce joueur a posés dans cette zone. Cette section donne au réseau
+          le signal "il y a N espions cachés posés par tel joueur dans Estime"
+          sans révéler leur identité.
+
+        Une carte n'est ENCODÉE PAR FAMILLE (section 1) que si le joueur
+        courant en connaît l'identité (`_knows_identity`). Mais SON
+        EXISTENCE et SON POSEUR sont toujours capturés en section 2 pour
+        les espions cachés.
         """
         total_zones = 2 + 1 + (self.num_players - 1)
-        vec_size = (total_zones * NUM_CARD_TYPES) + NUM_CARD_TYPES
+        permutable_size = self._permutable_section_size()
 
-        vec = np.zeros(vec_size, dtype=np.float32)
+        vec = np.zeros(permutable_size + self._hidden_spy_section_size(), dtype=np.float32)
 
         def fill(offset_zone: int, card_vec_id: int) -> None:
             vec[offset_zone * NUM_CARD_TYPES + card_vec_id] += 1
 
+        # --- Section 1 : identités connues du joueur courant ---
         for i in self.plateau_indices:
             c = self.cartes[i]
             if not self._knows_identity(c):
                 continue
             vid = c.vector_id
-
             if c.position == "Estime":
                 fill(0, vid)
             elif c.position == "Disgrace":
                 fill(1, vid)
             elif c.domaine_id != -1:
-                owner = c.domaine_id
-                rel_owner = (owner - self.current_player) % self.num_players
+                rel_owner = (c.domaine_id - self.current_player) % self.num_players
                 zone_idx = 2 + rel_owner
                 fill(zone_idx, vid)
 
-        # Main
+        # Main du joueur courant
         main_zone_idx = total_zones
         for i in self.mains[self.current_player]:
             c = self.cartes[i]
             fill(main_zone_idx, c.vector_id)
 
+        # --- Section 2 : compteurs d'espions cachés par (zone, poseur) ---
+        vec[permutable_size:] = self._hidden_spy_counts()
+
         return vec
 
     def get_state_vector_size(self) -> int:
-        nb_zones_board = 2 + self.num_players
-        total = nb_zones_board + 1
-        return total * NUM_CARD_TYPES
+        return self._permutable_section_size() + self._hidden_spy_section_size()
 
     # ---------------------------------------------------------------- MCTS hook
     def clone_determinized(self, randomize: bool = True) -> GameEnv:
