@@ -90,12 +90,26 @@ class ResidualBlock(nn.Module):
         return F.relu(out)
 
 
+# L3#B2 : nombre maximum de cibles candidates pour un assassinat. La dernière
+# cellule de la target_policy (`index == MAX_TARGETS`) représente l'option
+# "passer" (ne tuer personne).
+MAX_TARGETS = 16
+
+
 class CourtisansNet(nn.Module):
     """ResNet (style AlphaZero) avec LayerNorm.
 
+    Deux têtes de policy (architecture α de B2) :
+      - `policy_head_main`  : `action_dim` logits, pour les décisions
+        principales (poser les 3 cartes).
+      - `policy_head_target`: `MAX_TARGETS + 1` logits, pour le choix de
+        cible d'un assassinat. La dernière cellule = "passer".
+
+    Une seule tête `value` partagée.
+
     Format du checkpoint : `state_dict` standard. Les modèles entraînés avec
-    une version BatchNorm antérieure ne sont pas chargeables (clés différentes :
-    `*.bn1.*` → `*.ln1.*`) ; `load_model()` détecte la régression et logge un
+    une version BatchNorm antérieure (ou sans target_head) ne sont pas
+    chargeables ; `load_model()` détecte la régression et logge un
     avertissement clair.
     """
 
@@ -108,10 +122,15 @@ class CourtisansNet(nn.Module):
         self.ln_start = nn.LayerNorm(512)
         self.res_blocks = nn.ModuleList([ResidualBlock(512) for _ in range(num_blocks)])
 
-        self.policy_head = nn.Sequential(
+        self.policy_head_main = nn.Sequential(
             nn.Linear(512, 256),
             nn.ReLU(),
-            nn.Linear(256, action_dim),  # logits
+            nn.Linear(256, action_dim),  # logits coups principaux
+        )
+        self.policy_head_target = nn.Sequential(
+            nn.Linear(512, 128),
+            nn.ReLU(),
+            nn.Linear(128, MAX_TARGETS + 1),  # logits ciblage d'assassin (+ skip)
         )
         self.value_head = nn.Sequential(
             nn.Linear(512, 128),
@@ -120,11 +139,19 @@ class CourtisansNet(nn.Module):
             nn.Tanh(),
         )
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        """Renvoie `(policy_main, policy_target, value)`.
+
+        `policy_main`  : logits de taille `action_dim` (coups principaux).
+        `policy_target`: logits de taille `MAX_TARGETS + 1` (ciblage assassin).
+        `value`        : scalaire dans `[-1, +1]`.
+        """
         x = F.relu(self.ln_start(self.start_fc(x)))
         for block in self.res_blocks:
             x = block(x)
-        return self.policy_head(x), self.value_head(x)
+        return self.policy_head_main(x), self.policy_head_target(x), self.value_head(x)
 
 
 # ======================================================================================
@@ -332,10 +359,15 @@ class MCTS:
                 tensor = torch.from_numpy(states).to(DEVICE)
                 self.model.eval()
                 with torch.no_grad():
-                    logits_batch, values_batch = self.model(tensor)
+                    logits_main_batch, _logits_target_batch, values_batch = self.model(tensor)
+                    # NB : logits_target n'est utilisé qu'en mode target ; pour
+                    # l'instant le batched evaluator n'est utilisé qu'en mode
+                    # main, on ignore donc cette sortie ici.
 
                 for i, p in enumerate(non_terminal):
-                    self._expand_with_logits(p["node"], p["sim_env"], logits_batch[i])
+                    self._expand_with_logits(
+                        p["node"], p["sim_env"], logits_main_batch[i]
+                    )
                     p["nn_value"] = float(values_batch[i].item())
 
             # ---- Phase 3 : annulation de la virtual loss + backprop ----
@@ -420,9 +452,9 @@ class MCTS:
 
         self.model.eval()
         with torch.no_grad():
-            logits, v = self.model(tensor)
+            logits_main, _logits_target, v = self.model(tensor)
 
-        self._expand_with_logits(node, env, logits[0])
+        self._expand_with_logits(node, env, logits_main[0])
         return float(v.item())
 
     def _expand_with_logits(
@@ -674,8 +706,12 @@ def train(
             bv = torch.from_numpy(np.array([x[2] for x in aug_batch], dtype=np.float32)).unsqueeze(1).to(DEVICE)
 
             net.train()
-            pi_pred, v_pred = net(bs)
-            loss_pi = -torch.sum(bp * F.log_softmax(pi_pred, dim=1)) / config.batch_size
+            pi_main_pred, _pi_target_pred, v_pred = net(bs)
+            # B2 v1 : on n'entraîne pour l'instant que la policy_head_main.
+            # La policy_head_target reste à ses poids initiaux (priors quasi
+            # uniformes après softmax), et MCTS fera l'essentiel du travail
+            # de ciblage via l'exploration de l'arbre.
+            loss_pi = -torch.sum(bp * F.log_softmax(pi_main_pred, dim=1)) / config.batch_size
             loss_v = F.mse_loss(v_pred, bv)
             loss = loss_pi + loss_v
 
