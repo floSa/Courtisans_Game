@@ -53,6 +53,12 @@ for _qi in range(3):
 # Les 20 donnes : quelles 3 cartes (sur 6) vont au joueur 0 (le 1 récupère le reste).
 _DEALS = list(combinations(range(6), 3))  # C(6,3) = 20
 
+# Géométrie du tenseur d'info-state (encodage lossless, cf. information_state_tensor).
+ZONE_IDX = {"E": 0, "D": 1, "dom": 2}
+SLOT = 7 + 3 + 3 + 2          # card + zone + owner + placer = 15
+MAX_SLOTS = 3                 # board ≤ 3 entrées à un point de décision
+TENSOR_SIZE = 2 + 6 + MAX_SLOTS * SLOT  # 2 + 6 + 45 = 53
+
 _GAME_TYPE = pyspiel.GameType(
     short_name="courtisans_mini",
     long_name="Courtisans Mini",
@@ -64,7 +70,7 @@ _GAME_TYPE = pyspiel.GameType(
     max_num_players=2,
     min_num_players=2,
     provides_information_state_string=True,
-    provides_information_state_tensor=False,
+    provides_information_state_tensor=True,
     provides_observation_string=False,
     provides_observation_tensor=False,
     parameter_specification={},
@@ -183,6 +189,37 @@ class CourtisansMiniState(pyspiel.State):
             owner = "Q" if e["owner"] is None else f"d{e['owner']}"
             seen.append(f"{ident}@{e['zone']}{owner}<p{e['placer']}")
         return f"P{player}|main:{hand}|board:{';'.join(seen)}"
+
+    def information_state_tensor(self, player=None):
+        """Encodage *lossless* de l'info-set (même contenu que la string).
+
+        Layout (TENSOR_SIZE dims) :
+          [0:2]   perspective du joueur (one-hot p0/p1)
+          [2:8]   main : multi-hot des 6 cartes (sous-ensemble de taille 3)
+          puis MAX_SLOTS blocs de 15 dims (board, dans l'ordre de pose) :
+            card  7  (6 cartes connues + 1 "inconnu" si espion adverse caché)
+            zone  3  (E, D, dom)
+            owner 3  (Reine/None, d0, d1)
+            placer 2 (p0, p1)
+        Au point de décision le board a 0 (P0) ou 3 (P1) entrées ; les slots
+        non remplis restent à zéro. Injectif vs information_state_string.
+        """
+        if player is None:
+            player = self._cur
+        v = [0.0] * TENSOR_SIZE
+        v[player] = 1.0
+        for c in self._hands[player]:
+            v[2 + c] = 1.0
+        base = 2 + 6
+        for i, e in enumerate(self._board[:MAX_SLOTS]):
+            off = base + i * SLOT
+            known = (not e["hidden"]) or (e["placer"] == player)
+            v[off + (e["card"] if known else 6)] = 1.0          # card (7)
+            v[off + 7 + ZONE_IDX[e["zone"]]] = 1.0              # zone (3)
+            owner_i = 0 if e["owner"] is None else e["owner"] + 1
+            v[off + 10 + owner_i] = 1.0                         # owner (3)
+            v[off + 13 + e["placer"]] = 1.0                     # placer (2)
+        return v
 
     def _action_to_string(self, player, action):
         if player == pyspiel.PlayerId.CHANCE:

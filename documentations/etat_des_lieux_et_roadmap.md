@@ -62,8 +62,11 @@ métrique Elo vs pool. Fallback, pas l'objectif premier.
 | `app/jeu.py` | Moteur Courtisans (règles, state vector, scoring) | OK, sert de simulateur rapide |
 | `app/mcts_network.py` | Réseau + MCTS + boucle d'entraînement AlphaZero/Fork2 | **Voie abandonnée** (historique) |
 | `app/greedy_bot.py` | Greedy 1-coup. `num_worlds=0` triche / `≥1` équitable PIMC | OK — sert de baseline/LBR |
-| `cfr/courtisans_mini.py` | **Courtisans réduit en jeu OpenSpiel** | ✅ Marche |
+| `cfr/courtisans_mini.py` | **Courtisans réduit en jeu OpenSpiel** (+ `information_state_tensor` lossless 53-dim) | ✅ Marche |
 | `cfr/solve_mini.py` | Résolution exacte CFR+ + exploitabilité (oracle) | ✅ Marche |
+| `cfr/deep_cfr_mini.py` | Deep CFR (PyTorch) vs oracle + courbe d'exploitabilité | ✅ Converge (§29) |
+| `cfr/diag_strategy_buffer.py` | Diagnostic : policy MCCFR exacte (buffer) vs réseau | ✅ Marche |
+| `cfr/plot_deep_cfr_mini.py` | Graphe Deep CFR vs CFR+ depuis le log | ✅ Marche |
 | `scripts/remeasure_fair.py` | Mesure appariée vs greedy équitable PIMC | OK |
 | `scripts/dagger_greedy.py`, `bc_greedy.py` | Diagnostics BC/DAgger | Historique |
 
@@ -90,10 +93,13 @@ Résolu : 3141 états, info-sets P0=20 / P1=216, **exploitabilité 0.000027** à
 
 ## 6. Feuille de route (prochaines briques, dans l'ordre)
 
-1. **[PROCHAIN] Deep CFR vs l'oracle.** Lancer `open_spiel...deep_cfr` sur `courtisans_mini`,
-   vérifier qu'il converge vers l'exploitabilité tabulaire (~0). Valide le pipeline neuronal
-   AVANT de scaler. Faible coût, haute valeur.
-2. **Agrandir l'instance** progressivement (plus de familles, 2+ manches avec pioche/draw,
+1. **[FAIT 03/06] Deep CFR vs l'oracle.** Pipeline neuronal validé : Deep CFR (PyTorch
+   OpenSpiel) converge vers l'exploitabilité tabulaire (0.0037 à 200 iters vs oracle 0.00014,
+   monotone, sans plateau). Détails + courbe : `rapport_expert.md` §29. Code `cfr/deep_cfr_mini.py`,
+   `cfr/diag_strategy_buffer.py`, `cfr/plot_deep_cfr_mini.py`. Piège levé : le « plateau » à
+   ~0.08 était le sous-apprentissage de la tête policy, pas le MCCFR (métrique de validation =
+   policy buffer-exacte).
+2. **[PROCHAIN] Agrandir l'instance** progressivement (plus de familles, 2+ manches avec pioche/draw,
    puis assassins + gardes) jusqu'à la limite du tabulaire — chaque palier validé par
    l'exploitabilité tabulaire tant qu'elle reste calculable.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
@@ -113,6 +119,10 @@ duplicate scoring pour toute comparaison de force.
 ```bash
 # Résoudre l'oracle (mini-instance) :
 uv run python cfr/solve_mini.py 600
+
+# Deep CFR vs oracle (hyperparams via env DCFR_*) + graphe :
+DCFR_TRAVERSALS=500 DCFR_ITERS=200 uv run python cfr/deep_cfr_mini.py
+uv run python cfr/plot_deep_cfr_mini.py cfr/deep_cfr_mini_final.log cfr/deep_cfr_mini.png
 
 # Mesurer un modèle vs greedy équitable :
 uv run python scripts/remeasure_fair.py

@@ -2392,3 +2392,60 @@ La métrique de pilotage est désormais l'**exploitabilité absolue**, pas un wi
 **Prochaines briques** : (1) Deep CFR sur cette mini-instance, vérifier convergence vers
 l'exploitabilité tabulaire ; (2) agrandir l'instance (familles, manches, assassins/gardes)
 jusqu'à la limite du tabulaire ; (3) Deep CFR sur l'instance pleine ; (4) ReBeL si plafond.
+
+---
+
+## 29. Brique 1 — Deep CFR converge vers l'oracle (03/06/2026)
+
+**Verdict : le pipeline neuronal est validé.** Deep CFR (External-Sampling MCCFR, implé
+PyTorch d'OpenSpiel) converge vers l'exploitabilité tabulaire de l'oracle sur
+`courtisans_mini`, sans plateau.
+
+### Mise en place (pièges levés)
+- `deep_cfr` est dans `open_spiel.python.pytorch` (PAS `.algorithms` comme l'indiquait la
+  roadmap). Route pytorch retenue (torch déjà là) ; ajout de la dépendance **`dm-tree`**.
+- Deep CFR exige un `information_state_tensor` : ajouté à `courtisans_mini.py`, encodage
+  **lossless 53-dim** (perspective 2 + main multi-hot 6 + 3 slots board × 15). Vérifié
+  injectif : **236 strings ↔ 236 tensors**, structure 20/216 identique à l'oracle.
+- `solver.action_probabilities()` ne renormalise PAS sur les actions légales (réseau =
+  `num_distinct_actions=20` logits, 12 légales aux décisions) → renormalisation obligatoire
+  avant `nash_conv(..., use_cpp_br=False)`.
+
+### Diagnostic décisif — le « plateau » était la tête policy, pas le process
+Premiers runs : l'exploitabilité de la **tête policy** plafonne ~0.08–0.10 dès l'iter 20 et
+reste **insensible aux traversals** (×5 → 0.097→0.080). Ce n'est donc PAS de la variance
+d'échantillonnage. En reconstruisant la **policy moyenne MCCFR exacte** depuis le strategy
+buffer (moyenne pondérée-par-itération par info-set, sans le réseau de policy ;
+`cfr/diag_strategy_buffer.py`), l'exploitabilité tombe ~10× → **0.0087** (couverture 236/236).
+→ Le plancher venait du **sous-apprentissage de la régression policy** (réseau réinitialisé +
+ré-entraîné from scratch sur ~520k échantillons en trop peu de pas), pas du MCCFR.
+
+### Courbe de convergence (métrique = policy MCCFR exacte ; 500 traversals/iter)
+```
+ iter |   CFR+ (oracle) |  Deep CFR
+    5 |       0.109941  |  0.163596
+   10 |       0.029967  |  0.059461
+   20 |       0.008414  |  0.023227
+   40 |       0.002167  |  0.014144
+   80 |       0.000628  |  0.008690
+  160 |       0.000218  |  0.005139
+  200 |       0.000137  |  0.003742   ← CONVERGE
+```
+Deux droites parallèles en log-log (graphe `cfr/deep_cfr_mini.png`), Deep CFR ~½ décade
+au-dessus de CFR+ mais **monotone décroissant vers 0** — la signature attendue (coût du
+sampling + approximation), pas un plafond.
+
+### Implication pour le scaling
+À grande échelle, on ne peut pas matérialiser la policy buffer-exacte (ça annule l'intérêt de
+Deep CFR) : **la tête policy est le livrable**, et son sous-apprentissage sera une source
+d'exploitabilité résiduelle DISTINCTE de la qualité MCCFR. À soigner (réseau plus gros, bien
+plus de pas, pas de réinit, batch plus grand) et à mesurer séparément.
+
+### Fichiers
+`cfr/deep_cfr_mini.py` (runner, hyperparams via env `DCFR_*`, métrique buffer-exacte par
+défaut, `DCFR_MEASURE_NET=1` pour aussi mesurer le réseau), `cfr/diag_strategy_buffer.py`
+(diagnostic buffer vs réseau), `cfr/plot_deep_cfr_mini.py` (graphe), logs `cfr/*.log`.
+
+**Prochaine brique : agrandir l'instance** (plus de familles, 2+ manches avec pioche, puis
+assassins/gardes) jusqu'à la limite du tabulaire, chaque palier validé par l'exploitabilité
+tabulaire tant qu'elle reste calculable.
