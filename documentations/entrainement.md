@@ -76,13 +76,16 @@ python -u main.py train --iterations 500 --num-sims 80 \
 - `Arena (iter 50): wins=… losses=… draws=… winrate=X.YZ`
 - `Champion promu : …` quand winrate ≥ 0.55 sinon `Champion conservé`.
 
-### C. Vrai entraînement (~1-3 h sur 4060Ti)
+### C. Vrai entraînement (~3 h sur 4060Ti) — config validée
 
 ```bash
-python -u main.py train --iterations 5000 --num-sims 80 \
-  --mcts-batch-size 32 --num-worlds 3 --memory-size 100000 \
-  2>&1 | tee train_5000.log
+python -u main.py train --iterations 1500 --num-sims 80 \
+  --mcts-batch-size 1 --num-worlds 1 --memory-size 100000 \
+  2>&1 | tee train_1500.log
 ```
+
+GPU ~40%, ~5-6s/iter, ~1800 itérations en 3h. C'est la config qui maximise le
+**débit réel** (optimizer steps/heure) sur cette machine.
 
 ## 3. Tous les flags du CLI
 
@@ -203,3 +206,63 @@ Garde-les ! Les fichiers `train_*.log` permettent de :
 - Voir la courbe de loss (`grep "Iter " train.log`).
 - Voir l'historique des promotions arena (`grep "Champion promu" train.log`).
 - Diagnostiquer une régression (`grep -i "warning\|error" train.log`).
+
+## 9. Retour d'expérience — optimisation GPU (9600X + RTX 4060 Ti 16 Go, WSL2)
+
+**Testé le 2026-05-26.** Toutes les configs ci-dessous ont été mesurées en conditions réelles.
+
+### Ce qui ne marche PAS
+
+#### `--num-worlds 3` sur GPU
+La documentation d'origine recommandait `--num-worlds 3 --mcts-batch-size 32`.
+En pratique sur la 4060 Ti :
+- **13s/iter** (au lieu de 5-6s attendues)
+- GPU à 55%, CPU à 14%
+- En 3h : seulement ~750 iterations → **ne pas utiliser** pour un run limité en temps.
+
+#### `--parallel-games 6` (self-play multi-threadé)
+Le flag `--parallel-games N` a été ajouté pour lancer N parties simultanément via
+`ThreadPoolExecutor`. Résultat décevant sur GPU :
+- GPU à **85%** en apparence → mais c'est trompeur.
+- En réalité, tous les threads partagent le **même stream CUDA** → les appels GPU
+  se sérialisent quand même.
+- **66.5s/iter** pour 6 parties = 11s/partie (pire que les 8.5s séquentielles).
+- En 3h : seulement **~160 iterations** (contre ~1800 en séquentiel).
+
+**Conclusion** : `--parallel-games > 1` augmente l'utilisation affichée du GPU sans
+augmenter le débit réel. Ne l'utiliser que si on cherche à saturer la VRAM pour une
+raison précise. Pour vraiment paralléliser il faudrait des streams CUDA séparés par
+thread ou du `torch.multiprocessing` avec processus indépendants.
+
+#### `--mcts-batch-size 64` seul (sans parallel-games)
+GPU passe de 55% à **36%** — pire qu'avant. Le batch MCTS attend d'avoir 64 feuilles
+avant chaque forward : ça allonge les pauses entre appels GPU.
+
+### Ce qui marche
+
+#### Config optimale validée pour un run ~3h sur 4060 Ti
+
+```bash
+python -u main.py train --iterations 1500 --num-sims 80 \
+  --mcts-batch-size 1 --num-worlds 1 --memory-size 100000 \
+  2>&1 | tee train_1500.log
+```
+
+| Métrique | Valeur |
+|---|---|
+| Temps/iter | ~5-6s |
+| Iterations en 3h | ~1800 |
+| GPU (Task Manager 3D) | ~40% |
+| Température GPU | ~43°C |
+| VRAM utilisée | ~1.5 Go / 16 Go |
+
+Le GPU à 40% peut sembler faible, mais c'est la limite de l'architecture Python
+MCTS mono-thread : le CPU parcourt l'arbre (GIL), le GPU attend. C'est structurel,
+pas un problème de config.
+
+### Piste d'amélioration future
+
+Pour dépasser 40% GPU de façon honnête, il faudrait :
+1. **`torch.multiprocessing.spawn`** — N processus indépendants, chacun avec son
+   contexte CUDA, qui envoient leurs samples dans une queue partagée.
+2. **Réécrire le MCTS en C++/Cython** — supprime le GIL du chemin critique.

@@ -16,3 +16,11 @@ courtisans_env/
 # Trained models (générés par `python main.py train`).
 # Forcer l'ajout d'un checkpoint particulier : `git add -f models/<file>.pth`.
 models/*.pth
+models/v6_checkpoints/
+
+# Artefacts d'expériences (logs, datasets, graphes) — non versionnés.
+*.log
+*.npz
+training_graph.png
+models/*.pth.*
+models/*backup*
