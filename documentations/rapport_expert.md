@@ -2486,6 +2486,53 @@ faudra une variante à **variance réduite** (ESCHER/DREAM dispo dans OpenSpiel-
 gros budgets de traversals. Hyperparams réseau désormais via env `DCFR_ADV_NET`/`DCFR_POL_NET`,
 `DCFR_SKIP_CFR=1` saute le recalcul de l'oracle.
 
-**Prochaine sous-brique : 2.1b — canonicalisation lossless par symétrie des familles**, à
-valider en vérifiant que l'exploitabilité tabulaire de l'oracle **ne bouge pas** (quotient) et
-que les info-sets chutent (~÷6).
+**Sous-brique suivante : 2.1b — canonicalisation lossless par symétrie des familles** (faite, §31).
+
+---
+
+## 31. Brique 2.1b — canonicalisation lossless par symétrie des familles (03/06/2026)
+
+Les NUM_FAMILIES familles sont interchangeables (automorphisme du jeu) → on quotiente les
+info-sets en relabellant les familles dans l'ordre canonique. Toggle `COURTISANS_CANON`
+(défaut on) pour comparer.
+
+### Le point délicat : relabeler la string NE SUFFIT PAS
+Canonicaliser `information_state_string` seule est **incorrect** : les 12 actions composites
+indexent des positions dans la main triée ; sous un relabel de familles, « action a » désigne
+une carte différente → fusionner deux nœuds symétriques en un info-set forcerait la même
+stratégie sur des actions non-équivalentes (CFR faux, exploitabilité déplacée). **Il faut aussi
+réinterpréter les actions dans l'ordre canonique de la main** (tri sur l'id relabelé). Preuve
+de cohérence : pour deux nœuds d'un même orbite, la main relabelée-triée est identique → action
+a désigne la même carte canonique → quotient correct. La perm canonique ne dépend que de la
+**vue du joueur** (public + sa main) donc reste cohérente le long de l'arbre.
+
+### Résultat — lossless confirmé
+| | non-canon | canon |
+|---|---|---|
+| info-sets P0 / P1 | 84 / 12 400 | **20 / 2 108** (÷5.9, ≈ ÷3!=6) |
+| états / terminaux / returns | — | **inchangés** (tree isomorphe) |
+| oracle CFR+ (300 it.) | 0.000089 | 0.000122 |
+| équilibre P0 | {4,7,8,11} ~0.25 | **{4,7,8,11} ~0.25 (identique)** |
+
+L'oracle canon **suit** la trajectoire non-canon vers 0 (iter 1 identique à 1e-6 près ;
+10/50/100 : 0.035/0.0025/0.00067 vs 0.032/0.0020/0.00057) **sans plancher d'abstraction**, et
+retrouve le **même équilibre mixte** → quotient **lossless** prouvé.
+
+### Bénéfice variance (le but)
+À budget de traversals **égal** (500), Deep CFR sur le jeu canonicalisé écrase le non-canon :
+| iter | non-canon @500 | canon @500 |
+|---|---|---|
+| 40 | 0.074 | 0.027 |
+| 80 | 0.064 | 0.021 |
+| 200 | 0.060 (plateau) | **0.019** |
+~3× meilleur — canon@500 (0.019) approche le non-canon@2000 (0.0137) pour **¼ du budget**. Le
+quotient ÷5.9 réduit directement la variance par info-set, comme prévu.
+
+### Implémentation
+Brute-force `min` sur les permutations de familles, **mémoïsé** (cache module-level indexé par
+une signature immuable de la vue → fonction pure, jamais périmé même au clone d'état). Indispensable
+car O(720) à 6 familles. **Limite connue** : à 6 familles le brute-force sur 720 perms, même caché,
+sera lourd → prévoir une canonicalisation directe (tri) plutôt qu'énumérative pour le jeu plein.
+
+**Prochaine sous-brique** : 2+ manches avec pioche/draw (introduit l'horizon long → c'est là que
+les variantes à variance réduite type ESCHER/DREAM deviendront pertinentes).

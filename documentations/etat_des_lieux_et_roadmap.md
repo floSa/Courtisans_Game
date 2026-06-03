@@ -106,9 +106,13 @@ couple (main P0, main P1), reste hors-jeu face cachée.
      vivant = 0.000089). Deep CFR converge (0.0137) mais la **variance** devient le levier
      contraignant (12 400 info-sets : plateau 0.060 à 500 traversals, cassé à 0.0137 avec 2000).
      Détails `rapport_expert.md` §30.
-   - **2.1b [PROCHAIN] : canonicalisation lossless par symétrie des familles** (÷ jusqu'à 6 les
-     info-sets, exploitabilité oracle inchangée — à vérifier). Attaque directement le goulot variance.
-   - puis : 2+ manches avec pioche/draw, puis assassins + gardes — jusqu'à la limite du
+   - **2.1b [FAIT 03/06] : canonicalisation lossless par symétrie des familles.** Info-sets P1
+     12 400→2 108 (÷5.9), oracle 0.000122 ≈ non-canon 0.000089 (même équilibre {4,7,8,11}) →
+     lossless prouvé. Deep CFR canon@500 = 0.019 vs non-canon@500 = 0.060 (~3× à budget égal).
+     Clé : réinterpréter les actions dans l'ordre canonique de la main (pas juste la string).
+     Toggle `COURTISANS_CANON`. Détails `rapport_expert.md` §31.
+   - **2.1c [PROCHAIN] : 2+ manches avec pioche/draw** (horizon long → variantes à variance
+     réduite type ESCHER/DREAM pertinentes), puis assassins + gardes — jusqu'à la limite du
      tabulaire, chaque palier validé par l'exploitabilité tabulaire tant qu'elle reste calculable.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
    Appliquer la canonicalisation par symétrie de familles.
