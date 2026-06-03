@@ -2449,3 +2449,43 @@ défaut, `DCFR_MEASURE_NET=1` pour aussi mesurer le réseau), `cfr/diag_strategy
 **Prochaine brique : agrandir l'instance** (plus de familles, 2+ manches avec pioche, puis
 assassins/gardes) jusqu'à la limite du tabulaire, chaque palier validé par l'exploitabilité
 tabulaire tant qu'elle reste calculable.
+
+---
+
+## 30. Brique 2.1a — passage à 3 familles (03/06/2026)
+
+**Un seul changement** (garde-fou §6) : `courtisans_mini.py` généralisé sur `NUM_FAMILIES`
+(2 → 3). Donne = couple (main P0, main P1), cartes restantes hors-jeu face cachée →
+**rétrocompatible** (à 2 familles : C(6,3)×C(3,3)=20, reste 0 = v0). Astuce : on garde
+`num_distinct_actions = len(_COMBOS) = 12` (actions joueur) avec `max_chance_outcomes=1680`
+(donnes) — OpenSpiel l'accepte, donc la **sortie réseau reste à 12** (pas d'inflation par les
+donnes-chance, qui aggraverait le goulot tête-policy).
+
+### Instance 3 familles (9 cartes)
+- États **263 761** | terminaux 241 920 | info-sets **P0=84, P1=12 400** | tenseur 65-dim.
+- **Lossless** vérifié : 12 484 strings ↔ 12 484 tensors, sans collision.
+- **Oracle CFR+** : exploitabilité **0.000089** à 300 iters, équilibre MIXTE (4 actions ~0.25)
+  → l'instance agrandie reste résoluble exactement (oracle vivant).
+
+### Deep CFR — la variance devient le levier contraignant
+| traversals/iter | exploitabilité finale (buffer-exacte, couverture 12 484/12 484) |
+|---|---|
+| 500  (iter 200) | 0.060  — **plateau dès l'iter 40** |
+| 2000 (iter 120) | **0.0137** — monotone, encore décroissant |
+
+À 2 familles la policy MCCFR exacte atteignait 0.0037 ; à 3 familles avec 500 traversals elle
+**plafonne à 0.060** — et cette fois le plateau est dans la **policy MCCFR exacte elle-même**
+(tête policy exclue), donc dans la **qualité des regrets / la variance d'échantillonnage** sur
+12 400 info-sets, PAS dans la régression policy. ×4 traversals (+ advantage-net 256×256)
+casse le plateau (0.060 → 0.0137) → **confirmation empirique du risque variance anticipé par
+l'expert** : il scale avec le nombre d'info-sets et devient le facteur limitant.
+
+**Conséquences** : (1) la **canonicalisation par symétrie de familles** (brique 2.1b) divise
+les info-sets par jusqu'à 3! = 6 → attaque directement ce goulot variance ; (2) au-delà, il
+faudra une variante à **variance réduite** (ESCHER/DREAM dispo dans OpenSpiel-pytorch) ou de
+gros budgets de traversals. Hyperparams réseau désormais via env `DCFR_ADV_NET`/`DCFR_POL_NET`,
+`DCFR_SKIP_CFR=1` saute le recalcul de l'oracle.
+
+**Prochaine sous-brique : 2.1b — canonicalisation lossless par symétrie des familles**, à
+valider en vérifiant que l'exploitabilité tabulaire de l'oracle **ne bouge pas** (quotient) et
+que les info-sets chutent (~÷6).

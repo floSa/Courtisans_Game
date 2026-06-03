@@ -70,10 +70,12 @@ métrique Elo vs pool. Fallback, pas l'objectif premier.
 | `scripts/remeasure_fair.py` | Mesure appariée vs greedy équitable PIMC | OK |
 | `scripts/dagger_greedy.py`, `bc_greedy.py` | Diagnostics BC/DAgger | Historique |
 
-**`courtisans_mini` (v0)** : 2 familles × 3 rôles {Noble(2), Espion caché(1), Simple(1)},
-6 cartes, 2 joueurs, main 3, 1 manche, 12 actions composites, payoff {+1,0,−1}.
-Résolu : 3141 états, info-sets P0=20 / P1=216, **exploitabilité 0.000027** à 600 iters CFR+,
-équilibre **mixte**.
+**`courtisans_mini`** : `NUM_FAMILIES` familles × 3 rôles {Noble(2), Espion caché(1),
+Simple(1)}, 2 joueurs, main 3, 1 manche, 12 actions composites, payoff {+1,0,−1}. Donne =
+couple (main P0, main P1), reste hors-jeu face cachée.
+- **2 familles** (v0) : 3141 états, info-sets P0=20 / P1=216, exploitabilité 0.000027 (600 iters).
+- **3 familles** (actuel) : 263 761 états, info-sets P0=84 / P1=12 400, exploitabilité 0.000089
+  (300 iters), équilibre **mixte**. Tenseur d'info-state lossless 65-dim.
 
 ---
 
@@ -99,9 +101,15 @@ Résolu : 3141 états, info-sets P0=20 / P1=216, **exploitabilité 0.000027** à
    `cfr/diag_strategy_buffer.py`, `cfr/plot_deep_cfr_mini.py`. Piège levé : le « plateau » à
    ~0.08 était le sous-apprentissage de la tête policy, pas le MCCFR (métrique de validation =
    policy buffer-exacte).
-2. **[PROCHAIN] Agrandir l'instance** progressivement (plus de familles, 2+ manches avec pioche/draw,
-   puis assassins + gardes) jusqu'à la limite du tabulaire — chaque palier validé par
-   l'exploitabilité tabulaire tant qu'elle reste calculable.
+2. **[EN COURS] Agrandir l'instance** progressivement.
+   - **2.1a [FAIT 03/06] : 3 familles.** Jeu généralisé sur `NUM_FAMILIES` (lossless, oracle
+     vivant = 0.000089). Deep CFR converge (0.0137) mais la **variance** devient le levier
+     contraignant (12 400 info-sets : plateau 0.060 à 500 traversals, cassé à 0.0137 avec 2000).
+     Détails `rapport_expert.md` §30.
+   - **2.1b [PROCHAIN] : canonicalisation lossless par symétrie des familles** (÷ jusqu'à 6 les
+     info-sets, exploitabilité oracle inchangée — à vérifier). Attaque directement le goulot variance.
+   - puis : 2+ manches avec pioche/draw, puis assassins + gardes — jusqu'à la limite du
+     tabulaire, chaque palier validé par l'exploitabilité tabulaire tant qu'elle reste calculable.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
    Appliquer la canonicalisation par symétrie de familles.
 4. **ReBeL** seulement si (a) l'exploitabilité plafonne trop haut, ou (b) besoin de recherche

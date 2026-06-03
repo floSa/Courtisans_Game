@@ -36,6 +36,8 @@ ADV_STEPS = int(os.environ.get("DCFR_ADV_STEPS", "300"))
 POL_STEPS = int(os.environ.get("DCFR_POL_STEPS", "1000"))
 LR = float(os.environ.get("DCFR_LR", "1e-3"))
 MEASURE_NET = os.environ.get("DCFR_MEASURE_NET", "0") == "1"  # mesurer aussi la tête policy
+ADV_NET = tuple(int(x) for x in os.environ.get("DCFR_ADV_NET", "64,64").split(","))
+POL_NET = tuple(int(x) for x in os.environ.get("DCFR_POL_NET", "64,64").split(","))
 CHECKPOINTS = [c for c in (2, 5, 10, 20, 40, 80, 160, 320, 640) if c <= NUM_ITERS]
 if NUM_ITERS not in CHECKPOINTS:
     CHECKPOINTS.append(NUM_ITERS)
@@ -125,8 +127,8 @@ def run_deep_cfr(game):
     np.random.seed(SEED)
     solver = deep_cfr.DeepCFRSolver(
         game,
-        policy_network_layers=(64, 64),
-        advantage_network_layers=(64, 64),
+        policy_network_layers=POL_NET,
+        advantage_network_layers=ADV_NET,
         num_iterations=NUM_ITERS,        # informatif ; on pilote la boucle nous-mêmes
         num_traversals=TRAVERSALS,
         learning_rate=LR,
@@ -156,20 +158,23 @@ def run_deep_cfr(game):
             if MEASURE_NET:
                 extra = f"  | net={net_exploitability(solver, game) / 2:.6f}"
             print(f"  Deep CFR iter {it:4d} : NashConv={nc:.6f}  exploitabilité={nc / 2:.6f}"
-                  f"  (buffer cov {cov}/236){extra}", flush=True)
+                  f"  (buffer cov {cov} info-sets){extra}", flush=True)
     return curve
 
 
 def main():
     game = cm.CourtisansMiniGame()
-    print(f"=== Oracle CFR+ (référence) — {NUM_ITERS} iters ===", flush=True)
-    cfr_curve = run_cfr_plus(game, NUM_ITERS)
-    for i in sorted(cfr_curve):
-        print(f"  CFR+     iter {i:4d} : NashConv={cfr_curve[i]:.6f}  "
-              f"exploitabilité={cfr_curve[i] / 2:.6f}", flush=True)
+    cfr_curve = {}
+    if os.environ.get("DCFR_SKIP_CFR", "0") != "1":
+        print(f"=== Oracle CFR+ (référence) — {NUM_ITERS} iters ===", flush=True)
+        cfr_curve = run_cfr_plus(game, NUM_ITERS)
+        for i in sorted(cfr_curve):
+            print(f"  CFR+     iter {i:4d} : NashConv={cfr_curve[i]:.6f}  "
+                  f"exploitabilité={cfr_curve[i] / 2:.6f}", flush=True)
 
     print(f"\n=== Deep CFR (PyTorch) — {NUM_ITERS} iters | traversals={TRAVERSALS} "
-          f"adv_steps={ADV_STEPS} pol_steps={POL_STEPS} lr={LR} seed={SEED} ===", flush=True)
+          f"adv_net={ADV_NET} pol_net={POL_NET} adv_steps={ADV_STEPS} pol_steps={POL_STEPS} "
+          f"lr={LR} seed={SEED} ===", flush=True)
     dcfr_curve = run_deep_cfr(game)
 
     print("\n=== Comparatif exploitabilité (NashConv/2) — Deep CFR = policy MCCFR exacte ===",
@@ -181,8 +186,8 @@ def main():
         print(f"{i:>6} | {c:>12} | {d:>12}")
 
     final = dcfr_curve[max(dcfr_curve)] / 2
-    oracle = cfr_curve[max(cfr_curve)] / 2
-    print(f"\nOracle (CFR+ final)   exploitabilité = {oracle:.6f}")
+    if cfr_curve:
+        print(f"\nOracle (CFR+ final)   exploitabilité = {cfr_curve[max(cfr_curve)] / 2:.6f}")
     print(f"Deep CFR final        exploitabilité = {final:.6f}  (policy MCCFR exacte)")
     verdict = "CONVERGE (→ oracle)" if final < 0.02 else "NE CONVERGE PAS encore — voir hyperparams"
     print(f"Verdict : {verdict}")

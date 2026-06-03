@@ -22,10 +22,11 @@ import pyspiel
 
 NOBLE, ESPION, SIMPLE = 0, 1, 2
 ROLE_NAME = {NOBLE: "N", ESPION: "E", SIMPLE: "S"}
-NUM_FAMILIES = 2
+NUM_FAMILIES = 3
 
-# 6 cartes distinctes : (famille, rôle).
+# NUM_FAMILIES × 3 rôles cartes distinctes : (famille, rôle).
 CARDS = [(f, r) for f in range(NUM_FAMILIES) for r in (NOBLE, ESPION, SIMPLE)]
+NUM_CARDS = len(CARDS)
 HAND = 3
 
 
@@ -50,14 +51,20 @@ for _qi in range(3):
         for _own_rel in range(2):
             _COMBOS.append((_qi, _est, _own_rel))  # 3*2*2 = 12
 
-# Les 20 donnes : quelles 3 cartes (sur 6) vont au joueur 0 (le 1 récupère le reste).
-_DEALS = list(combinations(range(6), 3))  # C(6,3) = 20
+# Les donnes : (main P0, main P1) ; les cartes restantes sont hors-jeu (face cachée,
+# inconnues des deux joueurs). À 2 familles : C(6,3)×C(3,3)=20, reste 0 (= v0).
+# À 3 familles : C(9,3)×C(6,3)=1680, reste 3.
+_DEALS = []
+for _p0 in combinations(range(NUM_CARDS), HAND):
+    _rest = [c for c in range(NUM_CARDS) if c not in set(_p0)]
+    for _p1 in combinations(_rest, HAND):
+        _DEALS.append((_p0, _p1))
 
 # Géométrie du tenseur d'info-state (encodage lossless, cf. information_state_tensor).
 ZONE_IDX = {"E": 0, "D": 1, "dom": 2}
-SLOT = 7 + 3 + 3 + 2          # card + zone + owner + placer = 15
-MAX_SLOTS = 3                 # board ≤ 3 entrées à un point de décision
-TENSOR_SIZE = 2 + 6 + MAX_SLOTS * SLOT  # 2 + 6 + 45 = 53
+SLOT = (NUM_CARDS + 1) + 3 + 3 + 2   # card(+inconnu) + zone + owner + placer
+MAX_SLOTS = 3                        # board ≤ 3 entrées à un point de décision
+TENSOR_SIZE = 2 + NUM_CARDS + MAX_SLOTS * SLOT
 
 _GAME_TYPE = pyspiel.GameType(
     short_name="courtisans_mini",
@@ -76,7 +83,7 @@ _GAME_TYPE = pyspiel.GameType(
     parameter_specification={},
 )
 _GAME_INFO = pyspiel.GameInfo(
-    num_distinct_actions=max(len(_COMBOS), len(_DEALS)),  # 20
+    num_distinct_actions=len(_COMBOS),  # 12 actions joueur (chance = espace séparé)
     max_chance_outcomes=len(_DEALS),
     num_players=2,
     min_utility=-1.0,
@@ -118,9 +125,9 @@ class CourtisansMiniState(pyspiel.State):
 
     def _apply_action(self, action):
         if self._cur == pyspiel.PlayerId.CHANCE:
-            p0 = set(_DEALS[action])
+            p0, p1 = _DEALS[action]   # le reste des cartes est hors-jeu (face cachée)
             self._hands[0] = sorted(p0)
-            self._hands[1] = sorted(set(range(6)) - p0)
+            self._hands[1] = sorted(p1)
             self._cur = 0
             return
         player = self._cur
@@ -194,36 +201,38 @@ class CourtisansMiniState(pyspiel.State):
         """Encodage *lossless* de l'info-set (même contenu que la string).
 
         Layout (TENSOR_SIZE dims) :
-          [0:2]   perspective du joueur (one-hot p0/p1)
-          [2:8]   main : multi-hot des 6 cartes (sous-ensemble de taille 3)
-          puis MAX_SLOTS blocs de 15 dims (board, dans l'ordre de pose) :
-            card  7  (6 cartes connues + 1 "inconnu" si espion adverse caché)
-            zone  3  (E, D, dom)
-            owner 3  (Reine/None, d0, d1)
-            placer 2 (p0, p1)
+          [0:2]            perspective du joueur (one-hot p0/p1)
+          [2:2+NUM_CARDS]  main : multi-hot des cartes (sous-ensemble de taille 3)
+          puis MAX_SLOTS blocs de SLOT dims (board, dans l'ordre de pose) :
+            card  NUM_CARDS+1  (cartes connues + 1 "inconnu" si espion adverse caché)
+            zone  3            (E, D, dom)
+            owner 3            (Reine/None, d0, d1)
+            placer 2           (p0, p1)
         Au point de décision le board a 0 (P0) ou 3 (P1) entrées ; les slots
         non remplis restent à zéro. Injectif vs information_state_string.
         """
         if player is None:
             player = self._cur
+        nc = NUM_CARDS
         v = [0.0] * TENSOR_SIZE
         v[player] = 1.0
         for c in self._hands[player]:
             v[2 + c] = 1.0
-        base = 2 + 6
+        base = 2 + nc
         for i, e in enumerate(self._board[:MAX_SLOTS]):
             off = base + i * SLOT
             known = (not e["hidden"]) or (e["placer"] == player)
-            v[off + (e["card"] if known else 6)] = 1.0          # card (7)
-            v[off + 7 + ZONE_IDX[e["zone"]]] = 1.0              # zone (3)
+            v[off + (e["card"] if known else nc)] = 1.0         # card (nc+1)
+            v[off + (nc + 1) + ZONE_IDX[e["zone"]]] = 1.0       # zone (3)
             owner_i = 0 if e["owner"] is None else e["owner"] + 1
-            v[off + 10 + owner_i] = 1.0                         # owner (3)
-            v[off + 13 + e["placer"]] = 1.0                     # placer (2)
+            v[off + (nc + 1 + 3) + owner_i] = 1.0               # owner (3)
+            v[off + (nc + 1 + 3 + 3) + e["placer"]] = 1.0       # placer (2)
         return v
 
     def _action_to_string(self, player, action):
         if player == pyspiel.PlayerId.CHANCE:
-            return f"deal:P0={[card_str(c) for c in _DEALS[action]]}"
+            p0, p1 = _DEALS[action]
+            return f"deal:P0={[card_str(c) for c in p0]}|P1={[card_str(c) for c in p1]}"
         qi, est, own_rel = _COMBOS[action]
         return f"a{action}(reine={'E' if est else 'D'})"
 
