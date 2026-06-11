@@ -19,9 +19,11 @@ Structure : 3 familles × 3 rôles {Noble(2), Espion(caché,1), Simple(1)} = 9 c
 Taille : 1 + 1680×(1 + 12 + 144 + 1728) = 3 166 801 états (≈12× le mini 3fam).
 Scoring et payoff identiques au mini (majorité d'influence, victoire {+1,0,−1}).
 
-v1 : canon désactivé (identité) pour limiter les variables ; à ajouter ensuite.
+v2 : canonicalisation par symétrie des familles (portée du mini, cf. rapport §31),
+toggle COURTISANS_CANON (défaut on). v1 (baseline non-canon) = COURTISANS_CANON=0.
 """
-from itertools import combinations
+import os
+from itertools import combinations, permutations
 
 import pyspiel
 
@@ -29,9 +31,21 @@ NOBLE, ESPION, SIMPLE = 0, 1, 2
 ROLE_NAME = {NOBLE: "N", ESPION: "E", SIMPLE: "S"}
 NUM_FAMILIES = 3
 
+CANON = os.environ.get("COURTISANS_CANON", "1") == "1"
+
 CARDS = [(f, r) for f in range(NUM_FAMILIES) for r in (NOBLE, ESPION, SIMPLE)]
 NUM_CARDS = len(CARDS)   # 9
 HAND = 3
+
+# Relabel d'une carte sous une permutation de familles (perm[f] = nouveau label).
+_FAMILY_PERMS = list(permutations(range(NUM_FAMILIES)))
+_IDENTITY_PERM = tuple(range(NUM_FAMILIES))
+_CANON_CACHE = {}   # signature de vue -> perm canonique (fonction pure, jamais périmé)
+
+
+def _relabel(cid, perm):
+    f, r = divmod(cid, 3)   # cid = f*3 + r (rôles 0..2)
+    return perm[f] * 3 + r
 
 
 def card_value(r):
@@ -137,7 +151,11 @@ class CourtisansRedealState(pyspiel.State):
             return
         player = self._cur
         qi, est, own_rel = _COMBOS[action]
-        hand = sorted(self._hands[player])
+        # Actions interprétées dans l'ordre canonique de la main (cf. rapport §31 :
+        # relabeler la string seule serait un quotient FAUX). Sans canon, perm =
+        # identité → tri par id de carte = comportement v1.
+        perm = self._canon_perm(player)
+        hand = sorted(self._hands[player], key=lambda c: _relabel(c, perm))
         rem = [x for x in range(3) if x != qi]
         own_c = hand[rem[own_rel]]
         opp_c = hand[rem[1 - own_rel]]
@@ -199,17 +217,37 @@ class CourtisansRedealState(pyspiel.State):
     # ---- information ----
     # Rappel parfait : la main passée d'un joueur est intégralement sur le board,
     # visible de lui (placer == lui), et l'action jouée se lit dans les zones.
-    def information_state_string(self, player=None):
-        if player is None:
-            player = self._cur
-        hand = ",".join(card_str(c) for c in sorted(self._hands[player]))
+    def _repr(self, player, perm):
+        """Vue de `player` avec relabel des familles par `perm` (cartes cachées
+        adverses → '??', invariantes). Main triée sur l'id relabelé."""
+        hand = ",".join(sorted(card_str(_relabel(c, perm)) for c in self._hands[player]))
         seen = []
         for e in self._board:
             visible = (not e["hidden"]) or (e["placer"] == player)
-            ident = card_str(e["card"]) if visible else "??"
+            ident = card_str(_relabel(e["card"], perm)) if visible else "??"
             owner = "Q" if e["owner"] is None else f"d{e['owner']}"
             seen.append(f"{ident}@{e['zone']}{owner}<p{e['placer']}")
         return f"P{player}|m{self._round}|main:{hand}|board:{';'.join(seen)}"
+
+    def _canon_perm(self, player):
+        """Perm de familles canonique pour la vue de `player` (minimise la repr).
+        Ne dépend que de l'info visible par `player` → cohérente le long du tree.
+        Mémoïsée par signature immuable de la vue (fonction pure, cf. mini §31)."""
+        if not CANON:
+            return _IDENTITY_PERM
+        key = (player, self._round, tuple(self._hands[player]),
+               tuple(((e["card"] if (not e["hidden"] or e["placer"] == player) else -1),
+                      e["zone"], e["owner"], e["placer"]) for e in self._board))
+        p = _CANON_CACHE.get(key)
+        if p is None:
+            p = min(_FAMILY_PERMS, key=lambda pm: (self._repr(player, pm), pm))
+            _CANON_CACHE[key] = p
+        return p
+
+    def information_state_string(self, player=None):
+        if player is None:
+            player = self._cur
+        return self._repr(player, self._canon_perm(player))
 
     def information_state_tensor(self, player=None):
         """Encodage lossless (même contenu que la string).
@@ -224,16 +262,17 @@ class CourtisansRedealState(pyspiel.State):
         if player is None:
             player = self._cur
         nc = NUM_CARDS
+        perm = self._canon_perm(player)   # relabel canonique (identité si CANON off)
         v = [0.0] * TENSOR_SIZE
         v[player] = 1.0
         v[2 + (self._round - 1)] = 1.0
         for c in self._hands[player]:
-            v[4 + c] = 1.0
+            v[4 + _relabel(c, perm)] = 1.0
         base = 4 + nc
         for i, e in enumerate(self._board[:MAX_SLOTS]):
             off = base + i * SLOT
             known = (not e["hidden"]) or (e["placer"] == player)
-            v[off + (e["card"] if known else nc)] = 1.0          # card (nc+1)
+            v[off + (_relabel(e["card"], perm) if known else nc)] = 1.0  # card (nc+1)
             v[off + (nc + 1) + ZONE_IDX[e["zone"]]] = 1.0        # zone (3)
             owner_i = 0 if e["owner"] is None else e["owner"] + 1
             v[off + (nc + 1 + 3) + owner_i] = 1.0                # owner (3)
