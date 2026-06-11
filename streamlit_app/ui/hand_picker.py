@@ -99,7 +99,7 @@ def render(hand_cards: list[Carte]) -> None:
     h3[0].write("**Destinations**")
     for idx, c in enumerate(hand_cards):
         with h3[idx + 1]:
-            st.image(load_image(c.famille, c.role), use_container_width=True)
+            st.image(load_image(c.famille, c.role), width="stretch")
             st.caption(f"Carte {idx + 1}")
 
     # Spacer pour aligner les labels statut sur les "Carte X"
@@ -109,10 +109,10 @@ def render(hand_cards: list[Carte]) -> None:
         spacer_size = ref_img.size
     spacer = Image.new("RGBA", spacer_size, (0, 0, 0, 0))
     with h3[4]:
-        st.image(spacer, use_container_width=True)
+        st.image(spacer, width="stretch")
         st.caption("**Lumière**")
     with h3[5]:
-        st.image(spacer, use_container_width=True)
+        st.image(spacer, width="stretch")
         st.caption("**Disgrâce**")
 
     # Lignes : Reine / Moi / Adv × 3 colonnes carte + 2 colonnes statut

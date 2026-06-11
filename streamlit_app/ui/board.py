@@ -85,11 +85,11 @@ def render_zone_7cols(
                     if img.mode != "RGBA":
                         img = img.convert("RGBA")
                     composite.paste(img, (0, k * overlap_y), img)
-                st.image(composite, use_container_width=True)
+                st.image(composite, width="stretch")
             elif current:
                 stack = render_stack(current, perspective=perspective)
                 if stack:
-                    st.image(stack, use_container_width=True)
+                    st.image(stack, width="stretch")
             else:
                 st.text("-")
 

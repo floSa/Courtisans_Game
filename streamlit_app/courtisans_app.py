@@ -13,8 +13,8 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from app.jeu import GameEnv  # noqa: E402
 from app.mcts_network import TrainConfig, load_model, train  # noqa: E402
+from streamlit_app import ai_runner  # noqa: E402
 from streamlit_app import state as state_mod  # noqa: E402
-from streamlit_app.ai_runner import auto_resolve_assassins, pick_ai_action  # noqa: E402
 from streamlit_app.ui import board as board_ui  # noqa: E402
 from streamlit_app.ui import hand_picker  # noqa: E402
 from streamlit_app.ui import logs as logs_ui  # noqa: E402
@@ -38,18 +38,32 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+
+@st.cache_resource
+def _load_net(path: str):
+    return load_model(path, GameEnv(num_players=2))
+
+
 # ======================================================================================
 # STATE
 # ======================================================================================
 state_mod.init_session()
 env: GameEnv = st.session_state.game_env
-ai_net = load_model("models/model_2.pth", env)
+
+# Perspective du joueur humain : il voit ses propres espions face visible
+# (mémoire des espions), peu importe la zone où il les a posés.
+HUMAN = 0
 
 # ======================================================================================
 # SIDEBAR
 # ======================================================================================
 st.sidebar.title("Paramètres")
 mode = st.sidebar.radio("Mode", ["Jouer vs IA", "Entraînement"])
+
+opponent = ai_runner.GREEDY
+num_sims_inf = 30
+num_worlds = 10
+ai_net = None
 
 if mode == "Entraînement":
     st.sidebar.header("Configuration Entraînement")
@@ -84,18 +98,93 @@ if mode == "Entraînement":
 
 elif mode == "Jouer vs IA":
     st.sidebar.header("Partie")
-    num_sims_inf = st.sidebar.slider("Simulations MCTS (IA)", 5, 200, 30, step=5)
+    opponent_label = st.sidebar.selectbox(
+        "Adversaire",
+        ["Greedy PIMC (fort)", "Réseau AlphaZero (MCTS)", "Aléatoire"],
+        help=(
+            "Greedy PIMC : maximise l'écart de score immédiat en moyennant sur "
+            "des tirages de l'information cachée — c'est l'agent le plus fort "
+            "mesuré à ce jour. Le réseau AlphaZero est conservé à titre historique."
+        ),
+    )
+    if opponent_label.startswith("Greedy"):
+        opponent = ai_runner.GREEDY
+        num_worlds = st.sidebar.slider(
+            "Mondes PIMC",
+            1,
+            50,
+            10,
+            step=1,
+            help=(
+                "Nombre de déterminisations de l'info cachée moyennées par coup. "
+                "Plus de mondes = jeu plus stable mais réflexion plus lente."
+            ),
+        )
+    elif opponent_label.startswith("Réseau"):
+        opponent = ai_runner.NETWORK
+        num_sims_inf = st.sidebar.slider("Simulations MCTS (IA)", 5, 200, 30, step=5)
+        ai_net = _load_net("models/model_2.pth")
+        if ai_net is None:
+            st.sidebar.warning("models/model_2.pth introuvable : l'IA jouera au hasard.")
+    else:
+        opponent = ai_runner.RANDOM
+
     if st.sidebar.button("Nouvelle Partie"):
         state_mod.new_game()
         st.rerun()
 
-# ======================================================================================
-# APP PRINCIPALE
-# ======================================================================================
+    st.sidebar.caption(f"Pioche : {len(env.deck_indices)} cartes restantes")
 
-# Perspective du joueur humain : il voit ses propres espions face visible
-# (mémoire des espions), peu importe la zone où il les a posés.
-HUMAN = 0
+# ======================================================================================
+# TOUR DE L'IA
+# ======================================================================================
+# Joué AVANT le rendu du plateau pour que l'affichage soit toujours à jour,
+# y compris après une résolution d'assassin par l'humain (le tour de l'IA
+# n'est plus déclenché uniquement depuis le callback du bouton humain).
+
+
+def _run_ai_turn() -> None:
+    ai_action = ai_runner.pick_ai_action(
+        env,
+        opponent=opponent,
+        net=ai_net,
+        num_sims=int(num_sims_inf),
+        num_worlds=int(num_worlds),
+    )
+    ai_hand = env.mains[env.current_player]
+    p, _q, _t = env.mapper.decode(ai_action)
+    logs_ui.log_turn(
+        st.session_state.logs,
+        "IA",
+        env.cartes[ai_hand[p[0]]],
+        env.cartes[ai_hand[p[1]]],
+        env.cartes[ai_hand[p[2]]],
+        suffix=" (IA)",
+    )
+    _, _, done, info = env.step(ai_action)
+    done, _ = ai_runner.resolve_ai_assassins(
+        env, info, opponent=opponent, num_worlds=int(num_worlds)
+    )
+    if done or env.is_done():
+        st.session_state.game_over = True
+
+
+if mode == "Jouer vs IA" and not st.session_state.game_over:
+    while not env.is_done() and env.current_player != HUMAN:
+        if env.pending_assassin_context is not None:
+            # Sécurité : assassins IA encore en attente (ne devrait pas arriver).
+            ai_runner.resolve_ai_assassins(
+                env, {"assassin_pending": True}, opponent=opponent, num_worlds=int(num_worlds)
+            )
+        else:
+            with st.spinner("L'IA réfléchit..."):
+                _run_ai_turn()
+    if env.is_done():
+        st.session_state.game_over = True
+
+# ======================================================================================
+# PLATEAU
+# ======================================================================================
 
 # Domaine IA
 ia_domain_cards = [env.cartes[i] for i in env.plateau_indices if env.cartes[i].domaine_id == 1]
@@ -108,7 +197,7 @@ estime, disgrace = board_ui.split_reine(reine_cards)
 
 st.markdown("<h4 style='text-align: center;'>Estime</h4>", unsafe_allow_html=True)
 board_ui.render_zone_7cols(estime, perspective=HUMAN)
-st.image(BOARD_IMG, use_container_width=True)
+st.image(BOARD_IMG, width="stretch")
 st.markdown("<h4 style='text-align: center;'>Disgrâce</h4>", unsafe_allow_html=True)
 board_ui.render_zone_7cols(disgrace, perspective=HUMAN)
 st.markdown("---")
@@ -122,21 +211,34 @@ board_ui.render_zone_7cols(me_cards, "Votre Domaine", perspective=HUMAN)
 # ======================================================================================
 hand_indices = env.mains[env.current_player]
 
+if st.session_state.game_over:
+    st.success("Partie Terminée !")
+    scores = env._calcul_scores()
+    st.write(f"Scores : Vous {scores[0]} - IA {scores[1]}")
+    if scores[0] > scores[1]:
+        st.write("**Victoire !** 🎉")
+        st.balloons()
+    elif scores[0] < scores[1]:
+        st.write("**Défaite.** L'IA l'emporte cette fois.")
+    else:
+        st.write("**Égalité.**")
+
 # -------- résolution manuelle d'un assassin du joueur ---------------------------------
-if env.pending_assassin_context and env.current_player == 0:
+elif env.pending_assassin_context and env.current_player == HUMAN:
     st.warning("Un assassin a été joué. Sélectionnez sa victime.")
     targets = env.pending_assassin_context["targets"]
     target_options = {f"{env.cartes[i]} (id={i})": i for i in targets}
     target_options["(passer)"] = None
     choice_label = st.radio("Cibles disponibles :", list(target_options.keys()))
     if st.button("Résoudre l'assassin"):
-        _, _, _, info = env.resolve_assassin_manual(target_options[choice_label])
-        auto_resolve_assassins(env, info)
+        # S'il reste d'autres assassins en file, le sélecteur réapparaît au
+        # rerun suivant : chaque assassin du joueur se résout manuellement.
+        env.resolve_assassin_manual(target_options[choice_label])
         if env.is_done():
             st.session_state.game_over = True
         st.rerun()
 
-elif env.current_player == 0 and not st.session_state.game_over and hand_indices:
+elif env.current_player == HUMAN and hand_indices:
     card_objs = [env.cartes[i] for i in hand_indices]
     hand_picker.render(card_objs)
 
@@ -156,7 +258,7 @@ elif env.current_player == 0 and not st.session_state.game_over and hand_indices
             return
 
         # Log joueur
-        player_hand = env.mains[0]
+        player_hand = env.mains[HUMAN]
         logs_ui.log_turn(
             st.session_state.logs,
             "Vous",
@@ -165,39 +267,13 @@ elif env.current_player == 0 and not st.session_state.game_over and hand_indices
             env.cartes[player_hand[mapping[2]]],
         )
 
-        _, _, done, info = env.step(action)
-        if info.get("assassin_pending"):
-            # On laisse l'UI rerender et passer en mode "résolution assassin"
-            hand_picker.reset_selection()
-            st.session_state.error_msg = None
-            return
-
-        if done:
-            st.session_state.game_over = True
-            hand_picker.reset_selection()
-            st.session_state.error_msg = None
-            return
-
+        _, _, done, _info = env.step(action)
         hand_picker.reset_selection()
         st.session_state.error_msg = None
-
-        # Tour IA
-        if not env.is_done():
-            ai_action = pick_ai_action(env, ai_net, num_sims=int(num_sims_inf))
-            ai_hand = env.mains[env.current_player]
-            p, _q, _t = env.mapper.decode(ai_action)
-            logs_ui.log_turn(
-                st.session_state.logs,
-                "IA",
-                env.cartes[ai_hand[p[0]]],
-                env.cartes[ai_hand[p[1]]],
-                env.cartes[ai_hand[p[2]]],
-                suffix=" (IA)",
-            )
-            _, _, done, info = env.step(ai_action)
-            done, _ = auto_resolve_assassins(env, info)
-            if done or env.is_done():
-                st.session_state.game_over = True
+        if done:
+            st.session_state.game_over = True
+        # Si un assassin est en attente, le rerun affiche le sélecteur de
+        # cible ; sinon le tour de l'IA se joue automatiquement en haut de page.
 
     current_map = hand_picker.get_mapping_result()
     btn_type = "primary" if current_map else "secondary"
@@ -207,32 +283,8 @@ elif env.current_player == 0 and not st.session_state.game_over and hand_indices
     if st.session_state.error_msg:
         st.warning(st.session_state.error_msg)
 
-elif st.session_state.game_over:
-    st.success("Partie Terminée !")
-    scores = env._calcul_scores()
-    st.write(f"Scores : Vous {scores[0]} - IA {scores[1]}")
-    if scores[0] > scores[1]:
-        st.balloons()
-
 else:
-    st.error("État inattendu : c'est le tour de l'IA mais l'action n'a pas été déclenchée.")
-    if st.button("Forcer l'IA à jouer"):
-        ai_action = pick_ai_action(env, ai_net, num_sims=int(num_sims_inf))
-        ai_hand = env.mains[env.current_player]
-        p, _q, _t = env.mapper.decode(ai_action)
-        logs_ui.log_turn(
-            st.session_state.logs,
-            "IA (Forcé)",
-            env.cartes[ai_hand[p[0]]],
-            env.cartes[ai_hand[p[1]]],
-            env.cartes[ai_hand[p[2]]],
-            suffix=" (IA)",
-        )
-        _, _, done, info = env.step(ai_action)
-        done, _ = auto_resolve_assassins(env, info)
-        if done or env.is_done():
-            st.session_state.game_over = True
-        st.rerun()
+    st.error("État inattendu. Relancez une partie depuis la barre latérale.")
 
 # ======================================================================================
 # LOGS

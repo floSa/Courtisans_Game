@@ -95,6 +95,18 @@ Initialisé par `streamlit_app.state.init_session()` :
 | `v3_lumiere/...`    | `bool`    | État des cases cochées (gérées par `hand_picker`). |
 | `map_{d}_{c}`       | `bool`    | Cases de la grille destinations × cartes. |
 
+### Adversaires
+
+La sidebar propose trois adversaires (`ai_runner.GREEDY` / `NETWORK` /
+`RANDOM`) :
+
+- **Greedy PIMC** (défaut) : `greedy_action_main` / `greedy_action_target`
+  avec `num_worlds` déterminisations (slider « Mondes PIMC »). Aucun modèle
+  requis, agent le plus fort mesuré.
+- **Réseau AlphaZero** : MCTS sur `models/model_2.pth` (chargé via
+  `@st.cache_resource`, warning si absent → fallback aléatoire).
+- **Aléatoire** : action légale uniforme.
+
 ### Action joueur
 
 1. L'utilisateur configure la grille puis clique sur **VALIDER**.
@@ -102,10 +114,14 @@ Initialisé par `streamlit_app.state.init_session()` :
    `None`.
 3. `env.mapper.encode((perm), queen_pos, 0)` → `action_idx`.
 4. `env.step(action_idx)` :
-   - si `info["assassin_pending"]` → l'UI rerender en mode résolution.
-   - sinon, l'IA joue immédiatement après via `ai_runner.pick_ai_action()`.
-5. `ai_runner.auto_resolve_assassins()` boucle sur les assassins joués par
-   l'IA jusqu'à ce que `info` ne signale plus rien.
+   - si `info["assassin_pending"]` → l'UI rerender en mode résolution ;
+     chaque assassin du joueur se résout manuellement (le sélecteur
+     réapparaît tant que la file n'est pas vide).
+5. Le tour de l'IA n'est plus déclenché dans le callback : un bloc en tête de
+   script joue l'IA dès que `env.current_player != HUMAN` (donc aussi après
+   une résolution d'assassin humaine), puis
+   `ai_runner.resolve_ai_assassins()` résout la chaîne d'assassins de l'IA
+   (ciblage greedy PIMC, ou heuristique B1 pour réseau/aléatoire).
 
 ### Entraînement
 

@@ -76,8 +76,14 @@ Sans modèle, l'app fonctionne quand même : l'IA joue alors au hasard.
 streamlit run streamlit_app/courtisans_app.py
 ```
 
-L'app s'ouvre sur <http://localhost:8501>. Le modèle `models/model_2.pth` est
-chargé automatiquement s'il est présent.
+L'app s'ouvre sur <http://localhost:8501>. Trois adversaires sont proposés
+dans la barre latérale :
+
+- **Greedy PIMC** (défaut) — l'agent le plus fort mesuré à ce jour, aucun
+  modèle requis. Le slider « Mondes PIMC » règle sa force.
+- **Réseau AlphaZero (MCTS)** — charge `models/model_2.pth` s'il est présent
+  (historique, plus faible que le greedy).
+- **Aléatoire** — pour découvrir les règles.
 
 ### CLI (sans interface)
 
