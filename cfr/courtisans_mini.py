@@ -297,3 +297,7 @@ class CourtisansMiniState(pyspiel.State):
 
 
 pyspiel.register_game(_GAME_TYPE, CourtisansMiniGame)
+
+
+def make_game():
+    return CourtisansMiniGame()

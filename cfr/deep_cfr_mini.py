@@ -21,10 +21,13 @@ from collections import defaultdict
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import importlib
+
 import numpy as np
 import torch
 
-import cfr.courtisans_mini as cm
+# Jeu (défaut : le mini). Ex : DCFR_GAME=cfr.courtisans_assassin
+cm = importlib.import_module(os.environ.get("DCFR_GAME", "cfr.courtisans_mini"))
 from open_spiel.python import policy as policy_lib
 from open_spiel.python.algorithms import cfr, exploitability
 from open_spiel.python.pytorch import deep_cfr
@@ -38,6 +41,7 @@ LR = float(os.environ.get("DCFR_LR", "1e-3"))
 MEASURE_NET = os.environ.get("DCFR_MEASURE_NET", "0") == "1"  # mesurer aussi la tête policy
 ADV_NET = tuple(int(x) for x in os.environ.get("DCFR_ADV_NET", "64,64").split(","))
 POL_NET = tuple(int(x) for x in os.environ.get("DCFR_POL_NET", "64,64").split(","))
+MEM = int(float(os.environ.get("DCFR_MEM", "1e6")))  # capacité des reservoir buffers
 CHECKPOINTS = [c for c in (2, 5, 10, 20, 40, 80, 160, 320, 640) if c <= NUM_ITERS]
 if NUM_ITERS not in CHECKPOINTS:
     CHECKPOINTS.append(NUM_ITERS)
@@ -136,7 +140,7 @@ def run_deep_cfr(game):
         batch_size_strategy=512,
         policy_network_train_steps=POL_STEPS,
         advantage_network_train_steps=ADV_STEPS,
-        memory_capacity=int(1e6),
+        memory_capacity=MEM,
         reinitialize_advantage_networks=True,
         device="cpu",
         seed=SEED,
@@ -157,13 +161,16 @@ def run_deep_cfr(game):
             extra = ""
             if MEASURE_NET:
                 extra = f"  | net={net_exploitability(solver, game) / 2:.6f}"
+            stream = int(solver._strategy_memories.add_calls)
+            kept = len(solver._strategy_memories)
             print(f"  Deep CFR iter {it:4d} : NashConv={nc:.6f}  exploitabilité={nc / 2:.6f}"
-                  f"  (buffer cov {cov} info-sets){extra}", flush=True)
+                  f"  (buffer cov {cov} info-sets, {kept}/{stream} échantillons gardés)"
+                  f"{extra}", flush=True)
     return curve
 
 
 def main():
-    game = cm.CourtisansMiniGame()
+    game = cm.make_game()
     cfr_curve = {}
     if os.environ.get("DCFR_SKIP_CFR", "0") != "1":
         print(f"=== Oracle CFR+ (référence) — {NUM_ITERS} iters ===", flush=True)

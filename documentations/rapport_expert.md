@@ -2536,3 +2536,65 @@ sera lourd → prévoir une canonicalisation directe (tri) plutôt qu'énumérat
 
 **Prochaine sous-brique** : 2+ manches avec pioche/draw (introduit l'horizon long → c'est là que
 les variantes à variance réduite type ESCHER/DREAM deviendront pertinentes).
+
+---
+
+## 32. Brique 2.1c — assassins + gardes : le plateau était l'advantage-net sous-entraîné (10/06/2026)
+
+**Un seul changement** : ajout du sous-jeu de ciblage. `cfr/courtisans_assassin.py` = 2 familles
+× 4 rôles {Noble(2), Espion(caché,1), Garde(1), Assassin(1)} = 10 cartes (le Neutre, redondant,
+est retiré pour garder l'oracle vivant). Un assassin posé tue immédiatement une carte de sa zone
+(hors Gardes, hors lui-même) → **2ᵉ phase de décision** (`phase="target"`), actions de ciblage
+réutilisant les ids 0..k-1 < 12, assassins multiples résolus séquentiellement.
+
+### Instance
+- États **123 921** | terminaux 80 640 | info-sets **P0=56, P1=33 240** | tenseur 138-dim
+  (blocs board étendus : flag `dead` + zone-clé de l'assassin en résolution).
+- **Oracle CFR+** : exploitabilité **0.000093** à 300 iters — le sous-jeu de ciblage reste
+  résoluble exactement. Équilibre MIXTE (6 actions, {8,11}≈0.19, {1,2}≈0.17).
+
+### Le plateau à 0.031 — et le diagnostic
+Deep CFR (policy MCCFR buffer-exacte) **plafonnait à ~0.031-0.034** insensible aux leviers déjà
+connus : traversals ×3 (1000→3000 : 0.0315→0.0315), policy-net/steps ×2 (sans objet — la
+métrique buffer-exacte exclut la tête policy). Nouveau symptôme : la **couverture du strategy
+buffer décroissait** (21.3k → 15.8k info-sets), suggérant l'éviction reservoir (~18.6k
+échantillons/iter → 3.7M sur 200 iters dans un buffer de 1e6, ~73 % jetés).
+
+Grille à un changement par run (traversals=1000 ; les runs ont été interrompus à l'iter 80
+par une mise en veille du PC — suffisant, le verdict est sans ambiguïté à l'iter 80) :
+
+| run | changement | expl. @ 80 |
+|---|---|---|
+| baseline (@200 : 0.0314) | — | 0.0337 |
+| E1 | memory 1e6 → 3e6 | 0.0338 |
+| E2 | advantage-net 128² → 256² | 0.0219 |
+| E3 | **advantage steps 500 → 1500** | **0.0112** |
+
+→ **L'éviction n'était PAS le goulot** (E1 = baseline au point près : la politique moyenne
+pondérée-par-itération est robuste au sous-échantillonnage uniforme du stream). Le goulot était
+le **réseau d'avantage sous-entraîné** : 500 steps ne suffisent plus à régresser les regrets de
+33k info-sets, or c'est lui qui pilote le regret-matching des traversals — les stratégies
+échantillonnées elles-mêmes étaient mauvaises, d'où un plateau que ni les traversals ni la tête
+policy ne pouvaient casser. (Même famille de piège que le « plateau » de la brique 1 — qui était
+la tête policy sous-entraînée : à chaque agrandissement d'instance, re-questionner le budget
+d'entraînement des DEUX réseaux.)
+
+### Confirmation — brique validée
+| run | expl. @ 80 | expl. @ 160 |
+|---|---|---|
+| **combo** 1500 steps + 256² (s42) | 0.0075 | **0.0063** |
+| 1500 steps, 128² (seed 123) | 0.0111 | 0.0096 |
+
+Le gain est **robuste à la seed** (0.0112 s42 ≈ 0.0111 s123 @ 80) et les deux leviers
+advantage **se cumulent** (combo 0.0063, ~5× sous le plateau, courbe encore décroissante,
+largement sous le seuil 0.02). Courbes : `cfr/deep_cfr_assassin_compare.png`.
+**Brique 2.1c validée** : Deep CFR converge vers l'oracle sur l'instance à sous-jeu de
+ciblage (oracle 0.000093, Deep CFR 0.0063 — même ordre de qualité que les briques 1/2.1a-b
+rapporté au nombre d'info-sets).
+
+### Leçon générique pour le scaling
+Le levier variance (traversals, canon §31) et le levier **fit de l'advantage-net** (steps,
+capacité) sont **indépendants et tous deux bloquants** ; le second ne se voit PAS dans la
+couverture du buffer mais dans un plateau précoce de la courbe buffer-exacte. Diagnostic ajouté
+au script : `échantillons gardés/stream` à chaque checkpoint (`deep_cfr_mini.py`), grille via
+env `DCFR_ADV_STEPS`, `DCFR_ADV_NET`, `DCFR_MEM`, `DCFR_SEED`, `DCFR_GAME`.
