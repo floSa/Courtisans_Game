@@ -67,6 +67,11 @@ métrique Elo vs pool. Fallback, pas l'objectif premier.
 | `cfr/deep_cfr_mini.py` | Deep CFR (PyTorch) vs oracle + courbe d'exploitabilité | ✅ Converge (§29) |
 | `cfr/diag_strategy_buffer.py` | Diagnostic : policy MCCFR exacte (buffer) vs réseau | ✅ Marche |
 | `cfr/plot_deep_cfr_mini.py` | Graphe Deep CFR vs CFR+ depuis le log | ✅ Marche |
+| `cfr/courtisans_assassin.py` | Instance assassins + gardes (sous-jeu de ciblage, brique 2.1c) | ✅ Validée (§32) |
+| `cfr/courtisans_redeal.py` | Instance 2 manches avec pioche (brique 2.1d) | ⏳ Oracle en cours |
+| `cfr/check_redeal.py`, `check_redeal_lossless.py` | Validation structurelle + lossless du redeal | ✅ Passent |
+| `cfr/count_infosets.py` | Compte états/info-sets par traversée (sans get_all_states) | ✅ Marche |
+| `cfr/plot_compare.py` | Compare plusieurs logs Deep CFR sur un graphe | ✅ Marche |
 | `scripts/remeasure_fair.py` | Mesure appariée vs greedy équitable PIMC | OK |
 | `scripts/dagger_greedy.py`, `bc_greedy.py` | Diagnostics BC/DAgger | Historique |
 
@@ -111,9 +116,17 @@ couple (main P0, main P1), reste hors-jeu face cachée.
      lossless prouvé. Deep CFR canon@500 = 0.019 vs non-canon@500 = 0.060 (~3× à budget égal).
      Clé : réinterpréter les actions dans l'ordre canonique de la main (pas juste la string).
      Toggle `COURTISANS_CANON`. Détails `rapport_expert.md` §31.
-   - **2.1c [PROCHAIN] : 2+ manches avec pioche/draw** (horizon long → variantes à variance
-     réduite type ESCHER/DREAM pertinentes), puis assassins + gardes — jusqu'à la limite du
-     tabulaire, chaque palier validé par l'exploitabilité tabulaire tant qu'elle reste calculable.
+   - **2.1c [FAIT 10/06] : assassins + gardes** (`cfr/courtisans_assassin.py`, 2 fam × 4 rôles,
+     sous-jeu de ciblage). Oracle 0.000093 ; le plateau Deep CFR à 0.031 était l'**advantage-net
+     sous-entraîné** (500→1500 steps : 0.0112 ; combo +256² : **0.0063**, robuste à la seed).
+     Leçon : à chaque agrandissement, re-questionner le budget d'entraînement des DEUX réseaux.
+     Détails `rapport_expert.md` §32.
+   - **2.1d [EN COURS 11/06] : 2 manches avec pioche** (`cfr/courtisans_redeal.py`, 3 fam,
+     9 cartes, P0 repioche et rejoue — 3.17M états, info-sets P0=213 684/P1=12 400, encodage
+     lossless vérifié). Oracle CFR+ 100 iters en cours. L'horizon long fait exploser les
+     info-sets de P0 (×17) → c'est ici que les variantes à variance réduite (ESCHER/DREAM)
+     deviendront pertinentes. Ensuite : jusqu'à la limite du tabulaire, chaque palier validé
+     par l'exploitabilité tant qu'elle reste calculable.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
    Appliquer la canonicalisation par symétrie de familles.
 4. **ReBeL** seulement si (a) l'exploitabilité plafonne trop haut, ou (b) besoin de recherche
