@@ -4,6 +4,7 @@ Usage : uv run python cfr/solve_mini.py [iters]
 """
 import importlib
 import os
+import pickle
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,6 +15,33 @@ from open_spiel.python.algorithms import cfr, exploitability, get_all_states
 cm = importlib.import_module(os.environ.get("COURTISANS_GAME", "cfr.courtisans_mini"))
 
 ITERS = int(sys.argv[1]) if len(sys.argv) > 1 else 600
+# Checkpoint de reprise (COURTISANS_CKPT=chemin.pkl) : sauvegarde des regrets /
+# politiques cumulés toutes les 3 itérations, reprise automatique après un kill.
+# Indispensable sur les grosses instances (combo ≈ 7,4 min/iter) dans un
+# environnement où les processus longs peuvent être tués.
+CKPT = os.environ.get("COURTISANS_CKPT")
+EVAL_ITERS = (1, 5, 10, 25, 50, 100, 300)
+
+
+def _save_ckpt(solver, iteration):
+    tmp = CKPT + ".tmp"
+    nodes = {k: (dict(n.cumulative_regret), dict(n.cumulative_policy))
+             for k, n in solver._info_state_nodes.items()}
+    with open(tmp, "wb") as f:
+        pickle.dump({"iteration": iteration, "nodes": nodes}, f, protocol=4)
+    os.replace(tmp, CKPT)
+
+
+def _load_ckpt(solver):
+    with open(CKPT, "rb") as f:
+        saved = pickle.load(f)
+    nodes = solver._info_state_nodes
+    for k, (cr, cp) in saved["nodes"].items():
+        n = nodes[k]
+        n.cumulative_regret.update(cr)
+        n.cumulative_policy.update(cp)
+    solver._iteration = saved["iteration"]
+    return saved["iteration"]
 
 
 def main():
@@ -36,9 +64,15 @@ def main():
               f"info-sets P0 : {len(infosets[0])} | P1 : {len(infosets[1])}", flush=True)
 
     solver = cfr.CFRPlusSolver(game)
-    for i in range(1, ITERS + 1):
+    start = 0
+    if CKPT and os.path.exists(CKPT):
+        start = _load_ckpt(solver)
+        print(f"Reprise du checkpoint à l'itération {start}", flush=True)
+    for i in range(start + 1, ITERS + 1):
         solver.evaluate_and_update_policy()
-        if i in (1, 5, 10, 25, 50, 100, 300, ITERS):
+        if CKPT and (i % 3 == 0 or i in EVAL_ITERS or i == ITERS):
+            _save_ckpt(solver, i)
+        if i in EVAL_ITERS or i == ITERS:
             nc = exploitability.nash_conv(game, solver.average_policy(), use_cpp_br=False)
             print(f"CFR+ iter {i:4d} : NashConv={nc:.6f}  exploitabilité={nc/2:.6f}", flush=True)
 
