@@ -2598,3 +2598,51 @@ capacité) sont **indépendants et tous deux bloquants** ; le second ne se voit 
 couverture du buffer mais dans un plateau précoce de la courbe buffer-exacte. Diagnostic ajouté
 au script : `échantillons gardés/stream` à chaque checkpoint (`deep_cfr_mini.py`), grille via
 env `DCFR_ADV_STEPS`, `DCFR_ADV_NET`, `DCFR_MEM`, `DCFR_SEED`, `DCFR_GAME`.
+
+---
+
+## 33. Brique 2.1d — 2 manches avec pioche : la canonicalisation casse le mur de variance (12/06/2026)
+
+**Un seul changement** : la 2ᵉ manche. `cfr/courtisans_redeal.py` = mini 3 familles (9 cartes,
+mêmes rôles/scoring) + pioche : donne 3+3, les 3 restantes face cachée ; P0 les pioche après le
+tour de P1 et rejoue (asymétrie assumée — plus petite instance exhibant le mécanisme). La pioche
+est déterminée par la donne (pas de chance mid-game) mais reste **privée** : les espions cachés
+de P0 brouillent le comptage de P1.
+
+### Instance — l'horizon long fait exploser les info-sets
+- États **3 166 801** (vérifié exactement par comptage), terminaux 2 903 040, tenseur 121-dim.
+- Info-sets **P0 = 213 684** (84 en m1 + 213 600 en m2 : ×17 vs 2.1c !) | P1 = 12 400.
+- Lossless vérifié : 226 084 strings ↔ 226 084 tensors. `get_all_states` intenable à cette
+  taille → `cfr/count_infosets.py` (traversée sans matérialisation) et `COURTISANS_SKIP_STATS=1`.
+- **Oracle CFR+** : exploitabilité **0.000673** @ 100 iters (~2h30, 103 s/iter) — équilibre
+  d'ouverture P0 MIXTE **{4,7,8,11} à 0.25, identique au mini sans 2ᵉ manche** (la manche 2 ne
+  change pas la stratégie d'ouverture — jolie validation de cohérence).
+
+### Deep CFR — le mur de variance, et sa chute
+Baseline (2000 traversals, adv 256², 1500 steps — les leçons de §32 déjà appliquées) :
+**plateau à 0.109** dès l'iter 20. Grille à un changement par run (100 iters) :
+
+| run | changement | expl. @ 100 |
+|---|---|---|
+| baseline non-canon | — | 0.1089 (plateau) |
+| | adv-steps 1500 → 4000 | 0.0886 (décroît lentement) |
+| | traversals 2000 → 6000 | 0.1110 (**aucun effet**) |
+| **canon** | symétrie familles (÷6.0) | **0.0195 — CONVERGE, courbe décroissante** |
+
+→ À 213k info-sets, ni le budget de traversals ni le fit de l'advantage-net ne suffisent : le
+goulot est la **variance par info-set**, et le quotient lossless ÷6 la réduit frontalement
+(0.109 → 0.0195 à budget égal, ÷5.6 — même schéma qu'en §31). Courbes :
+`cfr/deep_cfr_redeal_compare.png`.
+
+### Canonicalisation portée au redeal (`COURTISANS_CANON`, défaut on)
+Même méthode que §31 (actions réinterprétées dans l'ordre canonique de la main, perm mémoïsée
+par signature de vue). Validation `cfr/check_redeal_canon.py` : arbre invariant canon on/off
+(1885 nœuds/donne), P0 213 684 → **35 620** (÷6.0), P1 12 400 → 2 108 (÷5.9), lossless
+37 728 = 37 728 = 37 728. **Preuve dynamique** : oracle canon **0.000684** @ 100 ≈ non-canon
+0.000673, **même équilibre {4,7,8,11}** → quotient lossless confirmé sur un jeu à horizon long.
+
+**Brique 2.1d validée.** Le pipeline complet (instance → oracle → Deep CFR canon convergent)
+tient sur un jeu multi-manches à 3.17M états. Prochaine étape : continuer à monter (manches
+symétriques / 4+ familles → limite du tabulaire) ou attaquer directement le jeu plein en
+appliquant le playbook §32-33 (canon + budgets advantage), l'exploitabilité oracle n'étant
+alors plus disponible — pivot vers LBR/greedy-PIMC comme borne basse de qualité.

@@ -121,12 +121,16 @@ couple (main P0, main P1), reste hors-jeu face cachée.
      sous-entraîné** (500→1500 steps : 0.0112 ; combo +256² : **0.0063**, robuste à la seed).
      Leçon : à chaque agrandissement, re-questionner le budget d'entraînement des DEUX réseaux.
      Détails `rapport_expert.md` §32.
-   - **2.1d [EN COURS 11/06] : 2 manches avec pioche** (`cfr/courtisans_redeal.py`, 3 fam,
-     9 cartes, P0 repioche et rejoue — 3.17M états, info-sets P0=213 684/P1=12 400, encodage
-     lossless vérifié). Oracle CFR+ 100 iters en cours. L'horizon long fait exploser les
-     info-sets de P0 (×17) → c'est ici que les variantes à variance réduite (ESCHER/DREAM)
-     deviendront pertinentes. Ensuite : jusqu'à la limite du tabulaire, chaque palier validé
-     par l'exploitabilité tant qu'elle reste calculable.
+   - **2.1d [FAIT 12/06] : 2 manches avec pioche** (`cfr/courtisans_redeal.py`, 3 fam,
+     9 cartes, P0 repioche et rejoue — 3.17M états, info-sets P0=213 684/P1=12 400, lossless
+     vérifié). Oracle 0.000673 @ 100 ; équilibre d'ouverture identique au mini (cohérence).
+     Deep CFR plafonnait à 0.109 (traversals ×3 sans effet, adv-steps ×2.7 marginal) → la
+     **canonicalisation** (÷6.0, portée du §31, oracle canon 0.000684 = lossless dynamique)
+     casse le mur : **0.0195 à budget égal, CONVERGE**. Le pipeline tient sur un jeu
+     multi-manches. Détails `rapport_expert.md` §33.
+   - **2.1e [PROCHAIN]** : monter encore (manches symétriques / 4 familles → limite du
+     tabulaire) ou attaquer le jeu plein avec le playbook §32-33 ; variantes à variance
+     réduite (ESCHER/DREAM) si nouveau plateau.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
    Appliquer la canonicalisation par symétrie de familles.
 4. **ReBeL** seulement si (a) l'exploitabilité plafonne trop haut, ou (b) besoin de recherche
