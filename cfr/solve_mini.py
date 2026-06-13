@@ -41,6 +41,10 @@ def _load_ckpt(solver):
         n.cumulative_regret.update(cr)
         n.cumulative_policy.update(cp)
     solver._iteration = saved["iteration"]
+    # CRUCIAL : reconstruire la politique courante depuis les regrets restaurés.
+    # Sans ça, la 1re itération après reprise traverse avec une policy uniforme
+    # (≠ regret-matching de l'itération sauvée) → résultat dévié. Vérifié.
+    cfr._update_current_policy(solver._current_policy, solver._info_state_nodes)
     return saved["iteration"]
 
 
