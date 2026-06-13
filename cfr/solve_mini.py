@@ -70,7 +70,7 @@ def main():
         print(f"Reprise du checkpoint à l'itération {start}", flush=True)
     for i in range(start + 1, ITERS + 1):
         solver.evaluate_and_update_policy()
-        if CKPT and (i % 3 == 0 or i in EVAL_ITERS or i == ITERS):
+        if CKPT:
             _save_ckpt(solver, i)
         if i in EVAL_ITERS or i == ITERS:
             nc = exploitability.nash_conv(game, solver.average_policy(), use_cpp_br=False)
