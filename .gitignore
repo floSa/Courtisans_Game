@@ -24,3 +24,6 @@ models/v6_checkpoints/
 training_graph.png
 models/*.pth.*
 models/*backup*
+
+# Checkpoints d'entraînement (artefacts regénérables)
+*.ckpt

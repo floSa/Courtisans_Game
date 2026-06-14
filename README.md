@@ -76,7 +76,7 @@ Sans modèle, l'app fonctionne quand même : l'IA joue alors au hasard.
 streamlit run streamlit_app/courtisans_app.py
 ```
 
-L'app s'ouvre sur <http://localhost:8501>. Trois adversaires sont proposés
+L'app s'ouvre sur <http://localhost:8508>. Trois adversaires sont proposés
 dans la barre latérale :
 
 - **Greedy PIMC** (défaut) — l'agent le plus fort mesuré à ce jour, aucun
