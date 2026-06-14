@@ -2646,3 +2646,50 @@ tient sur un jeu multi-manches à 3.17M états. Prochaine étape : continuer à 
 symétriques / 4+ familles → limite du tabulaire) ou attaquer directement le jeu plein en
 appliquant le playbook §32-33 (canon + budgets advantage), l'exploitabilité oracle n'étant
 alors plus disponible — pivot vers LBR/greedy-PIMC comme borne basse de qualité.
+
+---
+
+## 34. Brique 2.1e — combo assassins + pioche : oracle OK, Deep CFR bute sur la variance (14/06/2026)
+
+**Les deux mécanismes ensemble.** `cfr/courtisans_combo.py` = 3 familles × {Noble, Espion,
+Assassin} (le Garde de 2.1c écarté : il ne fait que restreindre les cibles) + structure redeal
+(2 manches, pioche). C'est la plus petite instance contenant *à la fois* le sous-jeu de ciblage
+et l'horizon long avec pioche : un combo en 2 familles est impossible (6 cartes = 3+3, zéro
+pioche → pas de manche 2). 8 250 001 états, info-sets canon **P0=455 092 / P1=19 908** (×13 vs
+redeal canon), lossless vérifié (475 000 strings = tensors = paires, `cfr/check_combo.py`).
+
+### Oracle — résolu et propre
+| iter | 1 | 10 | 25 | 50 |
+|---|---|---|---|---|
+| exploitabilité | 0.762 | 0.036 | 0.0068 | **0.001783** |
+
+Équilibre d'ouverture mixte (8 actions). L'instance qui combine les deux mécanismes est donc
+résoluble exactement — le combo n'introduit pas de pathologie. ~6h de calcul (CFR+ 50 iters,
+checkpoint par itération).
+
+### Deep CFR — verdict en suspens, ça plafonne haut
+Run (config gagnante 2.1d : 2000 traversals, adv 256²/1500 steps, canon) interrompu à it.20/100 :
+| iter | 2 | 5 | 10 | 20 |
+|---|---|---|---|---|
+| exploitabilité | 0.386 | 0.258 | 0.201 | **0.190** |
+
+La chute s'aplatit nettement (10→20 : 0.201→0.190), bien plus tôt et plus haut que le redeal
+canon (qui faisait 0.106→0.061 sur la même plage). À **455k info-sets** (13× le redeal), la
+variance par info-set est le mur dominant, et la canonicalisation seule ne suffit plus. Run
+arrêté avant convergence (lenteur ~9 min/it → 100 it ≈ 15h ; hors budget). Courbe partielle :
+`cfr/deep_cfr_combo_partiel.png`.
+
+**Lecture.** Ce n'est pas un échec mais le **signal attendu** : on atteint l'échelle où les
+variantes à **variance réduite (ESCHER/DREAM, dispo dans OpenSpiel-pytorch)** deviennent
+nécessaires — exactement ce que la roadmap anticipait pour l'horizon long. Pistes 2.1f : (a)
+ESCHER/DREAM ; (b) gros budget de traversals + plus d'itérations ; (c) external sampling plus
+agressif. L'oracle 0.001783 reste la cible à atteindre.
+
+**Reprise.** L'oracle est sauvegardé (`solve_combo.ckpt`, it.50) → reprendre ne re-coûte QUE la
+phase Deep CFR (qui, elle, n'a pas de checkpoint interne et repart de 0). `run_combo_chain.sh`
+saute l'oracle (déjà « Équilibre » dans le log) et relance directement le Deep CFR.
+
+**Infra.** 1er run multi-heures **sans aucun gel** (oracle 00h03→06h10 d'affilée) grâce au fix
+`.wslconfig` (32 Go fixes + `autoMemoryReclaim=disabled`, coupe le ballooning `hv_balloon`). Le
+problème WSL `0x8007274c` qui bloquait depuis 2 jours est maîtrisé. Détails
+`infra_wsl_runs_longs.md` + checkpoint/reprise du solveur vérifié exact (commit antérieur).

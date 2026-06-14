@@ -128,9 +128,21 @@ couple (main P0, main P1), reste hors-jeu face cachée.
      **canonicalisation** (÷6.0, portée du §31, oracle canon 0.000684 = lossless dynamique)
      casse le mur : **0.0195 à budget égal, CONVERGE**. Le pipeline tient sur un jeu
      multi-manches. Détails `rapport_expert.md` §33.
-   - **2.1e [PROCHAIN]** : monter encore (manches symétriques / 4 familles → limite du
-     tabulaire) ou attaquer le jeu plein avec le playbook §32-33 ; variantes à variance
-     réduite (ESCHER/DREAM) si nouveau plateau.
+   - **2.1e [EN COURS 14/06] : combo assassins + pioche** (`cfr/courtisans_combo.py`, 3 fam ×
+     {Noble, Espion, Assassin}, 8.25M états, info-sets canon P0=455k/P1=20k, lossless vérifié).
+     **Oracle terminé et propre** : 0.76 → 0.036 (it.10) → 0.0068 (it.25) → **0.001783 (it.50)**,
+     équilibre mixte 8 actions → l'instance qui combine les deux mécanismes est résoluble.
+     **Deep CFR : verdict en suspens, ça coince.** Run interrompu à it.20/100 (lenteur ~9min/it
+     + courbe qui s'aplatit haut : 0.386 → 0.258 → 0.201 → **0.190**). À 455k info-sets (13× le
+     redeal) le mur de variance est bien plus dur ; à confirmer, mais ça sent le plateau trop
+     haut → **c'est ici que les variantes à variance réduite (ESCHER/DREAM) deviennent
+     nécessaires**, comme anticipé. L'oracle est sauvegardé (`solve_combo.ckpt`) ; reprendre =
+     relancer seulement la phase Deep CFR (le Deep CFR n'a pas de checkpoint interne).
+     Courbe partielle : `cfr/deep_cfr_combo_partiel.png`. Détails `rapport_expert.md` §34.
+     **Bonus infra** : 1er run multi-h sans gel grâce au fix `.wslconfig` (cf.
+     `infra_wsl_runs_longs.md`).
+   - **2.1f [SUITE]** : faire converger le Deep CFR du combo (ESCHER/DREAM ou gros budget
+     traversals), OU attaquer le jeu plein avec le playbook §32-33.
 3. **Deep CFR sur l'instance pleine** (compo uniforme 6×5×3), exploitabilité mesurée.
    Appliquer la canonicalisation par symétrie de familles.
 4. **ReBeL** seulement si (a) l'exploitabilité plafonne trop haut, ou (b) besoin de recherche
