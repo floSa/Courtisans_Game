@@ -120,3 +120,16 @@ Courtisans_Game/
 ├── pyproject.toml
 └── requirements.txt
 ```
+
+---
+
+## Licences & composants
+
+| Composant | Rôle | Licence |
+|---|---|---|
+| PyTorch | Réseau de neurones (IA) | BSD-3-Clause |
+| NumPy | Calcul numérique | BSD-3-Clause |
+| Pillow | Rendu des visuels (cartes, plateau) | MIT-CMU (HPND) |
+| Streamlit | Interface de jeu | Apache-2.0 |
+| Ruff / pytest | Lint / tests | MIT |
+| **Ce projet** | Code applicatif | MIT — Copyright (c) 2026 floSa `<à confirmer : aucun fichier LICENSE présent>` |
