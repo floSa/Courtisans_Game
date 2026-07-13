@@ -251,7 +251,7 @@ optimizer = optim.Adam(net.parameters(), lr=1e-3, weight_decay=1e-4)
 Valeurs typiques : $\lambda \in [10^{-5}, 10^{-3}]$. Trop fort → sous-apprentissage.
 Trop faible → sans effet.
 
-> ⚠️ Subtilité : Adam avec weight_decay n'est *pas* exactement de la L2 (il y a
+> Subtilité : Adam avec weight_decay n'est *pas* exactement de la L2 (il y a
 > une interaction avec les moments adaptatifs). Pour une régularisation plus
 > propre, utilise `torch.optim.AdamW` qui implémente le « decoupled weight
 > decay ». Différence souvent négligeable, mais bonne pratique.
@@ -631,9 +631,9 @@ peut masquer.
 | #1.2 num_sims | ✅ activé par défaut | `num_sims=50` · `--num-sims` |
 | #1.3 Température schedule | ✅ activé par défaut | `temperature_threshold=10` · `--temperature-threshold` |
 | #1.4 AdamW + weight decay | ✅ activé par défaut | `weight_decay=1e-4` · `--weight-decay` |
-| #2.1 PIMC multi-déterminisation | ⚙️ opt-in | `num_worlds=1` · `--num-worlds N` |
+| #2.1 PIMC multi-déterminisation | opt-in | `num_worlds=1` · `--num-worlds N` |
 | #2.2 Augmentation familles | ✅ activé par défaut | `family_augmentation=True` · `--no-family-augmentation` |
-| #3.1 Evaluator MCTS batché | ⚙️ opt-in | `mcts_batch_size=1` · `--mcts-batch-size N` |
+| #3.1 Evaluator MCTS batché | opt-in | `mcts_batch_size=1` · `--mcts-batch-size N` |
 
 ### Recommandations de tuning
 

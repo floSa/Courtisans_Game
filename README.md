@@ -1,8 +1,11 @@
 # Courtisans Game
 
-Implémentation Python du jeu de cartes **Courtisans** avec une IA inspirée
-d'AlphaZero (MCTS + ResNet) et une interface **Streamlit** pour jouer contre
-l'IA.
+**Implémentation Python du jeu de cartes Courtisans, avec une IA inspirée d'AlphaZero (MCTS + ResNet) et une interface Streamlit pour jouer contre elle.**
+
+![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
+![uv](https://img.shields.io/badge/uv-package_manager-DE5FE9?logo=uv&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-2.4+-EE4C2C?logo=pytorch&logoColor=white)
+![Streamlit](https://img.shields.io/badge/Streamlit-1.30+-FF4B4B?logo=streamlit&logoColor=white)
 
 ## Le jeu
 
