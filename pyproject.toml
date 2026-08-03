@@ -6,18 +6,18 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "dm-tree>=0.1.10",
-    "matplotlib>=3.10.9",
-    "numpy>=2.0",
-    "open-spiel>=1.6.15",
-    "pillow>=10.0",
-    "streamlit>=1.30",
-    "torch>=2.4",
+    "matplotlib>=3.11.1",
+    "numpy>=2.5.1",
+    "open-spiel>=2.0.1",
+    "pillow>=12.3.0",
+    "streamlit>=1.60.0",
+    "torch>=2.13.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "ruff>=0.6",
+    "pytest>=9.1.1",
+    "ruff>=0.16.1",
 ]
 
 [project.scripts]
