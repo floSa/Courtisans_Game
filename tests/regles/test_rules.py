@@ -381,6 +381,40 @@ def test_le_banquet_ne_rapporte_aucun_point() -> None:
 # ---------------------------------------------------------------------------------
 
 
+def test_seul_l_espion_est_pose_face_cachee() -> None:
+    """Paragraphe 4 : l'Espion est la seule carte dont l'identite reste cachee."""
+    assert _carte(0, "ESPION").face_cachee is True
+    for nom_role in ("ASSASSIN", "GARDE", "NOBLE", "NEUTRE"):
+        assert _carte(0, nom_role).face_cachee is False, f"{nom_role} devrait etre visible"
+
+
+def test_le_noble_vaut_deux_et_tous_les_autres_un() -> None:
+    """Paragraphe 4 : c'est de cette table que decoulent l'influence et les points."""
+    assert _carte(0, "NOBLE").valeur == 2
+    for nom_role in ("ASSASSIN", "GARDE", "ESPION", "NEUTRE"):
+        assert _carte(0, nom_role).valeur == 1, f"{nom_role} ne pese pas 1"
+
+
+def test_les_gardes_fous_des_fonctions_pures_levent() -> None:
+    """Les branches defensives ont leur test : sans lui, elles ne sont jamais executees et
+    la couverture du critere A7 est fausse."""
+    rules = module("rules")
+    config = construire_config(RAPIDE_2J)
+
+    with pytest.raises(ValueError):
+        rules.decoder_action_pose(config.actions_de_pose, config)
+    with pytest.raises(ValueError):
+        rules.decoder_action_pose(-1, config)
+    with pytest.raises(ValueError):
+        rules.actions_de_pose_legales([_carte(0, "NOBLE")], config)
+    with pytest.raises(ValueError):
+        rules.destinataire(0, RAPIDE_2J.joueurs - 1, RAPIDE_2J.joueurs)
+    with pytest.raises(ValueError):
+        rules.destinataire(0, -1, RAPIDE_2J.joueurs)
+    with pytest.raises(ValueError):
+        rules.gains_depuis_scores([7])
+
+
 @pytest.mark.parametrize("joueurs", [2, 3, 4])
 def test_un_tour_de_table_exige_trois_cartes_par_joueur(joueurs: int) -> None:
     """« Avant d'entamer un tour de table, si len(pioche) < 3 x nb_joueurs, c'est fini. »

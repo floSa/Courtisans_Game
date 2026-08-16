@@ -63,8 +63,45 @@ def test_une_configuration_conforme_se_construit_et_calcule_juste(
         f"{instance.nom} : {config.actions_de_pose} actions de pose au lieu de "
         f"6 x 2 x ({instance.joueurs} - 1) = {instance.actions_de_pose}"
     )
+    assert config.reste_en_pioche == instance.reste_en_pioche, (
+        f"{instance.nom} : {config.reste_en_pioche} cartes jamais piochees au lieu de "
+        f"{instance.nb_cartes} mod (3 x {instance.joueurs}) = {instance.reste_en_pioche}"
+    )
+    assert config.nb_roles == len(instance.roles)
     assert config.tours >= 3
     assert config.familles > config.joueurs
+
+
+@pytest.mark.parametrize(
+    ("champ", "valeur"),
+    [
+        ("familles", "4"),
+        ("familles", 4.0),
+        ("familles", True),
+        ("exemplaires", "3"),
+        ("exemplaires", None),
+    ],
+)
+def test_un_entier_de_configuration_qui_n_en_est_pas_un_leve(champ: str, valeur: Any) -> None:
+    """`bool` est une sous-classe de `int` : sans controle explicite, familles=True
+    passerait pour familles=1."""
+    arguments: dict[str, Any] = {
+        "familles": 4,
+        "roles": ("NOBLE", "ESPION", "ASSASSIN"),
+        "exemplaires": 3,
+        "joueurs": 3,
+    }
+    arguments[champ] = valeur
+
+    with pytest.raises(ValueError):
+        _config(**arguments)
+
+
+def test_un_role_qui_n_est_pas_un_role_leve() -> None:
+    with pytest.raises(ValueError):
+        module("config").GameConfig(
+            familles=4, roles=("NOBLE", "ESPION"), exemplaires=3, joueurs=3
+        )
 
 
 def test_deux_configurations_identiques_sont_egales() -> None:
