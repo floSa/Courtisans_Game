@@ -25,6 +25,7 @@ from tests.outils import (
     Instance,
     cle,
     construire,
+    construire_config,
     module,
     noms,
     parcourir_decisions,
@@ -37,7 +38,7 @@ def _signature(pose: Any) -> tuple[tuple[int, int, int], str, int]:
 
 @pytest.mark.parametrize("instance", TOUTES_LES_INSTANCES, ids=noms(TOUTES_LES_INSTANCES))
 def test_c14_l_espace_de_pose_est_une_bijection(instance: Instance) -> None:
-    config, _ = construire(instance)
+    config = construire_config(instance)  # ce controle ne joue pas : il n'a pas besoin du moteur
     rules = module("rules")
 
     assert config.actions_de_pose == instance.actions_de_pose, (
