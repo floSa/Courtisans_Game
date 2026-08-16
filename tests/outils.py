@@ -218,14 +218,23 @@ def role(nom: str) -> Any:
     return getattr(module("cards").Role, nom)
 
 
-def construire(instance: Instance) -> tuple[Any, Any]:
-    """Construit le couple (config, moteur) correspondant a une instance de test."""
-    config = module("config").GameConfig(
+def construire_config(instance: Instance) -> Any:
+    """Construit la seule `GameConfig`, sans toucher au moteur.
+
+    Separee de `construire` pour que les tests de configuration ne dependent pas de
+    l'existence de `courtisans.engine`.
+    """
+    return module("config").GameConfig(
         familles=instance.familles,
         roles=tuple(role(nom) for nom in instance.roles),
         exemplaires=instance.exemplaires,
         joueurs=instance.joueurs,
     )
+
+
+def construire(instance: Instance) -> tuple[Any, Any]:
+    """Construit le couple (config, moteur) correspondant a une instance de test."""
+    config = construire_config(instance)
     return config, module("engine").Engine(config)
 
 
