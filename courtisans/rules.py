@@ -28,6 +28,11 @@ from courtisans.config import CARTES_PAR_TOUR, GameConfig
 #: verrouille donc une valeur d'influence qu'aucun Assassin ne peut retirer.
 ROLES_IMMUNISES_CONTRE_ASSASSIN: frozenset[Role] = frozenset({Role.GARDE})
 
+#: Roles qui ouvrent un noeud de ciblage quand ils sont poses (paragraphe 4.1). Ecrit ici
+#: et nulle part ailleurs : le moteur ne doit pas avoir sa propre idee de ce qu'est un
+#: Assassin.
+ROLES_ASSASSINS: frozenset[Role] = frozenset({Role.ASSASSIN})
+
 #: Les `3!` facons d'assigner les trois cartes de la main aux trois zones. L'ordre est
 #: celui d'`itertools.permutations`, donc fixe : il fait partie du decodage des actions.
 ASSIGNATIONS: tuple[tuple[int, ...], ...] = tuple(permutations(range(CARTES_PAR_TOUR)))

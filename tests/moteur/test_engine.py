@@ -116,6 +116,22 @@ def test_les_gains_sont_nuls_tant_que_la_partie_dure(instance: Instance) -> None
     assert list(etat.returns()) == [0.0] * instance.joueurs
 
 
+@pytest.mark.parametrize("instance", TOUTES_LES_INSTANCES, ids=noms(TOUTES_LES_INSTANCES))
+def test_hors_ciblage_il_n_y_a_ni_assassin_en_cours_ni_cible(instance: Instance) -> None:
+    """Contrat documente de l'API, que les suites de conformite ne verifient jamais :
+    elles ecartent les etats qui ne sont pas en phase de ciblage avant de regarder."""
+    _, moteur = construire(instance)
+    etat = moteur.reset(4)
+
+    assert etat.phase().name == "POSE"
+    assert etat.assassin_en_resolution() is None
+    assert etat.cibles_courantes() == ()
+
+    termine = partie(moteur, 4)
+    assert termine.assassin_en_resolution() is None
+    assert termine.cibles_courantes() == ()
+
+
 def test_une_action_illegale_est_refusee() -> None:
     _, moteur = construire(RAPIDE_3J)
     etat = moteur.reset(0)
