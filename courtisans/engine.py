@@ -112,6 +112,14 @@ class State:
             return None
         return self._assassins_en_attente[0]
 
+    def assassins_en_attente(self) -> tuple[CartePosee, ...]:
+        """Les Assassins qui n'ont pas encore choisi, celui en cours en tete.
+
+        Information publique : les Assassins sont poses face visible, et chacun ouvre son
+        noeud de decision (paragraphe 4.1).
+        """
+        return tuple(self._assassins_en_attente)
+
     def cibles_courantes(self) -> tuple[CartePosee, ...]:
         """Les cibles de l'Assassin en cours. L'indice `i` est l'action `i`.
 
@@ -121,6 +129,21 @@ class State:
         if assassin is None:
             return ()
         return rules.cibles_valides(self._posees, assassin)
+
+    def tours_restants(self, joueur: int) -> int:
+        """Tours qu'il reste a jouer a ce joueur, celui en cours compris s'il n'a pas pose.
+
+        Information **publique** : tout le monde connait le nombre de tours restants
+        (paragraphe 2.6 des regles). Un joueur a pose ce tour-ci s'il precede le joueur
+        courant dans l'ordre, ou s'il est le joueur courant en train de resoudre ses
+        Assassins.
+        """
+        if self._phase is Phase.TERMINAL:
+            return 0
+        a_pose = joueur < self._joueur or (
+            joueur == self._joueur and self._phase is Phase.CIBLAGE
+        )
+        return self.config.tours - self._tours_joues - (1 if a_pose else 0)
 
     def vue_privilegiee(self) -> VuePrivilegiee:
         """La vue de dieu. Voir l'avertissement de `VuePrivilegiee`."""
@@ -149,16 +172,20 @@ class State:
         return rules.gains_depuis_scores([scores[j] for j in range(self.config.joueurs)])
 
     def information_state_string(self, player: int) -> str:
-        """Non implemente : arrive avec `infoset.py`, a l'etape 6."""
-        raise NotImplementedError(
-            "information_state_string arrive avec infoset.py (etape 6)"
-        )
+        """La vue de `player`, identifiant de son info-set.
+
+        L'import est local : `infoset` a besoin des types de ce module, ce module a besoin
+        de ses deux fonctions. Le faire au chargement creerait un cycle.
+        """
+        from courtisans import infoset
+
+        return infoset.chaine(self, player)
 
     def information_state_tensor(self, player: int) -> list[float]:
-        """Non implemente : arrive avec `infoset.py`, a l'etape 6."""
-        raise NotImplementedError(
-            "information_state_tensor arrive avec infoset.py (etape 6)"
-        )
+        """La vue de `player`, sous forme de vecteur de longueur constante."""
+        from courtisans import infoset
+
+        return infoset.tenseur(self, player)
 
     def clone(self) -> State:
         """Une copie independante : la jouer ne touche pas l'original."""
