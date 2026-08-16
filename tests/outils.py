@@ -79,6 +79,7 @@ Contrat d'API attendu du moteur
 from __future__ import annotations
 
 import importlib
+import os
 import random
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass
@@ -232,10 +233,47 @@ def construire_config(instance: Instance) -> Any:
     )
 
 
+#: Sur quoi tourne la suite. Pilote par la variable d'environnement `COURTISANS_MOTEUR`,
+#: pour que les MEMES tests s'executent sur le coeur et a travers l'adaptateur, sans
+#: qu'une seule ligne de test ne change (regle d'architecture du paragraphe 2 de la
+#: specification).
+#:
+#:   coeur            le moteur nu. Defaut.
+#:   openspiel        l'adaptateur pyspiel, pioche fixee comme dans le coeur.
+#:   openspiel-hasard l'adaptateur, mais `reset` ouvre l'arbre a noeuds de chance.
+#:                    Reserve a la suite de conformite : la regle R-a compare les deux
+#:                    chemins de reset, qui ne peuvent pas coincider quand l'un passe par
+#:                    le hasard et l'autre non.
+MODE_MOTEUR = os.environ.get("COURTISANS_MOTEUR", "coeur")
+MODES_CONNUS = ("coeur", "openspiel", "openspiel-hasard")
+
+
+class _JeuParHasard:
+    """Expose l'arbre a noeuds de chance sous le nom `reset`, pour la suite existante."""
+
+    def __init__(self, jeu: Any) -> None:
+        self._jeu = jeu
+
+    def reset(self, seed: int) -> Any:
+        return self._jeu.new_initial_state()
+
+    def __getattr__(self, nom: str) -> Any:
+        return getattr(self._jeu, nom)
+
+
 def construire(instance: Instance) -> tuple[Any, Any]:
     """Construit le couple (config, moteur) correspondant a une instance de test."""
     config = construire_config(instance)
-    return config, module("engine").Engine(config)
+    if MODE_MOTEUR == "coeur":
+        return config, module("engine").Engine(config)
+    if MODE_MOTEUR not in MODES_CONNUS:
+        raise ValueError(
+            f"COURTISANS_MOTEUR={MODE_MOTEUR!r} inconnu, attendu l'un de {MODES_CONNUS}"
+        )
+    jeu = module("openspiel_adapter").CourtisansGame(config=config)
+    if MODE_MOTEUR == "openspiel":
+        return config, jeu
+    return config, _JeuParHasard(jeu)
 
 
 def paquet_ordonne(instance: Instance) -> list[Any]:

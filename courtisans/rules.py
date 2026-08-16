@@ -143,6 +143,31 @@ def actions_de_pose_legales(
     return tuple(sorted(representantes.values()))
 
 
+def nb_types_de_carte(config: GameConfig) -> int:
+    """Nombre de couples (famille, role) distincts, donc d'issues de chance possibles."""
+    return config.familles * config.nb_roles
+
+
+def encoder_type_carte(carte: Carte, config: GameConfig) -> int:
+    """L'identifiant d'un **type** de carte, exemplaire ignore.
+
+    Deux exemplaires du meme couple (famille, role) sont interchangeables : les distinguer
+    dans les issues de chance doublerait l'arbre sans rien distinguer, pour la meme raison
+    qui fait masquer les actions de pose dupliquees.
+    """
+    return carte.famille * config.nb_roles + config.roles.index(carte.role)
+
+
+def decoder_type_carte(action: int, config: GameConfig) -> tuple[int, Role]:
+    """L'inverse d'`encoder_type_carte`."""
+    if not 0 <= action < nb_types_de_carte(config):
+        raise ValueError(
+            f"type de carte {action} hors de [0, {nb_types_de_carte(config)})"
+        )
+    famille, indice_role = divmod(action, config.nb_roles)
+    return famille, config.roles[indice_role]
+
+
 def destinataire(joueur: int, adversaire_relatif: int, joueurs: int) -> int:
     """Le joueur qui recoit la carte, a partir d'un indice relatif.
 

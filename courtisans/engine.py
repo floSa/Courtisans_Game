@@ -77,6 +77,8 @@ class State:
     _tours_joues: int = 0
     _assassins_en_attente: list[CartePosee] = field(default_factory=list)
     _phase: Phase = Phase.POSE
+    _par_hasard: bool = False
+    _a_distribuer: int = 0
 
     # -- Lecture -------------------------------------------------------------------
 
@@ -85,9 +87,14 @@ class State:
         return self._phase
 
     def current_player(self) -> int:
-        """Le joueur a qui appartient la decision, ou `JOUEUR_TERMINAL` a la fin."""
+        """Le joueur a qui appartient la decision, ou un identifiant reserve.
+
+        `JOUEUR_TERMINAL` a la fin, `JOUEUR_HASARD` sur un noeud de distribution.
+        """
         if self._phase is Phase.TERMINAL:
             return JOUEUR_TERMINAL
+        if self._phase is Phase.CHANCE:
+            return JOUEUR_HASARD
         return self._joueur
 
     def is_terminal(self) -> bool:
@@ -102,9 +109,27 @@ class State:
         """
         if self._phase is Phase.TERMINAL:
             return []
+        if self._phase is Phase.CHANCE:
+            return [action for action, _ in self.chance_outcomes()]
         if self._phase is Phase.POSE:
             return list(rules.actions_de_pose_legales(self._mains[self._joueur], self.config))
         return list(range(len(self.cibles_courantes()) + 1))
+
+    def chance_outcomes(self) -> list[tuple[int, float]]:
+        """Les types de carte encore en pioche, avec leur probabilite d'etre tires.
+
+        Vide hors noeud de distribution. La probabilite d'un type est sa multiplicite dans
+        la pioche divisee par la taille de la pioche : tirer au hasard une carte parmi
+        celles qui restent.
+        """
+        if self._phase is not Phase.CHANCE:
+            return []
+        restantes = len(self._pioche)
+        comptes: dict[int, int] = {}
+        for carte in self._pioche:
+            action = rules.encoder_type_carte(carte, self.config)
+            comptes[action] = comptes.get(action, 0) + 1
+        return [(action, comptes[action] / restantes) for action in sorted(comptes)]
 
     def assassin_en_resolution(self) -> CartePosee | None:
         """L'Assassin dont c'est le tour de choisir, ou `None` hors phase de ciblage."""
@@ -199,6 +224,8 @@ class State:
             _tours_joues=self._tours_joues,
             _assassins_en_attente=list(self._assassins_en_attente),
             _phase=self._phase,
+            _par_hasard=self._par_hasard,
+            _a_distribuer=self._a_distribuer,
         )
 
     # -- Transition ----------------------------------------------------------------
@@ -211,10 +238,28 @@ class State:
                 f"action {action} illegale en phase {self._phase.name} : "
                 f"legales = {legales}"
             )
-        if self._phase is Phase.POSE:
+        if self._phase is Phase.CHANCE:
+            self._distribuer(action)
+        elif self._phase is Phase.POSE:
             self._poser(action)
         else:
             self._resoudre_assassin(action)
+
+    def _distribuer(self, action: int) -> None:
+        """Sort de la pioche une carte du type tire et la met dans la main servie."""
+        famille, role = rules.decoder_type_carte(action, self.config)
+        carte = next(
+            carte
+            for carte in self._pioche
+            if carte.famille == famille and carte.role is role
+        )
+        self._pioche.remove(carte)
+        self._mains[self._joueur] = list(
+            rules.main_canonique([*self._mains[self._joueur], carte])
+        )
+        self._a_distribuer -= 1
+        if self._a_distribuer == 0:
+            self._phase = Phase.POSE
 
     def _poser(self, action: int) -> None:
         """Place les trois cartes d'un bloc, puis ouvre la resolution des Assassins.
@@ -275,9 +320,18 @@ class State:
         self._piocher()
 
     def _piocher(self) -> None:
-        """Complete la main du joueur courant a trois cartes (paragraphe 3.3)."""
-        tirees = self._pioche[:CARTES_PAR_TOUR]
-        del self._pioche[:CARTES_PAR_TOUR]
+        """Complete la main du joueur courant a trois cartes (paragraphe 3.3).
+
+        Sur une pioche fixee, les cartes sont prises dans l'ordre. Sur un arbre a noeuds
+        de chance, la main se remplit une carte a la fois, chacune tiree par le hasard.
+        """
+        manquantes = CARTES_PAR_TOUR - len(self._mains[self._joueur])
+        if self._par_hasard:
+            self._a_distribuer = manquantes
+            self._phase = Phase.CHANCE
+            return
+        tirees = self._pioche[:manquantes]
+        del self._pioche[:manquantes]
         self._mains[self._joueur] = list(
             rules.main_canonique(self._mains[self._joueur] + tirees)
         )
@@ -302,6 +356,22 @@ class Engine:
     def reset(self, seed: int) -> State:
         """Une partie neuve, reproductible : meme seed, meme partie."""
         return self.reset_depuis_pioche(self.pioche_depuis_seed(seed))
+
+    def reset_par_hasard(self) -> State:
+        """Une partie neuve dont chaque carte tiree est un noeud de chance.
+
+        C'est l'arbre de jeu au sens d'OpenSpiel : la distribution initiale et chaque
+        repioche y sont des decisions du hasard, pas un ordre fixe d'avance. La machine a
+        etats est la meme que celle de `reset` -- seul le remplissage des mains change.
+        """
+        etat = State(
+            config=self.config,
+            _pioche=list(rules.paquet(self.config)),
+            _mains=[[] for _ in range(self.config.joueurs)],
+            _par_hasard=True,
+        )
+        etat._piocher()
+        return etat
 
     def reset_depuis_pioche(self, cartes: Sequence[Carte]) -> State:
         """Une partie neuve sur une pioche explicite, consommee dans l'ordre donne.

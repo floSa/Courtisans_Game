@@ -6,7 +6,9 @@ requires-python = ">=3.12"
 dependencies = []
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+# open_spiel n'est utilise que par l'adaptateur et ses tests. Le coeur ne l'importe pas :
+# le critere A4 le verifie dans un sous-processus.
+dev = ["pytest>=8.0", "ruff>=0.6", "open_spiel>=1.5"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
