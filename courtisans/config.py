@@ -57,17 +57,20 @@ class GameConfig:
             ranges dans l'ordre canonique de l'enumeration `Role`.
         exemplaires: nombre d'exemplaires de chaque couple (famille, role).
         joueurs: 2, 3 ou 4.
-        canonicalisation: replier les etats par permutation des familles.
 
     Raises:
         ValueError: des que l'une des contraintes du paragraphe 8 des regles est violee.
+
+    Note:
+        Le tableau du paragraphe 3 de la specification liste un champ `canonicalisation`.
+        Il est **volontairement absent** : rien ne le lisait et aucun test ne le couvrait.
+        Il reviendra a l'etape 6, dans `infoset.py`, quand il aura un effet et un test.
     """
 
     familles: int
     roles: tuple[Role, ...]
     exemplaires: int
     joueurs: int
-    canonicalisation: bool = True
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "roles", self._roles_canoniques())

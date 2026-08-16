@@ -188,6 +188,21 @@ def test_tours_n_est_pas_un_parametre() -> None:
         )
 
 
+def test_canonicalisation_n_est_pas_un_parametre() -> None:
+    """Retire le 16/08 : un champ stocke que rien ne lit et qu'aucun test ne couvre est
+    ce que le paragraphe 8 des conventions interdit d'ecrire. Il reviendra a l'etape 6,
+    dans infoset.py, quand il aura un effet et un test -- ajouter un champ est facile,
+    retirer un champ dont trois modules dependent ne l'est pas."""
+    with pytest.raises(TypeError):
+        _config(
+            familles=4,
+            roles=("NOBLE", "ESPION", "ASSASSIN"),
+            exemplaires=3,
+            joueurs=3,
+            canonicalisation=True,
+        )
+
+
 @pytest.mark.parametrize(
     "drapeau",
     ["autoriser_hors_planchers", "forcer", "strict", "valider", "ignorer_planchers"],
