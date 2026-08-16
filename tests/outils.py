@@ -20,13 +20,38 @@ Trois principes tenus dans tout ce paquet :
    l'adaptateur OpenSpiel de l'etape 7 l'exposera, et ces memes tests devront passer a
    travers lui sans modification.
 
+Contrat du moteur -- quatre regles, pas des commentaires
+--------------------------------------------------------
+Arbitrees le 16/08. Un moteur qui les viole fait echouer les tests, meme si ses regles
+de jeu sont justes.
+
+**R-a. `reset(seed)` et `reset_depuis_pioche(cartes)` partagent le meme code.** Le seed ne
+fait rien d'autre que produire l'ordre de la pioche : `reset(seed)` doit etre exactement
+`reset_depuis_pioche(pioche_depuis_seed(seed))`. Tout ce qui suit la determination de la
+pioche est commun aux deux chemins. Sinon les tests exercent un chemin que la partie reelle
+n'emprunte pas -- c'est la divergence qui a coute trois mois au projet precedent.
+Verifie par `tests/invariants/test_reset_equivalence.py`.
+
+**R-b. La pioche est consommee dans l'ordre donne.** Les 3 premieres cartes vont au joueur
+0, les 3 suivantes au joueur 1, et ainsi de suite, tour de table apres tour de table. Les
+`nb_cartes mod (3 x joueurs)` dernieres ne sont jamais tirees ni revelees.
+
+**R-c. `vue_privilegiee().mains[j]` est dans l'ordre canonique du decodage d'action.**
+C'est le meme ordre que celui sur lequel `decoder_action_pose` indexe : main triee par
+(indice de famille, indice de role). Sans cette egalite, l'indice d'une action ne designe
+pas la meme carte pour le moteur et pour le test.
+
+**R-d. `vue_privilegiee()` est une vue de dieu, reservee aux tests et a l'interface.** Elle
+n'est jamais exposee a une IA : ce que voit un joueur, c'est `information_state_*`.
+
 Contrat d'API attendu du moteur
 -------------------------------
 `courtisans.cards`
     `Role`          enum : ASSASSIN, GARDE, NOBLE, ESPION, NEUTRE
     `Position`      enum : ESTIME, DISGRACE
     `GenreZone`     enum : BANQUET, DOMAINE
-    `Zone`          gele : `genre`, `position` (banquet) ou `proprietaire` (domaine)
+    `Zone`          gele : `genre`, `position` (None hors banquet), `proprietaire`
+                    (None hors domaine) -- les deux attributs existent toujours
     `Carte`         gele : `Carte(famille: int, role: Role, exemplaire: int)`
     `CartePosee`    gele : `carte`, `zone`, `poseur`
 
@@ -41,15 +66,14 @@ Contrat d'API attendu du moteur
 
 `courtisans.engine`
     `Engine(config)`, `.reset(seed) -> State`, `.reset_depuis_pioche(cartes) -> State`
+    `Engine.pioche_depuis_seed(seed) -> tuple[Carte, ...]` -- l'ordre de pioche produit
+        par un seed, seul effet du seed (regle R-a)
     `State` : `current_player`, `phase`, `legal_actions`, `apply`, `is_terminal`,
     `returns`, `scores`, `information_state_string`, `information_state_tensor`, `clone`
     `State.vue_privilegiee() -> VuePrivilegiee` : `pioche`, `mains`, `posees`, `defausse`
     `State.cibles_courantes() -> tuple[CartePosee, ...]` -- l'indice i de ce tuple est
         l'action i de la phase CIBLAGE, l'indice `len(cibles)` etant le refus de tuer
     `State.assassin_en_resolution() -> CartePosee | None`
-
-`vue_privilegiee()` est une vue de dieu, reservee aux tests et a l'interface. Elle n'est
-jamais exposee a une IA : ce que voit un joueur, c'est `information_state_*`.
 """
 
 from __future__ import annotations
@@ -213,6 +237,127 @@ def paquet_ordonne(instance: Instance) -> list[Any]:
     ]
 
 
+def pioches_jumelles_espion(
+    instance: Instance, joueur: int = 0
+) -> tuple[list[Any], list[Any], Any, Any]:
+    """Deux pioches identiques a l'echange pres de deux Espions caches.
+
+    En A, l'Espion de famille 0 est dans la premiere main de `joueur` et celui de famille 1
+    dort dans les cartes jamais piochees ; en B, les deux sont echanges. Le paragraphe 3.4
+    des regles garantit que les cartes restantes ne sont ni piochees ni revelees : aucun
+    autre joueur ne peut donc distinguer A de B.
+
+    Les deux autres cartes de cette main appartiennent a la derniere famille, donc
+    l'Espion occupe le meme rang dans la main triee des deux cotes (regle R-c) et une meme
+    action y designe les memes cartes.
+
+    Exige `reste_en_pioche >= 1` et `familles >= 3`.
+    """
+    assert instance.reste_en_pioche >= 1, (
+        f"{instance.nom} : aucune carte jamais piochee, impossible d'y cacher le jumeau"
+    )
+    assert instance.familles >= 3, f"{instance.nom} : moins de 3 familles"
+
+    carte = module("cards").Carte
+    espion_a = carte(0, role("ESPION"), 0)
+    espion_b = carte(1, role("ESPION"), 0)
+    haute = instance.familles - 1
+    accompagnement = [c for c in paquet_ordonne(instance) if c.famille == haute][:2]
+
+    exclues = {cle(espion_a), cle(espion_b)} | {cle(c) for c in accompagnement}
+    reste = [c for c in paquet_ordonne(instance) if cle(c) not in exclues]
+
+    avant = 3 * joueur  # cartes distribuees avant la main visee
+    apres = instance.cartes_jouees - avant - 3  # cartes tirees ensuite
+
+    def assembler(premier: Any, jumeau: Any) -> list[Any]:
+        return [
+            *reste[:avant],
+            premier,
+            *accompagnement,
+            *reste[avant : avant + apres],
+            jumeau,
+            *reste[avant + apres :],
+        ]
+
+    return assembler(espion_a, espion_b), assembler(espion_b, espion_a), espion_a, espion_b
+
+
+# ---------------------------------------------------------------------------------
+# Permutation des familles
+# ---------------------------------------------------------------------------------
+
+
+def image_identite(
+    identite: tuple[int, str, int], sigma: dict[int, int]
+) -> tuple[int, str, int]:
+    """L'identite d'une carte apres permutation des familles."""
+    famille, nom_role, exemplaire = identite
+    return (sigma[famille], nom_role, exemplaire)
+
+
+def semantique_pose(etat: Any, action: int, config: Any) -> tuple:
+    """Ce qu'une action de pose fait reellement : quelles cartes, ou, chez qui.
+
+    Repose sur la regle R-c : `vue_privilegiee().mains[j]` est dans l'ordre sur lequel
+    `decoder_action_pose` indexe.
+    """
+    pose = module("rules").decoder_action_pose(action, config)
+    main = etat.vue_privilegiee().mains[etat.current_player()]
+    return (
+        tuple(cle(main[indice]) for indice in pose.indices_main),
+        pose.position.name,
+        pose.adversaire_relatif,
+    )
+
+
+def action_image(
+    etat_a: Any, action_a: int, etat_b: Any, sigma: dict[int, int], config: Any
+) -> int:
+    """L'action de B qui fait a la permutation pres ce que `action_a` fait en A.
+
+    Jamais l'action de meme indice : le tri canonique de la main porte sur l'indice de
+    famille, donc permuter les familles reordonne la main.
+    """
+    phase = etat_a.phase().name
+    if phase == "POSE":
+        identites, position, adversaire = semantique_pose(etat_a, action_a, config)
+        cible = (
+            tuple(image_identite(identite, sigma) for identite in identites),
+            position,
+            adversaire,
+        )
+        candidates = [
+            action
+            for action in etat_b.legal_actions()
+            if semantique_pose(etat_b, action, config) == cible
+        ]
+        assert len(candidates) == 1, (
+            f"{len(candidates)} action(s) de B correspondent a l'action {action_a} de A"
+        )
+        return candidates[0]
+
+    if phase == "CIBLAGE":
+        cibles_a = list(etat_a.cibles_courantes())
+        cibles_b = list(etat_b.cibles_courantes())
+        assert len(cibles_a) == len(cibles_b), (
+            f"{len(cibles_a)} cibles en A contre {len(cibles_b)} en B"
+        )
+        if action_a == len(cibles_a):
+            return len(cibles_b)
+        attendu = image_identite(cle(cibles_a[action_a].carte), sigma)
+        candidates = [
+            indice for indice, cible in enumerate(cibles_b) if cle(cible.carte) == attendu
+        ]
+        assert len(candidates) == 1
+        return candidates[0]
+
+    raise AssertionError(
+        f"phase {phase} non geree : le rejeu par permutation n'est defini que pour POSE "
+        f"et CIBLAGE"
+    )
+
+
 # ---------------------------------------------------------------------------------
 # Lecture de la vue privilegiee
 # ---------------------------------------------------------------------------------
@@ -257,6 +402,25 @@ def nb_placees(vue: Any) -> int:
     return len(vue.posees) + len(vue.defausse)
 
 
+def mortes(etat: Any) -> set[tuple[int, str, int]]:
+    """Identites des cartes deja tuees."""
+    return {cle(posee.carte) for posee in etat.vue_privilegiee().defausse}
+
+
+def signature_zone(zone: Any) -> tuple[str, str | None, int | None]:
+    """Une zone, sous une forme comparable et lisible dans un message d'erreur."""
+    return (
+        zone.genre.name,
+        zone.position.name if zone.position is not None else None,
+        zone.proprietaire,
+    )
+
+
+def signature_posee(posee: Any) -> tuple:
+    """Une carte posee : son identite, sa zone, son poseur."""
+    return (cle(posee.carte), signature_zone(posee.zone), posee.poseur)
+
+
 def au_banquet(cartes_posees: Iterable[Any]) -> list[Any]:
     return [posee for posee in cartes_posees if posee.zone.genre.name == "BANQUET"]
 
@@ -294,6 +458,62 @@ def jouer(etat: Any, rng: random.Random) -> Any:
 def partie(moteur: Any, seed: int) -> Any:
     """Une partie complete, jouee au hasard mais de facon reproductible."""
     return jouer(moteur.reset(seed), random.Random(seed))
+
+
+def rejouer_en_parallele(etat_a: Any, etat_b: Any, rng: random.Random) -> Iterator[tuple[Any, Any]]:
+    """Rejoue deux parties en lockstep : meme action appliquee aux deux.
+
+    Livre le couple d'etats avant chaque action. N'a de sens que si les deux parties ne
+    different que par une information cachee : si les actions legales divergent, le test
+    echoue ici, ce qui est le resultat recherche.
+    """
+    while not etat_a.is_terminal():
+        assert not etat_b.is_terminal(), "les deux parties n'ont pas la meme longueur"
+        assert etat_a.phase().name == etat_b.phase().name, (
+            f"phases divergentes : {etat_a.phase().name} contre {etat_b.phase().name}"
+        )
+        assert etat_a.current_player() == etat_b.current_player()
+        assert list(etat_a.legal_actions()) == list(etat_b.legal_actions()), (
+            "une information cachee change les actions legales"
+        )
+        yield etat_a, etat_b
+        action = rng.choice(actions_legales(etat_a))
+        etat_a.apply(action)
+        etat_b.apply(action)
+    assert etat_b.is_terminal(), "les deux parties n'ont pas la meme longueur"
+
+
+def empreinte(etat: Any, instance: Instance) -> tuple:
+    """Signature complete d'un etat : tout ce qu'un test peut en observer.
+
+    Sert a exiger que deux etats soient identiques, pas seulement equivalents : phase,
+    joueur courant, actions legales, contenu integral du plateau, et la vue de chaque
+    joueur. Utilisee par la regle R-a et l'invariant I10.
+    """
+    vue = etat.vue_privilegiee()
+    plateau = (
+        tuple(cle(carte) for carte in vue.pioche),
+        tuple(tuple(cle(carte) for carte in main) for main in vue.mains),
+        tuple(signature_posee(posee) for posee in vue.posees),
+        tuple(signature_posee(posee) for posee in vue.defausse),
+    )
+    if etat.is_terminal():
+        return (
+            "TERMINAL",
+            plateau,
+            tuple(scores_moteur(etat, instance)),
+            tuple(round(gain, 12) for gain in etat.returns()),
+        )
+    return (
+        etat.phase().name,
+        etat.current_player(),
+        tuple(etat.legal_actions()),
+        plateau,
+        tuple(etat.information_state_string(j) for j in range(instance.joueurs)),
+        tuple(
+            tuple(etat.information_state_tensor(j)) for j in range(instance.joueurs)
+        ),
+    )
 
 
 def parcourir_decisions(moteur: Any, nb_parties: int) -> Iterator[tuple[int, Any]]:
