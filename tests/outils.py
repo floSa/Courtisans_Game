@@ -184,6 +184,12 @@ INSTANCES_RAPIDES: tuple[Instance, ...] = (RAPIDE_2J, RAPIDE_3J, RAPIDE_4J, ENTR
 INSTANCES_COMPLETES: tuple[Instance, ...] = (COMPLET_2J, COMPLET_3J, COMPLET_4J)
 TOUTES_LES_INSTANCES: tuple[Instance, ...] = INSTANCES_RAPIDES + INSTANCES_COMPLETES
 
+#: Instances ou des cartes ne sont jamais piochees : seules celles-la permettent d'y
+#: cacher une information qu'aucun joueur ne peut deduire (constructions de I7).
+INSTANCES_AVEC_RESTE: tuple[Instance, ...] = tuple(
+    instance for instance in TOUTES_LES_INSTANCES if instance.reste_en_pioche >= 2
+)
+
 #: Nombre de parties par cas de test. C2 exige explicitement 1000 parties (paragraphe 9).
 NB_PARTIES_C2 = 1000
 NB_PARTIES_C2_COMPLET = 200
