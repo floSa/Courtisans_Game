@@ -8,7 +8,7 @@ pioche ou toutes les familles ont subi une permutation. Les actions ne sont PAS 
 par indice : le tri canonique de la main est fait sur l'indice de famille, donc une
 permutation reordonne la main et un meme indice d'action y designerait d'autres cartes.
 Le test rejoue donc l'action dont le contenu -- quelles cartes, dans quelles zones -- est
-l'image par la permutation de celle jouee en A.
+l'image par la permutation de celle jouee en A. La traduction est dans `tests/outils.py`.
 
 C'est exactement le piege signale au paragraphe 4.2 de la specification du moteur : un
 rejeu par indice passerait ce test sur une implementation fausse.
@@ -17,13 +17,13 @@ rejeu par indice passerait ce test sur une implementation fausse.
 from __future__ import annotations
 
 import random
-from typing import Any
 
 import pytest
 
 from tests.outils import (
     INSTANCES_RAPIDES,
     Instance,
+    action_image,
     actions_legales,
     cle,
     construire,
@@ -36,35 +36,16 @@ from tests.outils import (
 NB_PARTIES_C18 = 20
 
 
-def _permutation(instance: Instance) -> dict[int, int]:
+def _rotation(instance: Instance) -> dict[int, int]:
     """Rotation des familles : 0 -> 1 -> ... -> familles - 1 -> 0."""
     return {famille: (famille + 1) % instance.familles for famille in range(instance.familles)}
-
-
-def _image_identite(
-    identite: tuple[int, str, int], sigma: dict[int, int]
-) -> tuple[int, str, int]:
-    famille, nom_role, exemplaire = identite
-    return (sigma[famille], nom_role, exemplaire)
-
-
-def _semantique_pose(etat: Any, action: int, config: Any, rules: Any) -> tuple:
-    """Ce qu'une action de pose fait reellement : quelles cartes, ou, chez qui."""
-    pose = rules.decoder_action_pose(action, config)
-    main = etat.vue_privilegiee().mains[etat.current_player()]
-    return (
-        tuple(cle(main[indice]) for indice in pose.indices_main),
-        pose.position.name,
-        pose.adversaire_relatif,
-    )
 
 
 @pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
 def test_c18_permuter_les_familles_laisse_les_gains_invariants(instance: Instance) -> None:
     config, moteur = construire(instance)
-    rules = module("rules")
     carte = module("cards").Carte
-    sigma = _permutation(instance)
+    sigma = _rotation(instance)
 
     for seed in range(NB_PARTIES_C18):
         pioche_a = paquet_ordonne(instance)
@@ -82,57 +63,11 @@ def test_c18_permuter_les_familles_laisse_les_gains_invariants(instance: Instanc
             assert not etat_b.is_terminal(), (
                 f"{instance.nom}, seed {seed} : les deux parties n'ont pas la meme longueur"
             )
-            phase = etat_a.phase().name
-            assert etat_b.phase().name == phase
+            assert etat_a.phase().name == etat_b.phase().name
             assert etat_a.current_player() == etat_b.current_player()
 
             action_a = rng.choice(actions_legales(etat_a))
-
-            if phase == "POSE":
-                identites, position, adversaire = _semantique_pose(
-                    etat_a, action_a, config, rules
-                )
-                cible = (
-                    tuple(_image_identite(identite, sigma) for identite in identites),
-                    position,
-                    adversaire,
-                )
-                candidates = [
-                    action
-                    for action in etat_b.legal_actions()
-                    if _semantique_pose(etat_b, action, config, rules) == cible
-                ]
-                assert len(candidates) == 1, (
-                    f"{instance.nom}, seed {seed} : {len(candidates)} action(s) de B "
-                    f"correspondent a l'action {action_a} de A"
-                )
-                action_b = candidates[0]
-
-            elif phase == "CIBLAGE":
-                cibles_a = list(etat_a.cibles_courantes())
-                cibles_b = list(etat_b.cibles_courantes())
-                assert len(cibles_a) == len(cibles_b), (
-                    f"{instance.nom}, seed {seed} : {len(cibles_a)} cibles en A contre "
-                    f"{len(cibles_b)} en B"
-                )
-                if action_a == len(cibles_a):
-                    action_b = len(cibles_b)
-                else:
-                    attendu = _image_identite(cle(cibles_a[action_a].carte), sigma)
-                    candidates = [
-                        indice
-                        for indice, cible in enumerate(cibles_b)
-                        if cle(cible.carte) == attendu
-                    ]
-                    assert len(candidates) == 1
-                    action_b = candidates[0]
-
-            else:
-                raise AssertionError(
-                    f"{instance.nom} : phase {phase} non geree par ce test -- le rejeu par "
-                    f"permutation n'est defini que pour POSE et CIBLAGE"
-                )
-
+            action_b = action_image(etat_a, action_a, etat_b, sigma, config)
             etat_a.apply(action_a)
             etat_b.apply(action_b)
 
