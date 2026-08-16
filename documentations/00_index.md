@@ -177,8 +177,7 @@ personne ne l'a vu pendant toute une brique.
 |---|---|---|
 | 3 | Instance 2 joueurs : symétrique **avec** pioche coûte 369 600 donnes contre 924 **sans**. Lequel des deux mécanismes sacrifie-t-on ? | Phase 2 |
 | 5 | `.git/index.lock` bloque les commits depuis le 15/08 19h30 — **sur l'ancien dépôt** ; celui-ci n'est pas encore un dépôt git | Versionnement |
-| 6 | `tours` doit-il rester un paramètre de `GameConfig` ? Le §8 de [01](01_regles.md) interdit de tronquer la durée ; [03](03_specification_moteur.md) §3 l'exposait en paramètre libre | Phase 0, étape 3 |
-| 7 | `app/greedy_bot.py` et `cfr/solve_mini.py` n'ont pas été rapatriés dans ce dépôt, contrairement à l'action 2 du [PILOTE](../PILOTE.md) | Phases 2 et 3 |
+| 7 | `app/greedy_bot.py` et `cfr/solve_mini.py` ne sont pas dans ce dépôt — **normal**, ils n'appartiennent pas à la phase moteur et arriveront pour les phases 2 et 3 | Phases 2 et 3 |
 
 **Fermés le 16/08 :**
 

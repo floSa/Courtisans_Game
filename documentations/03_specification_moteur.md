@@ -106,14 +106,14 @@ conforme, même « pour un test ».
 | `complet-3j` | `familles=6`, 5 rôles, `exemplaires=3`, `joueurs=3` | 6 × 5 × 3 = 90 cartes ; 90 // 9 = **10 tours** |
 | `complet-2j` | `familles=6`, 5 rôles, `exemplaires=3`, `joueurs=2` | 90 cartes ; 90 // 6 = **15 tours** |
 
-**À trancher — `tours` est-il un paramètre ?** Le §8 de [01](01_regles.md) interdit de
-tronquer la durée d'une partie : « tours par joueur — réduction autorisée : **jamais**
-directement ». Le tableau ci-dessus en tire que `tours` est **dérivé**, jamais fourni. La
-version précédente de ce document l'exposait en paramètre libre avec `tours <= tours_max`,
-ce qui autorise une troncature. Les seules configurations qui s'en servaient étaient les
-instances historiques, désormais supprimées. **La question reste ouverte : `GameConfig`
-doit-elle refuser un `tours` explicite inférieur au maximum ?** Tant qu'elle n'est pas
-tranchée, le moteur ne doit pas exposer le paramètre.
+**`tours` n'est pas un paramètre — tranché le 16/08.** Le §8 de [01](01_regles.md) interdit
+de tronquer la durée d'une partie : « tours par joueur — réduction autorisée : **jamais**
+directement ». `GameConfig` ne prend donc **aucun** argument `tours` : la valeur est
+dérivée, et la construction lève si elle est inférieure à 3. La version précédente de ce
+document l'exposait en paramètre libre avec `tours <= tours_max`, ce qui autorisait
+exactement la troncature interdite. **Un paramètre qui ne peut prendre qu'une seule valeur
+n'est pas un paramètre, c'est une occasion de se tromper** : la seule façon de garantir
+qu'on ne touche pas à la durée est de ne pas exposer le levier.
 
 ---
 
@@ -142,8 +142,12 @@ class Engine:
     def reset(self, seed: int) -> State:
         """Déterministe : même seed ⇒ même partie."""
     def reset_depuis_pioche(self, cartes: Sequence[Carte]) -> State:
-        """Pioche explicite, consommée dans l'ordre donné. Lève si le multiensemble
-        fourni n'est pas exactement le paquet de la configuration."""
+        """Pioche explicite, consommée dans l'ordre donné : les 3 premières cartes au
+        joueur 0, les 3 suivantes au joueur 1, etc. Lève si le multiensemble fourni
+        n'est pas exactement le paquet de la configuration."""
+    def pioche_depuis_seed(self, seed: int) -> tuple[Carte, ...]:
+        """L'ordre de pioche produit par un seed. Seul effet du seed : `reset(seed)`
+        doit être exactement `reset_depuis_pioche(pioche_depuis_seed(seed))`."""
 
 class State:
     def current_player(self) -> int | ChanceId | TerminalId: ...
@@ -338,6 +342,16 @@ voir : il suffit qu'un champ de debug fuite l'identité d'un espion adverse. Le 
 construire deux états qui ne diffèrent **que** par une information cachée et vérifier que
 les strings sont identiques.
 
+> **État au 16/08 : les 11 invariants sont testés dans `tests/invariants/`, tous rouges.**
+> I7 y reçoit trois constructions — Espion adverse échangé avec son jumeau jamais pioché,
+> ordre du fond de pioche permuté, et un garde-fou contre l'encodage dégénéré, sans lequel
+> une chaîne constante passerait les deux premières.
+>
+> **Une douzième règle est vérifiée au même endroit, la règle R-a** : `reset(seed)` et
+> `reset_depuis_pioche` partagent le même code, le seed ne produisant que l'ordre de la
+> pioche. Sans elle, les tests constructifs — C10, C18, I7, I9, I11 — certifieraient un
+> chemin que la partie réelle n'emprunte pas.
+
 ---
 
 ## 6. Ce qui est réutilisé de l'existant
@@ -389,5 +403,5 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
   structure 1 banquet / 1 chez soi / 1 chez un adversaire, sans exception ; une seule carte
   part chez un adversaire par tour, la question ne se pose donc pas. Le décodage de la
   section 4.1 est conforme.
-- **Reste ouvert** : `tours` doit-il rester un paramètre de `GameConfig` ? Voir l'encadré
-  « À trancher » de la section 3.
+- ~~`tours` doit-il rester un paramètre de `GameConfig` ?~~ **Fermé le 16/08 : non**, il est
+  dérivé. Voir la section 3.

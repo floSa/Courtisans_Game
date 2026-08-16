@@ -13,9 +13,9 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Action 3, étape 1 terminée** — les 18 tests de conformité sont écrits, 127 cas, tous rouges |
-| Prochaine action | Étape 2 — les tests des 11 invariants |
-| Bloquant | Une question ouverte pour l'étape 3 : `tours` reste-t-il un paramètre de `GameConfig` ? Voir [00_index](documentations/00_index.md) §7, point 6. |
+| Étape en cours | **Action 3, étapes 1 et 2 terminées** — 270 cas de test écrits, tous rouges : 127 de conformité, 143 d'invariants |
+| Prochaine action | Étape 3 — `config.py`, la première ligne de moteur |
+| Bloquant | **Rien.** `tours` est tranché : dérivé, jamais paramètre. |
 
 **Mis à jour le 16/08 après l'étape 1.** Trois arbitrages ont été rendus en cours de route :
 les instances historiques ne sont plus reproduites (elles violent les règles), le compteur
@@ -175,9 +175,7 @@ Relevées pendant l'étape 1, corrigées dans les documents concernés.
 | 6 | Plancher noté « familles ≥ 3 » | [01](documentations/01_regles.md) §10bis | C'est **familles > joueurs**, comme au §8. |
 | 7 | Tableau de l'invariant I2 cassé par un `|` non échappé | [03](documentations/03_specification_moteur.md) §5 | Écrit `nb_roles`. |
 
-**Reste ouvert, pas corrigé faute d'arbitrage :** `tours` doit-il rester un paramètre de
-`GameConfig` ? Le §8 de [01](documentations/01_regles.md) interdit de tronquer la durée
-d'une partie ; [03](documentations/03_specification_moteur.md) §3 l'exposait en paramètre
-libre avec `tours <= tours_max`. Les seules configurations qui s'en servaient étaient les
-instances historiques, supprimées. La question est signalée dans les deux documents et
-bloque l'étape 3.
+**Tranché le 16/08 après l'étape 1 :** `tours` n'est **pas** un paramètre de `GameConfig`.
+Il est dérivé — `nb_cartes // (3 × joueurs)` — et la construction lève si le résultat est
+inférieur à 3. Le §8 de [01](documentations/01_regles.md) interdit de toucher à la durée ;
+la seule façon de garantir qu'on n'y touche pas est de ne pas exposer le levier.
