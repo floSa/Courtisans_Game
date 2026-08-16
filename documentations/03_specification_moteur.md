@@ -352,6 +352,16 @@ les strings sont identiques.
 > pioche. Sans elle, les tests constructifs — C10, C18, I7, I9, I11 — certifieraient un
 > chemin que la partie réelle n'emprunte pas.
 
+**Limite connue de I7, qui est une propriété du jeu et non un trou de test.** Cacher une
+information qu'aucun joueur ne peut déduire suppose des cartes **jamais piochées**, donc
+`nb_cartes mod (3 × joueurs) ≥ 2`. Or la pioche s'épuise exactement dans trois des sept
+configurations de test — `rapide-2j` (24 mod 6 = 0), `complet-2j` (90 mod 6 = 0) et
+`complet-3j` (90 mod 9 = 0). À 2 joueurs et à 3 joueurs sur paquet complet, **il n'y a
+rien à cacher en fin de partie** : tout le paquet finit sur la table. Les constructions
+hostiles de I7 ne portent donc que sur les quatre autres configurations — `rapide-3j`
+(reste 5), `rapide-4j` (4), `entrainement-3j` (4), `complet-4j` (6). Ce n'est pas à
+contourner : c'est ce que le jeu est.
+
 ---
 
 ## 6. Ce qui est réutilisé de l'existant

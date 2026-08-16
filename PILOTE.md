@@ -13,9 +13,14 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Action 3, étapes 1 et 2 terminées** — 270 cas de test écrits, tous rouges : 127 de conformité, 143 d'invariants |
-| Prochaine action | Étape 3 — `config.py`, la première ligne de moteur |
-| Bloquant | **Rien.** `tours` est tranché : dérivé, jamais paramètre. |
+| Étape en cours | **Action 3, étapes 1 à 3 terminées** — 301 cas de test, dont 31 verts : `GameConfig` est écrite et validée |
+| Prochaine action | Étape 4 — `cards.py` et `rules.py`, fonctions pures |
+| Bloquant | **Rien.** |
+
+Le dépôt est poussé sur la branche `moteur-conforme` de
+[floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique
+indépendant de `main` et de `cfr-pivot` : c'est un moteur neuf, pas une correction de
+l'ancien.
 
 **Mis à jour le 16/08 après l'étape 1.** Trois arbitrages ont été rendus en cours de route :
 les instances historiques ne sont plus reproduites (elles violent les règles), le compteur
