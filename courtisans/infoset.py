@@ -186,7 +186,6 @@ def _blocs(etat: State, joueur: int) -> tuple[Bloc, ...]:
                     su.connues,
                     famille=famille,
                     caches=True,
-                    poseur=joueur,
                     genre=GenreZone.BANQUET,
                     position=position,
                 )
@@ -197,7 +196,6 @@ def _blocs(etat: State, joueur: int) -> tuple[Bloc, ...]:
                     su.connues,
                     famille=famille,
                     caches=True,
-                    poseur=joueur,
                     genre=GenreZone.DOMAINE,
                     proprietaire=(joueur + autre) % joueurs,
                 )
@@ -268,11 +266,16 @@ def _compter(
     genre: GenreZone,
     role: Role | None = None,
     caches: bool = False,
-    poseur: int | None = None,
     position: Position | None = None,
     proprietaire: int | None = None,
 ) -> int:
-    """Compte les cartes posees qui correspondent a tous les criteres fournis."""
+    """Compte les cartes posees qui correspondent a tous les criteres fournis.
+
+    `caches=True` ne selectionne que les cartes face cachee. Applique a `connues`, cela
+    suffit a designer **mes** Espions : une carte cachee posee par quelqu'un d'autre n'y
+    figure pas, par construction de `_vue_du_joueur`. Un filtre sur le poseur serait donc
+    une branche morte.
+    """
     total = 0
     for posee in posees:
         if posee.carte.famille != famille or posee.zone.genre is not genre:
@@ -280,8 +283,6 @@ def _compter(
         if role is not None and posee.carte.role is not role:
             continue
         if caches and posee.carte.role not in ROLES_CACHES:
-            continue
-        if poseur is not None and posee.poseur != poseur:
             continue
         if position is not None and posee.zone.position is not position:
             continue
