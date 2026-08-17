@@ -11,11 +11,16 @@ rien ne le dise :
   A7  couverture du coeur >= 90 %
       -> mesure hors pytest : uv run pytest --cov=courtisans
   A8  une GameConfig non conforme leve
-      -> tests/config/test_gameconfig.py, 26 cas de refus
+      -> tests/config/test_gameconfig.py, 28 cas de refus, decomposes dans son docstring
 
 Restent ceux qui n'avaient pas de test dedie : A1 et A2, dont personne ne verifiait la
 **completude**, A3, qui n'avait jamais tourne a son volume, et A6, dont la formulation
 exige deux executions distinctes -- ce qu'un test en memoire ne peut pas prouver.
+
+Le chiffre de A8 a lui aussi son test, ci-dessous : il etait annonce **26** ici et dans la
+specification, pour 28 cas reels, et rien ne l'a signale. Un chiffre qu'aucun test ne tient
+derive -- c'est la condition d'arret du paragraphe 10 des conventions, « un chiffre ne peut
+pas etre reconstruit par le lecteur ».
 """
 
 from __future__ import annotations
@@ -41,6 +46,13 @@ RACINE = Path(__file__).resolve().parents[2]
 #: A3 : « une partie complete a 3 joueurs se joue de bout en bout sans exception, sur
 #: 1 000 parties aleatoires, avec les trois joueurs jouant le meme nombre de tours ».
 NB_PARTIES_A3 = 1000
+
+#: A8 : le nombre de cas de test qui exigent le refus d'une construction non conforme.
+#: Decomposition ligne a ligne dans le docstring de `tests/config/test_gameconfig.py` :
+#:   11 configurations non conformes + 5 entiers invalides + 1 role invalide
+#: + 1 `tours` non parametrable + 1 `canonicalisation` non parametrable
+#: + 5 drapeaux de contournement + 3 instances historiques + 1 mutation apres coup = 28.
+NB_CAS_DE_REFUS_A8 = 28
 
 #: A6 : joue une partie entiere depuis un seed et imprime une signature. Execute dans deux
 #: processus distincts, avec des PYTHONHASHSEED differents.
@@ -117,6 +129,46 @@ def test_a2_les_onze_invariants_existent_et_sur_assez_de_configurations() -> Non
         f"{len(TOUTES_LES_INSTANCES)} configurations, le critere en demande au moins 5"
     )
     assert len({i.nb_cartes for i in TOUTES_LES_INSTANCES}) >= 3
+
+
+# ---------------------------------------------------------------------------------
+# A8 -- le chiffre annonce est-il le chiffre reel ?
+# ---------------------------------------------------------------------------------
+
+
+def test_a8_le_nombre_de_cas_de_refus_annonce_est_le_nombre_reel() -> None:
+    """« 26 cas de refus » etait annonce ici et dans la specification, pour 28 cas reels.
+
+    Rien ne le signalait, parce que le chiffre etait recopie a la main a deux endroits et
+    verifie nulle part. Ce test collecte les cas portant le marqueur `refus` et compare le
+    compte a `NB_CAS_DE_REFUS_A8`. Le sous-processus est necessaire : `--collect-only` ne
+    peut pas tourner dans la session pytest en cours.
+
+    A rejouer a la main :
+
+        uv run pytest -m refus -q
+    """
+    resultat = subprocess.run(
+        [sys.executable, "-m", "pytest", "-m", "refus", "-q", "--collect-only",
+         "-p", "no:cacheprovider"],
+        capture_output=True,
+        text=True,
+        cwd=RACINE,
+        check=False,
+    )
+    assert resultat.returncode == 0, resultat.stdout + resultat.stderr
+
+    cas = [
+        ligne
+        for ligne in resultat.stdout.splitlines()
+        if "::" in ligne and ligne.startswith("tests")
+    ]
+    assert len(cas) == NB_CAS_DE_REFUS_A8, (
+        f"A8 annonce {NB_CAS_DE_REFUS_A8} cas de refus, {len(cas)} sont collectes. Mets a "
+        f"jour les trois endroits ensemble : NB_CAS_DE_REFUS_A8, la decomposition du "
+        f"docstring de tests/config/test_gameconfig.py, et le paragraphe 7 de "
+        f"documentations/03_specification_moteur.md.\n" + "\n".join(cas)
+    )
 
 
 # ---------------------------------------------------------------------------------

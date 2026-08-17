@@ -11,8 +11,13 @@ calcul ne teste rien.** C16 et I8 comparaient la chaine et le tenseur, tous deux
 depuis la meme observation ; retirer un champ des deux les laissait coherents.
 
 Une suite qui passe sans qu'on ait verifie qu'elle sait echouer n'est pas une suite de
-tests. Cet outil applique une mutation connue au coeur, rejoue la suite, et rapporte
-combien de tests tombent. Une mutation qui ne fait rien tomber designe un trou.
+tests. Cet outil applique une mutation connue au moteur -- le coeur, ou l'adaptateur --
+rejoue la suite, et rapporte combien de tests tombent. Une mutation qui ne fait rien tomber
+designe un trou.
+
+**Toute correction de defaut arrive avec sa mutation.** Les cinq dernieres de la liste
+remettent, une a une, les defauts trouves par l'audit de la phase 0 : un correctif dont la
+mutation survit n'est tenu par aucun test, et il repartira au prochain refactoring.
 
 Usage :
 
@@ -161,6 +166,60 @@ MUTATIONS: tuple[Mutation, ...] = (
         avant="        representantes.setdefault(contenu, action)",
         apres="        representantes[(contenu, action)] = action",
         vise="deux actions legales posent les memes cartes aux memes endroits (test C14)",
+    ),
+    # ---------------------------------------------------------------------------------
+    # Ajoutees le 17/08, une par defaut trouve par l'audit de la phase 0. Chacune remet
+    # exactement le defaut tel qu'il etait : si elle survit, le correctif n'est tenu par
+    # aucun test et il repartira au prochain refactoring.
+    # ---------------------------------------------------------------------------------
+    Mutation(
+        nom="observation-sans-joueur",
+        fichier="courtisans/engine.py",
+        avant="        if not 0 <= player < self.config.joueurs:",
+        apres="        if False:",
+        vise=(
+            "un identifiant reserve passe pour un joueur : observation bien formee qui "
+            "n'est la vue de personne (defaut 2 de l'audit)"
+        ),
+    ),
+    Mutation(
+        nom="observateur-absent",
+        fichier="courtisans/openspiel_adapter.py",
+        avant="    def make_py_observer(",
+        apres="    def _observateur_desactive(",
+        vise=(
+            "le harnais de validite d'OpenSpiel ne peut plus tourner (defaut 1 de l'audit)"
+        ),
+    ),
+    Mutation(
+        nom="libelle-de-cible-ambigu",
+        fichier="courtisans/openspiel_adapter.py",
+        avant='            return f"tuer la cible {action} : f{carte.famille}-{carte.role.name}"',
+        apres='            return f"tuer f{carte.famille}-{carte.role.name}"',
+        vise=(
+            "deux cibles distinctes de meme famille et meme role portent le meme nom, ce "
+            "qu'OpenSpiel interdit (defaut trouve par random_sim_test)"
+        ),
+    ),
+    Mutation(
+        nom="bornes-de-joueurs-desynchronisees",
+        fichier="courtisans/openspiel_adapter.py",
+        avant="        max_num_players=max(JOUEURS_AUTORISES),",
+        apres="        max_num_players=5,",
+        vise=(
+            "les bornes declarees a OpenSpiel ne sont plus celles que GameConfig accepte "
+            "(defaut 5 de l'audit)"
+        ),
+    ),
+    Mutation(
+        nom="tours-arrondis-au-dessus",
+        fichier="courtisans/config.py",
+        avant="        return self.nb_cartes // (CARTES_PAR_TOUR * self.joueurs)",
+        apres="        return -(-self.nb_cartes // (CARTES_PAR_TOUR * self.joueurs))",
+        vise=(
+            "le paragraphe 3.4 est lu `ceil` la ou il ecrit `floor` : 8 tours a 4 joueurs "
+            "au lieu de 7 (defaut 6 de l'audit)"
+        ),
     ),
 )
 

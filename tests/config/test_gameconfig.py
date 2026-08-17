@@ -13,6 +13,42 @@ duree tronquee, mutation apres coup.
 Les quatre instances historiques -- mini, assassin, redeal, combo -- ont ici leur propre
 test : l'arbitrage du 16/08 exige qu'elles soient IMPOSSIBLES a construire, pas seulement
 deconseillees.
+
+Le chiffre du critere A8 -- decomposition
+-----------------------------------------
+A8 est annonce en **28 cas de refus**. Un cas de refus est **un cas de test pytest qui
+exige qu'une construction ou une mutation soit refusee** : les cas parametres comptent un
+par parametre, puisque chacun echoue separement. Ils portent tous le marqueur `refus`, et
+le compte se relit sans faire confiance a ce paragraphe :
+
+    uv run pytest -m refus -q
+
+    11  configurations non conformes, un par entree de `CAS_REFUSES`
+          -> test_une_configuration_non_conforme_leve
+     5  entiers de configuration qui n'en sont pas -- dont `True`
+          -> test_un_entier_de_configuration_qui_n_en_est_pas_un_leve
+     1  role qui n'est pas un `Role`
+          -> test_un_role_qui_n_est_pas_un_role_leve
+     1  `tours` refuse comme parametre
+          -> test_tours_n_est_pas_un_parametre
+     1  `canonicalisation` refusee comme parametre
+          -> test_canonicalisation_n_est_pas_un_parametre
+     5  drapeaux de contournement
+          -> test_aucun_drapeau_de_contournement_n_existe
+     3  instances historiques
+          -> test_les_instances_historiques_sont_impossibles_a_construire
+     1  mutation apres construction
+          -> test_la_configuration_est_immuable
+    --
+    28
+
+> *Corrige le 17/08.* Ce chiffre etait annonce **26**, ici et au paragraphe 7 de
+> `03_specification_moteur.md`, et ne correspondait a aucun regroupement naturel : il etait
+> faux dans les deux sens possibles de comptage. Le paragraphe 10 des conventions demande
+> qu'un chiffre non reconstructible soit decompose ou retire ; il est desormais decompose
+> **et** verifie, par `test_a8_le_nombre_de_cas_de_refus_annonce_est_le_nombre_reel` dans
+> `tests/acceptation/test_criteres.py`. Un chiffre qu'aucun test ne tient recommencera a
+> deriver des le prochain cas ajoute.
 """
 
 from __future__ import annotations
@@ -82,6 +118,7 @@ def test_une_configuration_conforme_se_construit_et_calcule_juste(
         ("exemplaires", None),
     ],
 )
+@pytest.mark.refus
 def test_un_entier_de_configuration_qui_n_en_est_pas_un_leve(champ: str, valeur: Any) -> None:
     """`bool` est une sous-classe de `int` : sans controle explicite, familles=True
     passerait pour familles=1."""
@@ -97,6 +134,7 @@ def test_un_entier_de_configuration_qui_n_en_est_pas_un_leve(champ: str, valeur:
         _config(**arguments)
 
 
+@pytest.mark.refus
 def test_un_role_qui_n_est_pas_un_role_leve() -> None:
     with pytest.raises(ValueError):
         module("config").GameConfig(
@@ -124,6 +162,7 @@ def test_l_ordre_des_roles_fournis_ne_change_pas_la_configuration() -> None:
     assert gauche == droite
 
 
+@pytest.mark.refus
 def test_la_configuration_est_immuable() -> None:
     config = _config(familles=4, roles=("NOBLE", "ESPION", "ASSASSIN"), exemplaires=3, joueurs=3)
 
@@ -193,6 +232,7 @@ IDS_REFUSES = [intitule for intitule, _ in CAS_REFUSES]
 
 
 @pytest.mark.parametrize(("intitule", "arguments"), CAS_REFUSES, ids=IDS_REFUSES)
+@pytest.mark.refus
 def test_une_configuration_non_conforme_leve(intitule: str, arguments: dict[str, Any]) -> None:
     with pytest.raises(ValueError):
         _config(**arguments)
@@ -203,6 +243,7 @@ def test_une_configuration_non_conforme_leve(intitule: str, arguments: dict[str,
 # ---------------------------------------------------------------------------------
 
 
+@pytest.mark.refus
 def test_tours_n_est_pas_un_parametre() -> None:
     """Arbitrage du 16/08 : la duree n'est jamais un levier. Un parametre qui ne peut
     prendre qu'une seule valeur n'est pas un parametre, c'est une occasion de se tromper."""
@@ -225,6 +266,7 @@ def test_tours_n_est_pas_un_parametre() -> None:
         )
 
 
+@pytest.mark.refus
 def test_canonicalisation_n_est_pas_un_parametre() -> None:
     """Retire le 16/08 : un champ stocke que rien ne lit et qu'aucun test ne couvre est
     ce que le paragraphe 8 des conventions interdit d'ecrire. Il reviendra a l'etape 6,
@@ -244,6 +286,7 @@ def test_canonicalisation_n_est_pas_un_parametre() -> None:
     "drapeau",
     ["autoriser_hors_planchers", "forcer", "strict", "valider", "ignorer_planchers"],
 )
+@pytest.mark.refus
 def test_aucun_drapeau_de_contournement_n_existe(drapeau: str) -> None:
     """Arbitrage du 16/08 : GameConfig leve SANS drapeau de contournement."""
     with pytest.raises(TypeError):
@@ -285,6 +328,7 @@ IDS_HISTORIQUES = [nom for nom, _ in INSTANCES_HISTORIQUES]
 @pytest.mark.parametrize(
     ("nom", "arguments"), INSTANCES_HISTORIQUES, ids=IDS_HISTORIQUES
 )
+@pytest.mark.refus
 def test_les_instances_historiques_sont_impossibles_a_construire(
     nom: str, arguments: dict[str, Any]
 ) -> None:

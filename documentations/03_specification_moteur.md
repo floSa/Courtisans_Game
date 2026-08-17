@@ -447,7 +447,15 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 | A5 | 7 quadruplets de tailles distincts | `tests/config/` |
 | A6 | Deux processus, `PYTHONHASHSEED` différent, signature identique | `tests/acceptation/` |
 | A7 | **592 instructions, 0 manquante** | `uv run pytest --cov=courtisans` |
-| A8 | 26 cas de refus | `tests/config/` |
+| A8 | **28 cas de refus** — 11 configurations non conformes + 5 entiers invalides + 1 rôle invalide + 1 `tours` non paramétrable + 1 `canonicalisation` non paramétrable + 5 drapeaux de contournement + 3 instances historiques + 1 mutation après coup | `uv run pytest -m refus -q` |
+
+> *Corrigé le 17/08, après audit.* A8 était annoncé « 26 cas de refus », ici et dans
+> `tests/acceptation/test_criteres.py`, alors qu'il y en avait **28**. Le chiffre était
+> recopié à la main aux deux endroits et vérifié à aucun — c'est exactement la condition
+> d'arrêt du §10 des conventions, « un chiffre ne peut pas être reconstruit par le
+> lecteur ». Il est désormais décomposé ci-dessus, porté par le marqueur pytest `refus`, et
+> **tenu par un test** : `test_a8_le_nombre_de_cas_de_refus_annonce_est_le_nombre_reel`
+> compare le nombre annoncé au nombre de cas réellement collectés.
 
 **Un neuvième contrôle, non prévu par ce document, s'est révélé nécessaire** : la batterie
 de mutation (`outillage/mutation.py`). Elle a montré que deux des trois pièges du §4.2

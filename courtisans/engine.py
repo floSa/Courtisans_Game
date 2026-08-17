@@ -201,21 +201,45 @@ class State:
         scores = self.scores()
         return rules.gains_depuis_scores([scores[j] for j in range(self.config.joueurs)])
 
+    def _joueur_observe(self, player: int) -> int:
+        """Verifie que `player` designe un siege, et le rend tel quel.
+
+        **Une observation est la vue d'un joueur.** Un identifiant reserve --
+        `JOUEUR_HASARD` sur un noeud de distribution, `JOUEUR_TERMINAL` a la fin -- n'en
+        est pas un, et l'indexation negative de Python n'en dit rien : `mains[-1]` est le
+        dernier joueur, `mains[-4]` est le joueur 0 quand il y en a quatre. Sans ce
+        controle, le moteur rend une observation bien formee, de la bonne taille, qui
+        n'egale la vue d'aucun joueur -- et rien ne leve.
+
+        Le controle vit ici, dans le coeur, et non dans l'adaptateur : c'est la seule
+        place ou les deux facades en heritent, et le paragraphe 2 des conventions interdit
+        d'ecrire deux fois la meme regle.
+        """
+        if not 0 <= player < self.config.joueurs:
+            raise ValueError(
+                f"player {player} ne designe aucun joueur : une observation est la vue "
+                f"d'un siege, attendu un indice de [0, {self.config.joueurs}) -- "
+                f"{JOUEUR_HASARD} (hasard) et {JOUEUR_TERMINAL} (terminal) n'en sont pas"
+            )
+        return player
+
     def information_state_string(self, player: int) -> str:
-        """La vue de `player`, identifiant de son info-set.
+        """La vue de `player`, identifiant de son info-set. Leve si `player` n'est pas un
+        joueur.
 
         L'import est local : `infoset` a besoin des types de ce module, ce module a besoin
         de ses deux fonctions. Le faire au chargement creerait un cycle.
         """
         from courtisans import infoset
 
-        return infoset.chaine(self, player)
+        return infoset.chaine(self, self._joueur_observe(player))
 
     def information_state_tensor(self, player: int) -> list[float]:
-        """La vue de `player`, sous forme de vecteur de longueur constante."""
+        """La vue de `player`, vecteur de longueur constante. Leve si `player` n'est pas un
+        joueur."""
         from courtisans import infoset
 
-        return infoset.tenseur(self, player)
+        return infoset.tenseur(self, self._joueur_observe(player))
 
     def clone(self) -> State:
         """Une copie independante : la jouer ne touche pas l'original."""

@@ -28,11 +28,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+import numpy as np
 import pyspiel
 
 from courtisans import rules
 from courtisans.cards import Carte, Role
-from courtisans.config import GameConfig
+from courtisans.config import JOUEURS_AUTORISES, GameConfig
 from courtisans.engine import Engine, Phase, State
 
 NOM_COURT = "courtisans"
@@ -61,6 +62,13 @@ def config_depuis_parametres(parametres: dict) -> GameConfig:
 
 
 def _type_de_jeu() -> pyspiel.GameType:
+    """Le type du jeu au sens d'OpenSpiel.
+
+    Les bornes de joueurs sont **derivees** de `config.JOUEURS_AUTORISES`, jamais recopiees.
+    Ecrire `max_num_players=4` en dur permettrait d'etendre l'un sans l'autre sans qu'aucun
+    test ne le signale -- c'est la classe de faute que le paragraphe 3 des conventions
+    interdit, et que `02_audit_conformite.md` designe comme cause racine de N1 et N3.
+    """
     return pyspiel.GameType(
         short_name=NOM_COURT,
         long_name="Courtisans",
@@ -69,8 +77,8 @@ def _type_de_jeu() -> pyspiel.GameType:
         information=pyspiel.GameType.Information.IMPERFECT_INFORMATION,
         utility=pyspiel.GameType.Utility.ZERO_SUM,
         reward_model=pyspiel.GameType.RewardModel.TERMINAL,
-        max_num_players=4,
-        min_num_players=2,
+        max_num_players=max(JOUEURS_AUTORISES),
+        min_num_players=min(JOUEURS_AUTORISES),
         provides_information_state_string=True,
         provides_information_state_tensor=True,
         provides_observation_string=False,
@@ -101,6 +109,84 @@ def _info_de_jeu(config: GameConfig) -> pyspiel.GameInfo:
     )
 
 
+#: Le seul type d'observation que ce jeu fournit : l'info-set. `perfect_recall=True`,
+#: information publique incluse, information privee du seul joueur observe -- c'est la
+#: definition d'`InformationState` dans `open_spiel/python/observation.py`.
+#:
+#: Le jeu declare `provides_observation_string=False` et `provides_observation_tensor=False`
+#: (voir `_type_de_jeu`) : une observation **sans memoire** n'est pas specifiee. Le
+#: paragraphe 4.2 de la specification decrit un seul etat expose au joueur, celui que
+#: `infoset.py` produit, et ne dit rien de ce qu'un observateur sans memoire devrait
+#: contenir. L'inventer serait exactement ce que le paragraphe 8 des conventions interdit.
+TYPE_OBSERVATION_SUPPORTE = pyspiel.IIGObservationType(
+    perfect_recall=True,
+    public_info=True,
+    private_info=pyspiel.PrivateInfoType.SINGLE_PLAYER,
+)
+
+
+def _est_le_type_supporte(iig_obs_type: pyspiel.IIGObservationType) -> bool:
+    """Vrai si le type demande est exactement celui de l'info-set.
+
+    Les trois champs sont compares un a un : `IIGObservationType` n'a pas d'egalite
+    structurelle utilisable. Le controle sur `private_info` n'est pas cosmetique --
+    `ALL_PLAYERS` demande l'information privee de **tous** les joueurs, ce qu'un
+    observateur de ce jeu ne peut pas rendre sans violer l'invariant I7.
+    """
+    return (
+        iig_obs_type.perfect_recall == TYPE_OBSERVATION_SUPPORTE.perfect_recall
+        and iig_obs_type.public_info == TYPE_OBSERVATION_SUPPORTE.public_info
+        and iig_obs_type.private_info == TYPE_OBSERVATION_SUPPORTE.private_info
+    )
+
+
+class ObservateurInfoState:
+    """L'observateur au sens d'OpenSpiel. Il n'observe rien de plus qu'`infoset.py`.
+
+    OpenSpiel a deux facons de lire un etat : les methodes `information_state_*` de l'etat,
+    et un **observateur** rendu par `Game.make_py_observer`. Les algorithmes de la
+    bibliotheque -- et son propre harnais de validite, `random_sim_test` -- passent par le
+    second. Sans lui, le jeu n'est pas un jeu OpenSpiel complet, et la validite annoncee
+    par les tests de l'adaptateur n'etait etablie que par des controles ecrits a la main.
+
+    **Aucune observation nouvelle n'est definie ici.** `set_from` et `string_from`
+    delegurent aux deux memes fonctions d'`infoset.py` que l'etat : une seule source de
+    verite, donc rien qui puisse diverger (paragraphe 2 des conventions). En particulier,
+    `player` traverse cet objet sans etre substitue ni corrige -- le coeur le valide.
+    """
+
+    def __init__(
+        self,
+        jeu: CourtisansGame,
+        iig_obs_type: pyspiel.IIGObservationType,
+        params: dict | None,
+    ) -> None:
+        if params:
+            raise ValueError(f"aucun parametre d'observation n'est supporte, recu {params}")
+        if not _est_le_type_supporte(iig_obs_type):
+            raise ValueError(
+                f"seule l'observation d'info-set est fournie (perfect_recall=True, "
+                f"public_info=True, private_info=SINGLE_PLAYER), demande "
+                f"perfect_recall={iig_obs_type.perfect_recall}, "
+                f"public_info={iig_obs_type.public_info}, "
+                f"private_info={iig_obs_type.private_info} -- une observation sans memoire "
+                f"n'est pas specifiee, et l'information privee de tous les joueurs violerait "
+                f"l'invariant I7"
+            )
+        self.tensor = np.zeros(jeu.information_state_tensor_size(), np.float32)
+        #: Un seul bloc plat. La disposition detaillee, bloc par bloc, est celle
+        #: d'`infoset.disposition` : la redecouper ici en ferait une seconde description.
+        self.dict = {"info_state": self.tensor}
+
+    def set_from(self, state: EtatCourtisans, player: int) -> None:
+        """Remplit le tenseur avec la vue de `player`. Leve si `player` n'est pas un joueur."""
+        self.tensor[:] = state.information_state_tensor(player)
+
+    def string_from(self, state: EtatCourtisans, player: int) -> str:
+        """La vue de `player`, en chaine. Leve si `player` n'est pas un joueur."""
+        return state.information_state_string(player)
+
+
 class CourtisansGame(pyspiel.Game):
     """Le jeu, au sens d'OpenSpiel. Enveloppe un `Engine` et n'ajoute aucune regle."""
 
@@ -112,6 +198,21 @@ class CourtisansGame(pyspiel.Game):
     def new_initial_state(self) -> EtatCourtisans:
         """La racine de l'arbre : un noeud de chance, la premiere carte a distribuer."""
         return EtatCourtisans(self, self.moteur.reset_par_hasard())
+
+    def make_py_observer(
+        self,
+        iig_obs_type: pyspiel.IIGObservationType | None = None,
+        params: dict | None = None,
+    ) -> ObservateurInfoState:
+        """L'observateur qu'attendent les algorithmes d'OpenSpiel et son harnais de validite.
+
+        `iig_obs_type` omis vaut l'info-set : c'est la seule observation que ce jeu
+        fournit. Tout autre type est refuse, avec le detail du refus -- voir
+        `ObservateurInfoState`.
+        """
+        return ObservateurInfoState(
+            self, iig_obs_type or TYPE_OBSERVATION_SUPPORTE, params
+        )
 
     # -- Les trois entrees du coeur, pour que les memes tests tournent a travers -----
 
@@ -163,7 +264,15 @@ class EtatCourtisans(pyspiel.State):
         self._etat.apply(action)
 
     def _action_to_string(self, player: int, action: int) -> str:
-        """Nom lisible d'une action, pour les traces et le debogage."""
+        """Nom lisible d'une action, pour les traces et le debogage.
+
+        **Deux actions legales distinctes doivent porter deux noms distincts** : OpenSpiel
+        l'exige, et son harnais `random_sim_test` le verifie. En phase de ciblage, deux
+        exemplaires du meme couple (famille, role) dans une meme zone sont deux cibles
+        distinctes -- le controle C15 exige `nb_cibles + 1` actions legales, donc on ne les
+        masque pas, contrairement aux actions de pose. Le nom porte donc l'indice de la
+        cible, qui est precisement ce que l'action designe.
+        """
         if player == pyspiel.PlayerId.CHANCE:
             famille, role = rules.decoder_type_carte(action, self._jeu.config)
             return f"tirage f{famille}-{role.name}"
@@ -172,7 +281,7 @@ class EtatCourtisans(pyspiel.State):
             if action == len(cibles):
                 return "ne pas tuer"
             carte = cibles[action].carte
-            return f"tuer f{carte.famille}-{carte.role.name}"
+            return f"tuer la cible {action} : f{carte.famille}-{carte.role.name}"
         pose = rules.decoder_action_pose(action, self._jeu.config)
         return (
             f"pose {pose.indices_main} {pose.position.name} "
@@ -185,15 +294,21 @@ class EtatCourtisans(pyspiel.State):
     def returns(self) -> list[float]:
         return self._etat.returns()
 
-    def information_state_string(self, player: int | None = None) -> str:
-        return self._etat.information_state_string(
-            self.current_player() if player is None else player
-        )
+    def information_state_string(self, player: int) -> str:
+        """La vue de `player`. **`player` est obligatoire, et n'a pas de valeur par defaut.**
 
-    def information_state_tensor(self, player: int | None = None) -> list[float]:
-        return self._etat.information_state_tensor(
-            self.current_player() if player is None else player
-        )
+        Cette methode substituait `current_player()` quand l'argument etait omis. Sur un
+        noeud de chance cela vaut -1, au terminal -4 : la substitution rendait une
+        observation bien formee qui n'etait la vue d'aucun joueur, sans rien lever. Ne pas
+        fournir de valeur par defaut est le seul refus qui ne devine rien -- le paragraphe 4
+        de la specification ecrit `information_state_string(self, player: int)` et ne dit
+        pas ce qu'un identifiant reserve devrait produire. Le coeur valide l'indice.
+        """
+        return self._etat.information_state_string(player)
+
+    def information_state_tensor(self, player: int) -> list[float]:
+        """La vue de `player`, sous forme de vecteur. `player` est obligatoire."""
+        return self._etat.information_state_tensor(player)
 
     def clone(self) -> EtatCourtisans:
         return EtatCourtisans(self._jeu, self._etat.clone())

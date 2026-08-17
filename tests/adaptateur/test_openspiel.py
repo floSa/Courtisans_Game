@@ -26,12 +26,14 @@ import pytest
 from tests.outils import (
     INSTANCES_RAPIDES,
     RAPIDE_3J,
+    ROLES_COMPLETS,
     Instance,
     actions_legales,
     construire_config,
     empreinte,
     module,
     noms,
+    role,
 )
 
 RACINE = Path(__file__).resolve().parents[2]
@@ -109,6 +111,201 @@ def test_le_jeu_est_enregistre_et_chargeable_par_son_nom() -> None:
     assert jeu.get_type().utility == pyspiel.GameType.Utility.ZERO_SUM
 
 
+#: Au-dela de ce qui est autorise, pour verifier que les bornes declarees mordent des deux
+#: cotes : un joueur seul, et jusqu'a six.
+JOUEURS_SONDES = range(1, 7)
+
+
+def test_les_bornes_de_joueurs_declarees_sont_celles_que_la_configuration_accepte() -> None:
+    """Le jeu declare `min_num_players` et `max_num_players` ; `GameConfig` decide.
+
+    Ce test ne compare pas deux ecritures de la meme liste -- ce serait la tautologie du
+    defaut 4. Il confronte la **declaration** au **comportement** : pour chaque nombre de
+    joueurs sonde, la configuration doit se construire si et seulement si le nombre tombe
+    dans les bornes annoncees a OpenSpiel. Etendre l'un sans l'autre echoue donc ici, dans
+    les deux sens.
+
+    Chaque configuration sondee a `familles = joueurs + 1` et le paquet complet des roles :
+    les deux autres planchers -- `familles > joueurs` et `tours >= 3` -- sont satisfaits pour
+    tous les nombres sondes, donc le seul refus possible porte bien sur `joueurs`.
+    """
+    type_de_jeu = module("openspiel_adapter")._type_de_jeu()
+    game_config = module("config").GameConfig
+    roles = tuple(role(nom) for nom in ROLES_COMPLETS)
+
+    for joueurs in JOUEURS_SONDES:
+        try:
+            construite = game_config(
+                familles=joueurs + 1, roles=roles, exemplaires=3, joueurs=joueurs
+            )
+        except ValueError:
+            accepte = False
+        else:
+            accepte = True
+            assert construite.tours >= 3, "le sondage viole un autre plancher que joueurs"
+
+        dans_les_bornes = (
+            type_de_jeu.min_num_players <= joueurs <= type_de_jeu.max_num_players
+        )
+        assert accepte == dans_les_bornes, (
+            f"{joueurs} joueurs : GameConfig "
+            f"{'accepte' if accepte else 'refuse'}, alors que les bornes declarees a "
+            f"OpenSpiel sont [{type_de_jeu.min_num_players}, "
+            f"{type_de_jeu.max_num_players}] -- une des deux sources a bouge sans l'autre"
+        )
+
+
+@pytest.mark.parametrize("mask_test", [False, True], ids=["sans-masque", "avec-masque"])
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_le_harnais_de_validite_d_openspiel_passe(instance: Instance, mask_test: bool) -> None:
+    """`random_sim_test` est le controle de conformite d'OpenSpiel lui-meme.
+
+    Tout le reste de ce fichier est ecrit a la main : ce sont **nos** idees de ce qu'un jeu
+    valide doit respecter. Celui-ci est celui de la bibliotheque, et il verifie ce a quoi
+    ses propres algorithmes se fient -- coherence des bornes, des identifiants de joueur,
+    du masque d'actions legales, du clonage et de la serialisation. Sans lui, le docstring
+    de ce fichier promet une validite que personne n'a etablie.
+
+    `serialize=False` : la serialisation d'un jeu Python passe par
+    `pyspiel.serialize_game_and_state`, qui reconstruit le jeu depuis sa chaine de
+    parametres ; ce n'est pas ce que ce test cherche a etablir.
+    """
+    import pyspiel
+
+    jeu = _jeu(instance)
+    pyspiel.random_sim_test(
+        jeu, num_sims=2, serialize=False, verbose=False, mask_test=mask_test
+    )
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_l_observateur_n_observe_rien_de_plus_que_l_etat(instance: Instance) -> None:
+    """L'observateur et l'etat doivent rendre **la meme** observation, partout.
+
+    OpenSpiel a deux chemins de lecture -- les methodes de l'etat, et l'observateur rendu
+    par `make_py_observer` -- et ses algorithmes empruntent le second. Deux chemins qui
+    calculent la meme chose sont deux implementations d'une meme regle : c'est ce que le
+    paragraphe 2 des conventions interdit, et c'est ainsi qu'un defaut s'est propage entre
+    quatre fichiers dans la tentative precedente. Ce test exige donc l'egalite a chaque
+    noeud, pas seulement la coherence des tailles.
+    """
+    jeu = _jeu(instance)
+    observateur = jeu.make_py_observer()
+    etat = jeu.new_initial_state()
+    rng = random.Random(5)
+    noeuds = 0
+
+    while not etat.is_terminal():
+        for joueur in range(instance.joueurs):
+            observateur.set_from(etat, joueur)
+            assert list(observateur.tensor) == pytest.approx(
+                etat.information_state_tensor(joueur)
+            ), f"{instance.nom} : l'observateur et l'etat divergent au noeud {noeuds}"
+            assert observateur.string_from(etat, joueur) == (
+                etat.information_state_string(joueur)
+            )
+            assert list(observateur.dict["info_state"]) == list(observateur.tensor)
+        noeuds += 1
+        etat.apply_action(rng.choice(actions_legales(etat)))
+
+    assert noeuds > instance.cartes_jouees, (
+        f"{instance.nom} : {noeuds} noeuds visites, moins que les "
+        f"{instance.cartes_jouees} distributions d'une partie"
+    )
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_l_observateur_refuse_un_identifiant_qui_n_est_pas_un_joueur(
+    instance: Instance,
+) -> None:
+    """L'observateur ne rattrape pas, ne substitue pas : il traverse jusqu'au coeur."""
+    jeu = _jeu(instance)
+    observateur = jeu.make_py_observer()
+    etat = jeu.new_initial_state()
+
+    for identifiant in (-1, -4, instance.joueurs):
+        with pytest.raises(ValueError):
+            observateur.set_from(etat, identifiant)
+        with pytest.raises(ValueError):
+            observateur.string_from(etat, identifiant)
+
+
+def test_l_observateur_refuse_ce_que_le_jeu_ne_fournit_pas() -> None:
+    """Le jeu declare `provides_observation_*=False` : l'observateur doit le tenir.
+
+    Une observation **sans memoire** n'est pas specifiee -- le paragraphe 4.2 decrit un
+    seul etat expose au joueur. En rendre une quand meme obligerait a inventer son
+    contenu, ce que le paragraphe 8 des conventions interdit. Et
+    `private_info=ALL_PLAYERS` demande l'information privee de tous les joueurs : la
+    rendre violerait l'invariant I7. Dans les deux cas, refuser est la seule reponse qui
+    ne mente pas -- et un refus explicite se lit, alors qu'un observateur silencieusement
+    incomplet ne se voit pas.
+    """
+    import pyspiel
+
+    jeu = _jeu(RAPIDE_3J)
+    adaptateur = module("openspiel_adapter")
+
+    with pytest.raises(ValueError):
+        jeu.make_py_observer(params={"quelconque": 1})
+
+    refuses = [
+        pyspiel.IIGObservationType(perfect_recall=False),
+        pyspiel.IIGObservationType(
+            perfect_recall=True, private_info=pyspiel.PrivateInfoType.ALL_PLAYERS
+        ),
+        pyspiel.IIGObservationType(
+            perfect_recall=True, private_info=pyspiel.PrivateInfoType.NONE
+        ),
+        pyspiel.IIGObservationType(perfect_recall=True, public_info=False),
+    ]
+    for type_demande in refuses:
+        with pytest.raises(ValueError):
+            jeu.make_py_observer(type_demande)
+
+    assert adaptateur._est_le_type_supporte(adaptateur.TYPE_OBSERVATION_SUPPORTE)
+    assert jeu.make_py_observer(adaptateur.TYPE_OBSERVATION_SUPPORTE) is not None
+    assert jeu.get_type().provides_observation_string is False
+    assert jeu.get_type().provides_observation_tensor is False
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_aucune_observation_n_est_rendue_sans_joueur(instance: Instance) -> None:
+    """Appelee sans argument, l'observation ne doit pas se rabattre sur `current_player()`.
+
+    Le paragraphe 4 de la specification ecrit `information_state_string(self, player: int)`
+    : une observation est la vue d'un siege. Sur un noeud de chance, `current_player()`
+    vaut `-1`, et au terminal `-4` ; substituer l'un ou l'autre rend une observation bien
+    formee qui n'egale la vue d'**aucun** joueur -- le test
+    `tests/moteur/test_observation_par_joueur.py` le montre cote coeur. Ici on exige que le
+    chemin sans argument, celui qu'un utilisateur d'OpenSpiel emprunte le plus naturellement,
+    **refuse** plutot que de deviner.
+
+    Le type d'exception n'est pas impose : refuser en ne fournissant aucune valeur par
+    defaut (`TypeError`) ou en validant explicitement (`ValueError`) sont deux refus.
+    """
+    jeu = _jeu(instance)
+    etat = jeu.new_initial_state()
+    rng = random.Random(0)
+    noeuds_examines = 0
+
+    while True:
+        if etat.is_chance_node() or etat.is_terminal():
+            noeuds_examines += 1
+            with pytest.raises((TypeError, ValueError)):
+                etat.information_state_string()
+            with pytest.raises((TypeError, ValueError)):
+                etat.information_state_tensor()
+        if etat.is_terminal():
+            break
+        etat.apply_action(rng.choice(actions_legales(etat)))
+
+    assert noeuds_examines > 1, (
+        f"{instance.nom} : {noeuds_examines} noeud(s) sans joueur examine(s), la partie "
+        f"devrait en compter au moins un par carte distribuee, plus le terminal"
+    )
+
+
 @pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
 def test_les_bornes_declarees_sont_respectees(instance: Instance) -> None:
     """Un jeu qui declare des bornes fausses casse les algorithmes qui s'y fient."""
@@ -117,7 +314,11 @@ def test_les_bornes_declarees_sont_respectees(instance: Instance) -> None:
 
     assert jeu.num_players() == instance.joueurs
     assert jeu.num_distinct_actions() >= config.actions_de_pose
-    assert jeu.max_chance_outcomes() == module("rules").nb_types_de_carte(config)
+    # La borne est comparee a la FORMULE de la specification -- `max_chance_outcomes` vaut
+    # `familles x roles` (03_specification_moteur.md paragraphe 4) -- et non a la fonction
+    # du moteur qui la calcule. Comparer les deux membres au meme code les ferait bouger
+    # ensemble : le test passerait avec une formule fausse.
+    assert jeu.max_chance_outcomes() == instance.familles * len(instance.roles)
 
     for seed in range(NB_PARTIES):
         etat = jeu.new_initial_state()
@@ -259,6 +460,41 @@ def test_la_facade_expose_la_meme_surface_que_le_coeur(instance: Instance) -> No
         reference.tours_restants(j) for j in range(instance.joueurs)
     ]
     assert str(etat) == reference.information_state_string(0)
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_deux_actions_distinctes_ne_portent_jamais_le_meme_nom(instance: Instance) -> None:
+    """Exigence d'OpenSpiel, verifiee par son propre harnais : dans un etat donne, deux
+    actions legales distinctes ont deux libelles distincts.
+
+    Elle mord en phase de ciblage. Deux exemplaires du meme couple (famille, role) dans une
+    meme zone sont **deux cibles distinctes** -- le controle C15 exige `nb_cibles + 1`
+    actions legales, donc on ne les masque pas, contrairement aux actions de pose -- mais
+    `f{famille}-{role}` ne les distingue pas. Un libelle ambigu ne fausse aucun coup ; il
+    rend les traces de partie et les rapports d'exploitabilite illisibles, et il fait
+    echouer `random_sim_test`.
+    """
+    jeu = _jeu(instance)
+    etat = jeu.new_initial_state()
+    rng = random.Random(11)
+    ciblages_vus = 0
+
+    while not etat.is_terminal():
+        actions = actions_legales(etat)
+        joueur = etat.current_player()
+        noms_vus: dict[str, int] = {}
+        for action in actions:
+            nom = etat.action_to_string(joueur, action)
+            assert nom not in noms_vus, (
+                f"{instance.nom} : les actions {noms_vus[nom]} et {action} portent le meme "
+                f"nom {nom!r} en phase {etat.phase().name}"
+            )
+            noms_vus[nom] = action
+        if etat.phase().name == "CIBLAGE":
+            ciblages_vus += 1
+        etat.apply_action(rng.choice(actions))
+
+    assert ciblages_vus > 0, f"{instance.nom} : aucune phase de ciblage sur cette partie"
 
 
 def test_les_noms_d_action_couvrent_les_trois_phases() -> None:
