@@ -254,6 +254,77 @@ def test_deux_assassins_de_la_meme_zone_se_ciblent_l_un_l_autre() -> None:
 
 
 # ---------------------------------------------------------------------------------
+# Le rang public d'une cible dans sa zone -- arbitrage du 17/08
+# ---------------------------------------------------------------------------------
+
+
+def test_le_rang_public_numerote_les_dos_d_une_zone_en_une_seule_suite() -> None:
+    """Tous les dos d'une zone forment une seule suite, quelle que soit leur famille.
+
+    01_regles.md paragraphe 4.2 : personne ne voit la famille d'un Espion pose. Deux dos
+    de familles differentes se ressemblent donc exactement, et c'est leur ordre d'arrivee
+    -- public, paragraphe 2.6 -- qui les separe. Le rang se compte par zone : un dos d'un
+    domaine ne decale pas ceux du banquet.
+    """
+    rules = module("rules")
+    zone = _banquet("ESTIME")
+    ailleurs = _domaine(1)
+
+    premier = _posee(_carte(0, "ESPION"), zone, poseur=0)
+    second = _posee(_carte(3, "ESPION"), zone, poseur=1)
+    hors_zone = _posee(_carte(1, "ESPION"), ailleurs, poseur=2)
+    vivantes = [premier, second, hors_zone]
+
+    assert rules.rang_public_dans_zone(vivantes, premier) == 1
+    assert rules.rang_public_dans_zone(vivantes, second) == 2
+    assert rules.rang_public_dans_zone(vivantes, hors_zone) == 1
+
+
+def test_le_rang_public_compte_les_dos_et_les_cartes_visibles_separement() -> None:
+    """Un dos et une carte visible n'ont pas la meme apparence : deux suites, pas une.
+
+    Sans cette separation, intercaler un Espion entre deux Noble jumeaux decalerait le
+    numero du second Noble -- un numero qui dependrait alors d'une carte cachee.
+    """
+    rules = module("rules")
+    zone = _banquet("DISGRACE")
+
+    dos_1 = _posee(_carte(0, "ESPION", 0), zone, poseur=0)
+    noble_1 = _posee(_carte(2, "NOBLE", 0), zone, poseur=1)
+    dos_2 = _posee(_carte(0, "ESPION", 1), zone, poseur=1)
+    noble_2 = _posee(_carte(2, "NOBLE", 1), zone, poseur=2)
+    vivantes = [dos_1, noble_1, dos_2, noble_2]
+
+    assert rules.rang_public_dans_zone(vivantes, dos_1) == 1
+    assert rules.rang_public_dans_zone(vivantes, dos_2) == 2
+    assert rules.rang_public_dans_zone(vivantes, noble_1) == 1
+    assert rules.rang_public_dans_zone(vivantes, noble_2) == 2
+
+
+def test_le_rang_public_se_compte_sur_les_cartes_encore_en_jeu() -> None:
+    """« Encore en jeu », pas « ordre historique des poses » (arbitrage du 17/08).
+
+    C'est ce qu'un joueur humain compte sur la table. Une carte tuee a quitte la zone au vu
+    de tous -- le meurtre est public et la defausse aussi, paragraphe 4.1 -- donc les dos
+    qui restent se renumerotent, et le rang reste une fonction de l'information publique.
+    """
+    rules = module("rules")
+    zone = _domaine(2)
+
+    tue = _posee(_carte(0, "ESPION", 0), zone, poseur=0)
+    survivant_1 = _posee(_carte(1, "ESPION", 0), zone, poseur=1)
+    survivant_2 = _posee(_carte(0, "ESPION", 1), zone, poseur=2)
+
+    avant = [tue, survivant_1, survivant_2]
+    assert rules.rang_public_dans_zone(avant, survivant_1) == 2
+    assert rules.rang_public_dans_zone(avant, survivant_2) == 3
+
+    apres = [survivant_1, survivant_2]
+    assert rules.rang_public_dans_zone(apres, survivant_1) == 1
+    assert rules.rang_public_dans_zone(apres, survivant_2) == 2
+
+
+# ---------------------------------------------------------------------------------
 # L'influence -- paragraphe 5.1. TOUT SE COMPTE EN VALEUR.
 # ---------------------------------------------------------------------------------
 
@@ -417,6 +488,10 @@ def test_les_gardes_fous_des_fonctions_pures_levent() -> None:
         rules.decoder_type_carte(rules.nb_types_de_carte(config), config)
     with pytest.raises(ValueError):
         rules.decoder_type_carte(-1, config)
+    with pytest.raises(ValueError):
+        # Un rang ne se calcule que sur une carte encore en jeu : une carte tuee, ou d'une
+        # autre zone, n'a pas de place dans la suite.
+        rules.rang_public_dans_zone([], _posee(_carte(0, "NOBLE"), _banquet("ESTIME")))
 
 
 def test_le_type_de_carte_fait_un_aller_retour() -> None:
