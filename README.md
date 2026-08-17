@@ -50,8 +50,12 @@ uv run pytest -q --cov=courtisans --cov-report=term-missing
 
 ## Test de mutation — vérifier que la suite sait échouer
 
-Dix fautes plausibles sont injectées une à une dans le cœur ; chacune doit faire tomber
-des tests. Une mutation qui survit désigne un trou.
+**15 fautes plausibles** sont injectées une à une dans le moteur — le cœur, ou l'adaptateur
+— et chacune doit faire tomber des tests. Une mutation qui survit désigne un trou.
+
+Les cinq dernières ont été ajoutées le 17/08, **une par défaut trouvé par l'audit** de la
+phase 0 : un correctif dont la mutation survit n'est tenu par aucun test, et il repartira au
+prochain refactoring. Toute correction de défaut arrive donc avec sa mutation.
 
 ```bash
 uv run python outillage/mutation.py
