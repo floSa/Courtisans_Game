@@ -130,6 +130,32 @@ def test_partie_1_la_vue_publique_ignore_les_deux_espions() -> None:
     assert partie.suites[Grain.TOUR, Vue.PUBLIQUE] == SUITES_1_PUBLIQUES
 
 
+def test_partie_1_chaque_joueur_voit_son_propre_espion_et_pas_celui_de_l_autre() -> None:
+    """Les deux Espions de la famille 3 sont poses par deux joueurs differents.
+
+    L'ordre des tours est P0, P1, P2, P0, ... : T8 est le tour de P1, T9 celui de P2. Donc,
+    sur la famille 3 :
+
+      - P0 ne voit aucun des deux : Indifferente du debut a la fin ;
+      - P1 voit le sien, en Estime : `d = +1`, Lumiere a partir de T8, et il ne voit pas
+        l'Espion de P2 qui l'annule -- pour lui la famille reste en Lumiere ;
+      - P2 ne voit que le sien, en Disgrace : `d = -1`, Obscurite a partir de T9.
+
+    Aucun des trois ne voit donc le retournement que le decompte, lui, appliquera : la
+    famille 3 finit Indifferente. **C'est un retournement que personne ne pouvait planifier**,
+    et c'est ce que la vue publique seule n'aurait pas su etablir -- elle aurait dit
+    « invisible » sans pouvoir dire « invisible de qui ».
+    """
+    partie = _jouer(SCRIPT_1)
+    assert partie.suites[Grain.TOUR, Vue.du_joueur(0)][3] == (IND,) * 13
+    assert partie.suites[Grain.TOUR, Vue.du_joueur(1)][3] == (IND,) * 8 + (LUM,) * 5
+    assert partie.suites[Grain.TOUR, Vue.du_joueur(2)][3] == (IND,) * 9 + (OBS,) * 4
+
+    for siege in range(CONFIG.joueurs):
+        assert not partie.retournements_par_famille(Grain.TOUR, Vue.du_joueur(siege))[3].r2
+    assert partie.retournements_par_famille(Grain.TOUR, Vue.VRAIE)[3].r2
+
+
 def test_partie_1_les_quatre_definitions_famille_par_famille() -> None:
     """Les quatre familles couvrent les quatre combinaisons qui comptent."""
     partie = _jouer(SCRIPT_1)

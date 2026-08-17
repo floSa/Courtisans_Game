@@ -27,7 +27,15 @@ from time import perf_counter
 from courtisans.cards import Role
 from courtisans.config import GameConfig
 from courtisans.engine import Engine
-from mesure.partie import SUPPORTS, Grain, Partie, Vue, observer, politique_uniforme
+from mesure.partie import (
+    Grain,
+    Partie,
+    Vue,
+    observer,
+    politique_uniforme,
+    supports,
+    vues,
+)
 from mesure.retournement import Retournements
 
 #: L'instance mesuree : `entrainement-3j` du paragraphe 3 de la specification du moteur.
@@ -303,7 +311,7 @@ def section_retournements(lignes: list[str], parties: Sequence[Partie]) -> None:
     total = len(parties)
     lignes.append("  Proportion de parties ou AU MOINS UNE famille satisfait la definition :")
     lignes.append("    support                R0        R1        R2        R3")
-    for grain, vue in SUPPORTS:
+    for grain, vue in supports(CONFIG.joueurs):
         cellules = []
         for definition in DEFINITIONS:
             succes = sum(
@@ -312,7 +320,20 @@ def section_retournements(lignes: list[str], parties: Sequence[Partie]) -> None:
                 if getattr(partie.retournements(grain, vue), definition)
             )
             cellules.append(f"{succes / total:8.2%}")
-        lignes.append(f"    {grain.value:4s} / {vue.value:9s} {'  '.join(cellules)}")
+        lignes.append(f"    {grain.value:4s} / {vue.nom:9s} {'  '.join(cellules)}")
+
+    lignes.append("")
+    lignes.append("  Parties ou les deux grains ne disent PAS la meme chose (vue vraie) :")
+    for definition in DEFINITIONS:
+        desaccords = sum(
+            1
+            for partie in parties
+            if getattr(partie.retournements(Grain.FIN, Vue.VRAIE), definition)
+            != getattr(partie.retournements(Grain.TOUR, Vue.VRAIE), definition)
+        )
+        lignes.append(f"    {definition.upper()} : {desaccords:4d} / {total}")
+    lignes.append("    (un desaccord est un transitoire intra-tour : le grain fin le voit,")
+    lignes.append("     le grain tour ne le voit pas)")
 
     lignes.append("")
     lignes.append(
@@ -352,35 +373,51 @@ def section_retournements(lignes: list[str], parties: Sequence[Partie]) -> None:
 
 
 def section_espions(lignes: list[str], parties: Sequence[Partie]) -> None:
-    lignes.append(_titre("6. LA PART QUE PERSONNE NE VOIT -- CONTRIBUTION DES ESPIONS"))
+    lignes.append(_titre("6. CE QUE LES ESPIONS CACHENT -- QUI VOIT LE RETOURNEMENT"))
     total = len(parties)
-    for grain in Grain:
-        vrai = [partie.retournements(grain, Vue.VRAIE).r2 for partie in parties]
-        public = [partie.retournements(grain, Vue.PUBLIQUE).r2 for partie in parties]
-        vrai_seul = sum(1 for v, p in zip(vrai, public, strict=True) if v and not p)
-        public_seul = sum(1 for v, p in zip(vrai, public, strict=True) if p and not v)
-        lignes.append(f"  grain {grain.value} :")
-        lignes.append(f"    R2 vrai                        : {Proportion(sum(vrai), total)}")
-        lignes.append(f"    R2 public                      : {Proportion(sum(public), total)}")
-        lignes.append(f"    vrai sans public (invisible)   : {Proportion(vrai_seul, total)}")
-        lignes.append(f"    public sans vrai (illusoire)   : {Proportion(public_seul, total)}")
+    lignes.append("  R2 au grain tour, selon la vue. La vue publique est le savoir COMMUN :")
+    lignes.append("  elle n'est la vue de personne, puisque chaque joueur y ajoute ses propres")
+    lignes.append("  Espions. Les trois vues par siege sont donc necessaires pour dire ce que")
+    lignes.append("  « invisible » veut dire.")
+    for vue in vues(CONFIG.joueurs):
+        succes = sum(1 for partie in parties if partie.retournements(Grain.TOUR, vue).r2)
+        lignes.append(f"    vue {vue.nom:10s} : {Proportion(succes, total)}")
 
-    familles_vrai = sum(
-        1
+    vrai = [partie.retournements(Grain.TOUR, Vue.VRAIE).r2 for partie in parties]
+    public = [partie.retournements(Grain.TOUR, Vue.PUBLIQUE).r2 for partie in parties]
+    par_siege = [
+        [
+            partie.retournements(Grain.TOUR, Vue.du_joueur(siege)).r2
+            for siege in range(CONFIG.joueurs)
+        ]
         for partie in parties
-        for retournement in partie.retournements_par_famille(Grain.TOUR, Vue.VRAIE)
-        if retournement.r2
-    )
-    familles_public = sum(
-        1
-        for partie in parties
-        for retournement in partie.retournements_par_famille(Grain.TOUR, Vue.PUBLIQUE)
-        if retournement.r2
-    )
-    lignes.append(
-        f"  familles retournees (R2, grain tour) : {familles_vrai} en vue vraie, "
-        f"{familles_public} en vue publique, ecart {familles_vrai - familles_public}"
-    )
+    ]
+    vu_par_au_moins_un = [any(sieges) for sieges in par_siege]
+
+    couples = list(zip(vrai, public, vu_par_au_moins_un, strict=True))
+    lignes.append("")
+    lignes.append("  Decomposition, partie par partie :")
+    for intitule, condition in (
+        ("R2 vrai, invisible du savoir commun    ", lambda v, p, u: v and not p),
+        ("R2 vrai, vu par AUCUN des trois joueurs", lambda v, p, u: v and not u),
+        ("R2 vrai, vu par au moins un joueur     ", lambda v, p, u: v and u),
+        ("R2 dans le savoir commun, pas dans le vrai", lambda v, p, u: p and not v),
+    ):
+        succes = sum(1 for v, p, u in couples if condition(v, p, u))
+        lignes.append(f"    {intitule} : {Proportion(succes, total)}")
+    lignes.append("      (une famille dont un Espion cache annule un retournement visible :")
+    lignes.append("       les joueurs croient qu'il a eu lieu, le decompte dira que non)")
+
+    lignes.append("")
+    lignes.append("  Familles retournees (R2, grain tour), toutes parties confondues :")
+    for vue in vues(CONFIG.joueurs):
+        familles = sum(
+            1
+            for partie in parties
+            for retournement in partie.retournements_par_famille(Grain.TOUR, vue)
+            if retournement.r2
+        )
+        lignes.append(f"    vue {vue.nom:10s} : {familles}")
 
 
 def section_refus(lignes: list[str], parties: Sequence[Partie]) -> None:
@@ -420,7 +457,7 @@ def section_controles(lignes: list[str], parties: Sequence[Partie]) -> None:
     temoins_r1_sans_r3 = 0
     temoins_r3_sans_r1 = 0
     for partie in parties:
-        for support in SUPPORTS:
+        for support in supports(CONFIG.joueurs):
             for retournement in partie.retournements_par_famille(*support):
                 if (retournement.r1 and not retournement.r2) or (
                     retournement.r3 and not retournement.r2
@@ -432,7 +469,11 @@ def section_controles(lignes: list[str], parties: Sequence[Partie]) -> None:
                     temoins_r1_sans_r3 += 1
                 if retournement.r3 and not retournement.r1:
                     temoins_r3_sans_r1 += 1
-    lignes.append(f"  violations des inclusions R1 ⊆ R2, R3 ⊆ R2, R2 ⊆ R0 : {violations}")
+    # Sortie en ASCII pur : la console Windows encode en cp1252, ou le signe d'inclusion
+    # fait lever l'ecriture du rapport entier.
+    lignes.append(
+        f"  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : {violations}"
+    )
     lignes.append(
         f"  familles R1 sans R3 : {temoins_r1_sans_r3}   |   R3 sans R1 : {temoins_r3_sans_r1}"
     )

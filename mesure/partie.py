@@ -11,9 +11,13 @@ statut qui va et revient entre la pose d'un Assassin et son meurtre est un trans
 le grain fin voit et que le grain tour ne voit pas. Les tests de
 `tests/mesure/test_parties_construites.py` construisent exactement ce cas.
 
-**Deux vues, parce qu'un retournement invisible n'est pas planifiable.** Le statut vrai
-compte les Espions poses face cachee ; le statut public ne compte que les cartes face
-visible, c'est-a-dire ce que **tout le monde** voit.
+**Trois sortes de vues, parce qu'un retournement invisible n'est pas planifiable.** Le
+statut vrai compte les Espions poses face cachee ; le statut public ne compte que les cartes
+face visible, c'est-a-dire le savoir commun ; le statut vu par un siege ajoute au savoir
+commun **ses propres Espions**, dont il connait l'identite. Les vues par siege ont ete
+ajoutees a l'audit du resultat : sans elles, l'ecart entre vue vraie et vue publique aurait
+ete presente comme « invisible de tous », alors qu'il compte aussi les retournements que
+leur poseur, lui, voyait parfaitement -- ceux-la sont justement les seuls planifiables.
 """
 
 from __future__ import annotations
@@ -23,6 +27,7 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
 from time import perf_counter
+from typing import ClassVar
 
 from courtisans import rules
 from courtisans.cards import CartePosee, Role
@@ -41,17 +46,56 @@ class Grain(Enum):
     TOUR = "tour"
 
 
-class Vue(Enum):
-    """Sur quelles cartes le statut est calcule."""
+@dataclass(frozen=True)
+class Vue:
+    """Sur quelles cartes du banquet le statut est calcule.
 
-    VRAIE = "vraie"
-    PUBLIQUE = "publique"
+    Trois sortes de vues, et il faut les trois. **La vue publique n'est la vue de personne** :
+    elle est le savoir commun, c'est-a-dire ce que voient les trois joueurs a la fois. Un
+    Espion pose face cachee n'y figure pas, alors que **son poseur, lui, sait ce que c'est**
+    (paragraphe 4.2 des regles). Conclure d'un ecart entre vue vraie et vue publique qu'un
+    retournement est invisible de tous serait donc faux : il peut etre visible de celui qui
+    l'a arme -- ce qui est precisement le cas ou il a pu etre planifie.
+
+    Attributes:
+        nom: son intitule dans le rapport.
+        joueur: le siege dont c'est la vue, ou `None` pour la vue vraie et la vue publique.
+        tout_voir: vrai pour la seule vue de dieu.
+    """
+
+    VRAIE: ClassVar[Vue]
+    PUBLIQUE: ClassVar[Vue]
+
+    nom: str
+    joueur: int | None = None
+    tout_voir: bool = False
+
+    def retient(self, posee: CartePosee) -> bool:
+        """Vrai si cette carte compte dans le statut, pour cette vue."""
+        if self.tout_voir:
+            return True
+        if not posee.carte.face_cachee:
+            return True
+        return self.joueur is not None and posee.poseur == self.joueur
+
+    @classmethod
+    def du_joueur(cls, joueur: int) -> Vue:
+        """La vue d'un siege : les cartes visibles, plus ses propres Espions."""
+        return cls(nom=f"joueur {joueur}", joueur=joueur)
 
 
-#: Les quatre combinaisons relevees pour chaque partie.
-SUPPORTS: tuple[tuple[Grain, Vue], ...] = tuple(
-    (grain, vue) for grain in Grain for vue in Vue
-)
+Vue.VRAIE = Vue(nom="vraie", tout_voir=True)
+Vue.PUBLIQUE = Vue(nom="publique")
+
+
+def vues(joueurs: int) -> tuple[Vue, ...]:
+    """La vue de dieu, le savoir commun, et la vue de chaque siege."""
+    return (Vue.VRAIE, Vue.PUBLIQUE, *(Vue.du_joueur(joueur) for joueur in range(joueurs)))
+
+
+def supports(joueurs: int) -> tuple[tuple[Grain, Vue], ...]:
+    """Toutes les combinaisons grain x vue relevees pour chaque partie."""
+    return tuple((grain, vue) for grain in Grain for vue in vues(joueurs))
 
 
 @dataclass(frozen=True)
@@ -140,7 +184,7 @@ def observer(etat: State, politique: Politique, seed: int | None = None) -> Part
     cartes_mortes: list[tuple[int, Role]] = []
 
     releves: dict[tuple[Grain, Vue], list[list[Statut]]] = {
-        support: [[] for _ in range(familles)] for support in SUPPORTS
+        support: [[] for _ in range(familles)] for support in supports(etat.config.joueurs)
     }
     _relever(etat, releves, Grain.FIN)
     _relever(etat, releves, Grain.TOUR)
@@ -195,12 +239,9 @@ def _relever(
     """Ajoute le statut courant de chaque famille, dans les deux vues, pour ce grain."""
     posees = etat.vue_privilegiee().posees
     familles = etat.config.familles
-    par_vue = {
-        Vue.VRAIE: rules.statuts(posees, familles),
-        Vue.PUBLIQUE: rules.statuts(
-            [posee for posee in posees if not posee.carte.face_cachee], familles
-        ),
-    }
-    for vue, statuts in par_vue.items():
+    for vue in vues(etat.config.joueurs):
+        # `rules.statuts` reste la seule formule d'influence du projet : la vue ne choisit
+        # que les cartes qu'on lui donne, elle ne recalcule rien.
+        statuts = rules.statuts([posee for posee in posees if vue.retient(posee)], familles)
         for famille in range(familles):
             releves[grain, vue][famille].append(statuts[famille])
