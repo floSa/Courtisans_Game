@@ -22,7 +22,7 @@ from tests.outils import (
     construire,
     noms,
     parcourir_decisions,
-    signature_posee,
+    signature_zone,
 )
 
 NB_PARTIES = 8
@@ -38,6 +38,13 @@ def test_deux_actions_de_pose_legales_donnent_deux_plateaux_differents(
     deux a deux distincts. Si un doublon survivait au masquage, deux actions produiraient
     le meme etat, l'arbre porterait deux fois la meme branche, et le nombre d'info-sets
     serait gonfle d'autant.
+
+    **Les plateaux sont compares a l'exemplaire pres.** Deux cartes de meme famille et de
+    meme role sont interchangeables : leur numero d'exemplaire ne change rien au jeu.
+    Comparer des plateaux qui le portent ferait passer pour deux coups differents deux
+    coups qui donnent le meme etat -- et le test laisserait passer exactement le defaut
+    qu'il cherche. MESURE : sans cette precaution, la mutation `doublons-non-masques`
+    survivait a ce test.
     """
     _, moteur = construire(instance)
     noeuds = 0
@@ -60,7 +67,12 @@ def test_deux_actions_de_pose_legales_donnent_deux_plateaux_differents(
             vue = clone.vue_privilegiee()
             plateau = tuple(
                 sorted(
-                    signature_posee(posee)
+                    (
+                        posee.carte.famille,
+                        posee.carte.role.name,
+                        signature_zone(posee.zone),
+                        posee.poseur,
+                    )
                     for posee in list(vue.posees) + list(vue.defausse)
                 )
             )
