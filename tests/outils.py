@@ -63,6 +63,10 @@ Contrat d'API attendu du moteur
         `ActionPose` : `indices_main` (banquet, domaine propre, domaine adverse),
         `position`, `adversaire_relatif`
     `gains_depuis_scores(scores: Sequence[int]) -> list[float]`
+    `rang_public_dans_zone(cartes_vivantes, cible: CartePosee) -> int` -- le rang de
+        `cible`, a partir de 1, parmi les cartes **encore en jeu** de sa zone qui ont la
+        meme apparence publique qu'elle : tous les dos d'une zone forment une seule suite.
+        Ce qui situe une cible dans un libelle sans nommer ce qu'un joueur ne voit pas.
 
 `courtisans.engine`
     `Engine(config)`, `.reset(seed) -> State`, `.reset_depuis_pioche(cartes) -> State`

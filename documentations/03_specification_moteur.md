@@ -446,7 +446,7 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 | A4 | Sous-processus : aucun module interdit chargé. Témoin positif inclus | `tests/adaptateur/` |
 | A5 | 7 quadruplets de tailles distincts | `tests/config/` |
 | A6 | Deux processus, `PYTHONHASHSEED` différent, signature identique | `tests/acceptation/` |
-| A7 | **618 instructions, 0 manquante** — 592 le 16/08, plus 26 apportées par les correctifs du 17/08 | `uv run pytest --cov=courtisans` |
+| A7 | **643 instructions, 0 manquante** — 592 le 16/08, plus 26 apportées par les correctifs du 17/08, plus 25 par la levée de la réserve sur le libellé des cartes cachées | `uv run pytest --cov=courtisans` |
 | A8 | **28 cas de refus** — 11 configurations non conformes + 5 entiers invalides + 1 rôle invalide + 1 `tours` non paramétrable + 1 `canonicalisation` non paramétrable + 5 drapeaux de contournement + 3 instances historiques + 1 mutation après coup | `uv run pytest -m refus -q` |
 
 > *Corrigé le 17/08, après audit.* A8 était annoncé « 26 cas de refus », ici et dans
@@ -459,10 +459,20 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 
 **Un neuvième contrôle, non prévu par ce document, s'est révélé nécessaire** : la batterie
 de mutation (`outillage/mutation.py`). Elle a montré que deux des trois pièges du §4.2
-n'étaient enforcés par **aucun** test alors que la suite entière était verte. **18 mutations,
-18 détectées** — dix le 16/08, plus huit ajoutées le 17/08, une par défaut trouvé par
-l'audit. Une suite qui passe sans qu'on ait vérifié qu'elle sait échouer n'est pas une suite
-de tests, et un correctif dont la mutation survit n'est tenu par aucun test.
+n'étaient enforcés par **aucun** test alors que la suite entière était verte. **19 mutations,
+19 détectées** — dix le 16/08, plus huit ajoutées le 17/08, une par défaut trouvé par
+l'audit, plus une pour la réserve levée le 17/08 (`libelle-nomme-un-dos`). Une suite qui
+passe sans qu'on ait vérifié qu'elle sait échouer n'est pas une suite de tests, et un
+correctif dont la mutation survit n'est tenu par aucun test.
+
+> *Une mutation réécrite le 17/08.* Le correctif du libellé a supprimé la ligne que
+> `libelle-de-cible-ambigu` citait mot pour mot : sans réécriture, l'outil aurait levé
+> « le motif apparaît 0 fois » au lieu de mesurer quoi que ce soit. Réécrite sur le nouveau
+> code — le libellé privé de son ordinal — elle passe de **7 rouges à 15**, et tue désormais
+> les deux tests d'unicité du plateau construit, là où elle ne touchait qu'un seul test
+> maison et le harnais d'OpenSpiel. **Une mutation qui cesse de s'appliquer est une mutation
+> qui ne mesure plus rien** ; c'est le seul endroit où un correctif peut affaiblir la
+> batterie sans que rien ne le signale.
 
 **Deux mécanismes de ce document ne sont pas implémentés**, chacun avec sa raison écrite :
 la canonicalisation par permutation des familles et l'encodage par cible de la phase de

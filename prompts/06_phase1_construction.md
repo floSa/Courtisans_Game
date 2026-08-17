@@ -13,8 +13,8 @@ CONTEXTE
 
 Tu ouvres la phase 1 du projet Courtisans. La phase 0 est close : le moteur de
 règles est écrit, audité par une conversation indépendante, et accepté —
-576 tests verts, 8 critères d'acceptation, 18 mutations sur 18 détectées,
-couverture 618 instructions et 0 manquante. Tu n'as pas à le corriger.
+596 tests verts, 8 critères d'acceptation, 19 mutations sur 19 détectées,
+couverture 643 instructions et 0 manquante. Tu n'as pas à le corriger.
 
 Ce projet a un historique précis. Cinq briques d'entraînement ont été validées sur
 des instances qui violaient deux règles du jeu, et le plafond de performance qui a

@@ -43,6 +43,18 @@ trois tours :
 trois moteurs, 143 invariants, 8/8 critères, **618 instructions et 0 manquante**, **18
 mutations sur 18 détectées**, `ruff` propre.
 
+**La réserve unique de cet audit est levée le 17/08.** Elle portait sur
+`_action_to_string`, qui nommait la famille et le rôle de la carte ciblée par un Assassin —
+`tuer la cible 1 : f0-ESPION` — y compris lorsque cette carte était un Espion posé face
+cachée par un adversaire, dont le joueur qui choisit ignore l'identité. Rien n'en fuitait :
+ces libellés n'étaient lus que par du débogage. Mais **rien ne l'aurait signalé non plus**,
+l'invariant I7 ne surveillant qu'`information_state_string`. Un dos est désormais dit dos,
+situé dans sa zone et numéroté par son rang parmi les cartes de même apparence encore en jeu
+— le rang étant ce qui empêche de rouvrir le défaut 7 en anonymisant. Mesures sur `7eabe3b` :
+**596 tests verts, 127/127/127, 143 invariants, 8/8 critères, 643 instructions et 0
+manquante, 19 mutations sur 19 détectées**, `ruff` propre. **Le nouveau verdict appartient à
+l'auditeur** : ce paragraphe constate la correction, il ne la valide pas.
+
 **Audit du résultat.** Deux mesures méritent d'être distinguées de tout le reste :
 
 1. **Deux des neuf défauts vivaient à 100 % de couverture d'instructions.** Le défaut 2 était
@@ -57,10 +69,13 @@ mutations sur 18 détectées**, `ruff` propre.
 
 **Décision.** **Go.** Verdict **ACCEPTÉ SOUS RÉSERVE**. La phase 0 est close.
 
-Une réserve reste ouverte et demande un arbitrage : `action_to_string` nomme la famille et le
-rôle d'un **Espion caché**. L'invariant I7 ne couvre que `information_state_string`, donc rien
-ne le signale. Non bloquant tant que ces libellés ne sont ni affichés ni consommés par un
-agent — à traiter avant la phase 3.
+~~Une réserve reste ouverte et demande un arbitrage : `action_to_string` nomme la famille et
+le rôle d'un **Espion caché**.~~ **Arbitrée et corrigée le 17/08, avant la phase 1** plutôt
+qu'avant la phase 3 : l'invariant I7 ne couvrant qu'`information_state_string`, aucun test
+n'aurait signalé le jour où une interface ou une trace d'entraînement se serait mise à lire
+ces libellés. Détail au paragraphe « la réserve unique est levée » ci-dessus. **I7 n'a pas été
+étendu à `action_to_string`** — ce serait modifier la spécification, et c'est un arbitrage
+distinct, resté ouvert.
 
 **Impact plan.** Aucun. La phase 1 s'ouvre sans modification. Trois enseignements de méthode
 sont à reporter dans les phases suivantes :

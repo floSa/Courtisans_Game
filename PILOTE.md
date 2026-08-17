@@ -13,9 +13,9 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Phase 0 CLOSE le 17/08, audit croisé compris.** 576 tests verts, 8 critères d'acceptation atteints, 18 mutations sur 18 détectées, couverture 618/618. Verdict : **ACCEPTÉ SOUS RÉSERVE** |
+| Étape en cours | **Phase 0 CLOSE le 17/08, audit croisé compris ; la réserve est levée le 17/08.** 596 tests verts, 8 critères d'acceptation atteints, 19 mutations sur 19 détectées, couverture 643/643. Verdict de l'auditeur : **ACCEPTÉ SOUS RÉSERVE** — la réserve unique portait sur le libellé des cartes cachées, corrigée depuis ; **le nouveau verdict revient à l'auditeur, pas au constructeur** |
 | Prochaine action | **Phase 1 — l'instance d'entraînement.** Coller [prompts/06_phase1_construction.md](prompts/06_phase1_construction.md) dans une conversation neuve |
-| À trancher avant | **Un seul point** : le libellé des cartes cachées — [prompts/05_libelle_de_cible.md](prompts/05_libelle_de_cible.md), 20 lignes de code |
+| À trancher avant | ~~Le libellé des cartes cachées~~ — **tranché le 17/08** : un dos n'est jamais nommé, il est situé dans sa zone et numéroté par son rang. Voir `rules.rang_public_dans_zone` |
 | Bloquant | **Rien.** Deux reports assumés, écrits dans le README : canonicalisation et encodage par cible. |
 
 **L'audit croisé a servi.** Il a rejeté une première fois — six défauts — puis, après
