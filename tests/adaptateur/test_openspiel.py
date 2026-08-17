@@ -166,15 +166,61 @@ def test_le_harnais_de_validite_d_openspiel_passe(instance: Instance, mask_test:
     du masque d'actions legales, du clonage et de la serialisation. Sans lui, le docstring
     de ce fichier promet une validite que personne n'a etablie.
 
-    `serialize=False` : la serialisation d'un jeu Python passe par
-    `pyspiel.serialize_game_and_state`, qui reconstruit le jeu depuis sa chaine de
-    parametres ; ce n'est pas ce que ce test cherche a etablir.
+    `serialize=True` **depuis le 17/08**. Le premier correctif tournait avec `False`, et le
+    compte rendu annoncait « SUPPOSE que la serialisation passerait ». C'etait faux :
+    `serialize_game_and_state` reconstruit le jeu depuis sa chaine de parametres, et cette
+    chaine ne portait pas la configuration. Un `SUPPOSE` dans un compte rendu est un test
+    qui manque -- celui-ci.
     """
     import pyspiel
 
     jeu = _jeu(instance)
     pyspiel.random_sim_test(
-        jeu, num_sims=2, serialize=False, verbose=False, mask_test=mask_test
+        jeu, num_sims=2, serialize=True, verbose=False, mask_test=mask_test
+    )
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_l_observation_sans_argument_est_celle_du_joueur_courant(instance: Instance) -> None:
+    """Sur un noeud de **decision**, l'appel sans argument doit rendre la vue du joueur qui
+    decide -- c'est le motif d'appel de toute la bibliotheque OpenSpiel.
+
+    MESURE : 34 appels `state.information_state_string()` sans argument dans
+    `open_spiel/python`, dont `policy.py:309` -- « if player is None: return
+    state.information_state_string() » --, `algorithms/best_response.py` qui porte
+    l'exploitabilite, et `jax/cfr/jax_cfr.py`. Rendre `player` obligatoire ne corrige pas
+    le defaut 2 : il le remplace par un `TypeError` sur un noeud parfaitement valide, et
+    bloque les algorithmes.
+
+    Le refus doit donc etre **cible** : la substitution reste, mais elle n'est plus une
+    echappatoire, parce que le coeur valide l'indice. Elle rend une vue la ou il y a un
+    joueur, et leve la ou il n'y en a pas -- ce que verifie
+    `test_aucune_observation_n_est_rendue_sans_joueur`. Les deux tests sont indissociables :
+    l'un interdit de deviner, l'autre interdit de refuser trop large.
+    """
+    jeu = _jeu(instance)
+    etat = jeu.new_initial_state()
+    rng = random.Random(7)
+    decisions = 0
+
+    while not etat.is_terminal():
+        if not etat.is_chance_node():
+            joueur = etat.current_player()
+            assert 0 <= joueur < instance.joueurs
+            assert etat.information_state_string() == (
+                etat.information_state_string(joueur)
+            ), f"{instance.nom} : l'appel sans argument ne rend pas la vue du joueur courant"
+            assert list(etat.information_state_tensor()) == list(
+                etat.information_state_tensor(joueur)
+            )
+            decisions += 1
+        etat.apply_action(rng.choice(actions_legales(etat)))
+
+    # Une partie compte exactement `joueurs x tours` poses, plus un noeud de ciblage par
+    # Assassin pose -- nombre qui depend du tirage, d'ou l'inegalite.
+    assert decisions >= instance.joueurs * instance.tours, (
+        f"{instance.nom} : {decisions} noeuds de decision visites, une partie en compte au "
+        f"moins {instance.joueurs * instance.tours}"
     )
 
 
@@ -304,6 +350,86 @@ def test_aucune_observation_n_est_rendue_sans_joueur(instance: Instance) -> None
         f"{instance.nom} : {noeuds_examines} noeud(s) sans joueur examine(s), la partie "
         f"devrait en compter au moins un par carte distribuee, plus le terminal"
     )
+
+
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_le_jeu_survit_a_un_aller_retour_par_sa_propre_chaine(instance: Instance) -> None:
+    """`pyspiel.load_game(str(jeu))` doit rendre **le meme jeu**.
+
+    C'est le contrat de serialisation d'OpenSpiel : `serialize_game_and_state` ecrit la
+    chaine du jeu et la relit, et tout ce qui distribue un jeu -- un checkpoint CFR, un
+    run reparti sur plusieurs processus -- passe par la.
+
+    Deux fautes le brisaient, MESUREES sur une instance 4 familles / 2 exemplaires /
+    3 joueurs :
+
+      - `str(jeu)` rendait **`courtisans()`** : la configuration passee par l'argument
+        `config=` n'atteignait jamais les parametres OpenSpiel. `load_game(str(jeu))`
+        rendait donc un jeu de 6 familles et 3 exemplaires -- une valeur fausse, bien
+        formee, qui ne leve rien. La meme famille que le defaut 2.
+      - la liste des roles etait jointe par des **virgules**, alors que la grammaire
+        d'OpenSpiel decoupe les parametres sur la virgule : la chaine produite n'etait
+        meme pas relisible -- `Unknown parameter 'ESPION,NEUTRE)'`.
+
+    Ce test compare la configuration effective, pas la chaine : deux chaines differentes
+    peuvent decrire le meme jeu, l'inverse est ce qu'on interdit.
+    """
+    import pyspiel
+
+    jeu = _jeu(instance)
+    chaine = str(jeu)
+    relu = pyspiel.load_game(chaine)
+
+    assert relu.num_players() == instance.joueurs, (
+        f"{instance.nom} : relu a {relu.num_players()} joueurs pour {instance.joueurs} -- "
+        f"chaine {chaine!r}"
+    )
+    assert relu.config.familles == instance.familles, (
+        f"{instance.nom} : relu a {relu.config.familles} familles pour "
+        f"{instance.familles} -- chaine {chaine!r}"
+    )
+    assert relu.config.exemplaires == instance.exemplaires, (
+        f"{instance.nom} : relu a {relu.config.exemplaires} exemplaires pour "
+        f"{instance.exemplaires} -- chaine {chaine!r}"
+    )
+    assert [role.name for role in relu.config.roles] == sorted(
+        instance.roles, key=lambda nom: int(role(nom))
+    ), f"{instance.nom} : roles perdus a la relecture -- chaine {chaine!r}"
+    assert relu.config == construire_config(instance)
+
+    # Les bornes de l'arbre suivent la configuration : si elle etait perdue, celles-ci
+    # seraient fausses aussi, et tout algorithme dimensionne dessus allouerait de travers.
+    assert relu.num_distinct_actions() == jeu.num_distinct_actions()
+    assert relu.max_chance_outcomes() == jeu.max_chance_outcomes()
+    assert relu.information_state_tensor_size() == jeu.information_state_tensor_size()
+    assert str(relu) == chaine, "la chaine n'est pas un point fixe de l'aller-retour"
+
+
+def test_une_chaine_de_jeu_avec_roles_explicites_est_relisible() -> None:
+    """La liste des roles doit traverser la grammaire d'OpenSpiel, qui coupe aux virgules.
+
+    Une instance reduite retire des roles entiers (paragraphe 8 des regles) : c'est donc le
+    cas d'usage normal, pas un cas limite. Sans separateur compatible, aucune instance
+    reduite n'est chargeable par son nom.
+    """
+    import pyspiel
+
+    adaptateur = module("openspiel_adapter")
+    assert "," not in adaptateur.SEPARATEUR_ROLES, (
+        "la virgule separe les parametres dans la grammaire d'OpenSpiel : elle ne peut pas "
+        "separer les roles a l'interieur d'une valeur"
+    )
+
+    roles = adaptateur.SEPARATEUR_ROLES.join(("ASSASSIN", "GARDE", "NOBLE", "ESPION"))
+    jeu = pyspiel.load_game(
+        f"courtisans(familles=4,exemplaires=2,joueurs=3,roles={roles})"
+    )
+
+    assert [r.name for r in jeu.config.roles] == ["ASSASSIN", "GARDE", "NOBLE", "ESPION"]
+    assert jeu.config.familles == 4
+    assert jeu.config.exemplaires == 2
+    assert jeu.num_players() == 3
+    assert str(pyspiel.load_game(str(jeu))) == str(jeu)
 
 
 @pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))

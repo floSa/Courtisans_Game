@@ -446,7 +446,7 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 | A4 | Sous-processus : aucun module interdit chargé. Témoin positif inclus | `tests/adaptateur/` |
 | A5 | 7 quadruplets de tailles distincts | `tests/config/` |
 | A6 | Deux processus, `PYTHONHASHSEED` différent, signature identique | `tests/acceptation/` |
-| A7 | **614 instructions, 0 manquante** — 592 le 16/08, plus 22 apportées par les correctifs du 17/08 | `uv run pytest --cov=courtisans` |
+| A7 | **618 instructions, 0 manquante** — 592 le 16/08, plus 26 apportées par les correctifs du 17/08 | `uv run pytest --cov=courtisans` |
 | A8 | **28 cas de refus** — 11 configurations non conformes + 5 entiers invalides + 1 rôle invalide + 1 `tours` non paramétrable + 1 `canonicalisation` non paramétrable + 5 drapeaux de contournement + 3 instances historiques + 1 mutation après coup | `uv run pytest -m refus -q` |
 
 > *Corrigé le 17/08, après audit.* A8 était annoncé « 26 cas de refus », ici et dans
@@ -459,8 +459,8 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 
 **Un neuvième contrôle, non prévu par ce document, s'est révélé nécessaire** : la batterie
 de mutation (`outillage/mutation.py`). Elle a montré que deux des trois pièges du §4.2
-n'étaient enforcés par **aucun** test alors que la suite entière était verte. **15 mutations,
-15 détectées** — dix le 16/08, plus cinq ajoutées le 17/08, une par défaut trouvé par
+n'étaient enforcés par **aucun** test alors que la suite entière était verte. **18 mutations,
+18 détectées** — dix le 16/08, plus huit ajoutées le 17/08, une par défaut trouvé par
 l'audit. Une suite qui passe sans qu'on ait vérifié qu'elle sait échouer n'est pas une suite
 de tests, et un correctif dont la mutation survit n'est tenu par aucun test.
 

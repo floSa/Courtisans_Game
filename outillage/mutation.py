@@ -212,6 +212,39 @@ MUTATIONS: tuple[Mutation, ...] = (
         ),
     ),
     Mutation(
+        nom="player-obligatoire",
+        fichier="courtisans/openspiel_adapter.py",
+        avant="    def information_state_string(self, player: int | None = None) -> str:",
+        apres="    def information_state_string(self, player: int) -> str:",
+        vise=(
+            "l'appel sans argument leve sur un noeud de decision valide, ce qui casse les "
+            "34 appels de la bibliotheque dont policy.py:309 (defaut R1, ma faute)"
+        ),
+    ),
+    Mutation(
+        nom="chaine-de-jeu-sans-config",
+        fichier="courtisans/openspiel_adapter.py",
+        avant=(
+            "            _type_de_jeu(), _info_de_jeu(self.config), "
+            "parametres_depuis_config(self.config)"
+        ),
+        apres="            _type_de_jeu(), _info_de_jeu(self.config), params or {}",
+        vise=(
+            "`str(jeu)` perd la configuration, donc `load_game(str(jeu))` rend un autre "
+            "jeu sans rien lever (defaut R2)"
+        ),
+    ),
+    Mutation(
+        nom="roles-separes-par-virgule",
+        fichier="courtisans/openspiel_adapter.py",
+        avant='SEPARATEUR_ROLES = "-"',
+        apres='SEPARATEUR_ROLES = ","',
+        vise=(
+            "la chaine du jeu n'est plus relisible par la grammaire d'OpenSpiel, qui "
+            "decoupe les parametres sur la virgule (defaut R2)"
+        ),
+    ),
+    Mutation(
         nom="tours-arrondis-au-dessus",
         fichier="courtisans/config.py",
         avant="        return self.nb_cartes // (CARTES_PAR_TOUR * self.joueurs)",

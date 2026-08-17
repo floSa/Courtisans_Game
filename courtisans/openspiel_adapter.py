@@ -38,20 +38,49 @@ from courtisans.engine import Engine, Phase, State
 
 NOM_COURT = "courtisans"
 
-#: Valeurs par defaut des parametres, pour `pyspiel.load_game("courtisans")`.
-PARAMETRES_PAR_DEFAUT = {
-    "familles": 6,
-    "exemplaires": 3,
-    "joueurs": 3,
-    "roles": ",".join(role.name for role in Role),
-}
+#: Ce qui separe les roles **a l'interieur** de la valeur du parametre `roles`.
+#:
+#: **Pas une virgule.** La grammaire d'OpenSpiel decoupe les parametres d'une chaine de jeu
+#: sur la virgule : `courtisans(roles=ASSASSIN,GARDE)` est lu comme deux parametres, dont le
+#: second s'appelle `GARDE`. Une liste jointe par des virgules produit donc une chaine que
+#: la bibliotheque ne sait pas relire -- `Unknown parameter 'ESPION,NEUTRE)'` -- et casse
+#: `load_game`, la serialisation, et tout ce qui distribue un jeu par son nom. Or retirer des
+#: roles entiers est une reduction autorisee (paragraphe 8 des regles) : c'est le cas d'usage
+#: normal d'une instance d'entrainement, pas un cas limite.
+SEPARATEUR_ROLES = "-"
+
+#: La configuration du jeu complet : 6 familles, les 5 roles, 3 exemplaires, 3 joueurs.
+#: Construite, donc validee -- un defaut non conforme leverait au chargement du module.
+CONFIG_PAR_DEFAUT = GameConfig(familles=6, roles=tuple(Role), exemplaires=3, joueurs=3)
+
+
+def parametres_depuis_config(config: GameConfig) -> dict:
+    """Les parametres OpenSpiel d'une configuration. L'inverse de `config_depuis_parametres`.
+
+    **C'est ce qui rend `pyspiel.load_game(str(jeu))` fidele.** OpenSpiel construit la chaine
+    d'un jeu depuis ses parametres, pas depuis son etat interne : un jeu construit par
+    l'argument `config=` sans repasser par ici rendait `courtisans()`, et se rechargeait en
+    jeu complet -- 6 familles au lieu de 4, sans que rien ne leve.
+    """
+    return {
+        "familles": config.familles,
+        "exemplaires": config.exemplaires,
+        "joueurs": config.joueurs,
+        "roles": SEPARATEUR_ROLES.join(role.name for role in config.roles),
+    }
+
+
+#: Valeurs par defaut des parametres, pour `pyspiel.load_game("courtisans")`. Derivees de
+#: `CONFIG_PAR_DEFAUT`, jamais recopiees : deux ecritures du jeu complet pourraient diverger.
+PARAMETRES_PAR_DEFAUT = parametres_depuis_config(CONFIG_PAR_DEFAUT)
 
 
 def config_depuis_parametres(parametres: dict) -> GameConfig:
     """Traduit les parametres OpenSpiel en `GameConfig`, qui valide le reste."""
     complets = {**PARAMETRES_PAR_DEFAUT, **(parametres or {})}
     roles = tuple(
-        getattr(Role, nom.strip().upper()) for nom in str(complets["roles"]).split(",")
+        getattr(Role, nom.strip().upper())
+        for nom in str(complets["roles"]).split(SEPARATEUR_ROLES)
     )
     return GameConfig(
         familles=int(complets["familles"]),
@@ -193,7 +222,13 @@ class CourtisansGame(pyspiel.Game):
     def __init__(self, params: dict | None = None, config: GameConfig | None = None):
         self.config = config if config is not None else config_depuis_parametres(params)
         self.moteur = Engine(self.config)
-        super().__init__(_type_de_jeu(), _info_de_jeu(self.config), params or {})
+        # Les parametres transmis a OpenSpiel sont **toujours** ceux de la configuration
+        # effective, jamais ceux recus. C'est ce qui fait de `str(jeu)` une description
+        # fidele et complete du jeu, donc de `load_game(str(jeu))` le meme jeu : les deux
+        # chemins de construction -- `params=` et `config=` -- convergent ici.
+        super().__init__(
+            _type_de_jeu(), _info_de_jeu(self.config), parametres_depuis_config(self.config)
+        )
 
     def new_initial_state(self) -> EtatCourtisans:
         """La racine de l'arbre : un noeud de chance, la premiere carte a distribuer."""
@@ -294,21 +329,29 @@ class EtatCourtisans(pyspiel.State):
     def returns(self) -> list[float]:
         return self._etat.returns()
 
-    def information_state_string(self, player: int) -> str:
-        """La vue de `player`. **`player` est obligatoire, et n'a pas de valeur par defaut.**
+    def information_state_string(self, player: int | None = None) -> str:
+        """La vue de `player` ; omis, celle du joueur courant.
 
-        Cette methode substituait `current_player()` quand l'argument etait omis. Sur un
-        noeud de chance cela vaut -1, au terminal -4 : la substitution rendait une
-        observation bien formee qui n'etait la vue d'aucun joueur, sans rien lever. Ne pas
-        fournir de valeur par defaut est le seul refus qui ne devine rien -- le paragraphe 4
-        de la specification ecrit `information_state_string(self, player: int)` et ne dit
-        pas ce qu'un identifiant reserve devrait produire. Le coeur valide l'indice.
+        **Le defaut est conserve, mais il n'est plus une echappatoire.** C'est le motif
+        d'appel de toute la bibliotheque -- 34 appels `information_state_string()` sans
+        argument dans `open_spiel/python`, dont `policy.py:309`, `algorithms/best_response.py`
+        qui porte l'exploitabilite, et `jax/cfr/jax_cfr.py`. Le supprimer ne corrigeait pas
+        le defaut : il le remplacait par un `TypeError` sur un noeud de decision valide.
+
+        Ce qui manquait n'etait pas le defaut, c'etait la **validation** de ce qu'il
+        substitue. `current_player()` vaut -1 sur un noeud de chance et -4 au terminal ;
+        `engine.State` refuse desormais l'un comme l'autre, donc l'appel sans argument rend
+        une vue exactement la ou un joueur decide, et leve partout ailleurs.
         """
-        return self._etat.information_state_string(player)
+        return self._etat.information_state_string(
+            self.current_player() if player is None else player
+        )
 
-    def information_state_tensor(self, player: int) -> list[float]:
-        """La vue de `player`, sous forme de vecteur. `player` est obligatoire."""
-        return self._etat.information_state_tensor(player)
+    def information_state_tensor(self, player: int | None = None) -> list[float]:
+        """La vue de `player` en vecteur ; omis, celle du joueur courant. Meme regle."""
+        return self._etat.information_state_tensor(
+            self.current_player() if player is None else player
+        )
 
     def clone(self) -> EtatCourtisans:
         return EtatCourtisans(self._jeu, self._etat.clone())
