@@ -32,7 +32,7 @@ import numpy as np
 import pyspiel
 
 from courtisans import rules
-from courtisans.cards import Carte, Role
+from courtisans.cards import Carte, CartePosee, GenreZone, Role, Zone, apparence_publique
 from courtisans.config import JOUEURS_AUTORISES, GameConfig
 from courtisans.engine import Engine, Phase, State
 
@@ -52,6 +52,49 @@ SEPARATEUR_ROLES = "-"
 #: La configuration du jeu complet : 6 familles, les 5 roles, 3 exemplaires, 3 joueurs.
 #: Construite, donc validee -- un defaut non conforme leverait au chargement du module.
 CONFIG_PAR_DEFAUT = GameConfig(familles=6, roles=tuple(Role), exemplaires=3, joueurs=3)
+
+#: Ce qu'un libelle dit d'une carte posee face cachee, a la place de son identite. Un dos
+#: n'est jamais nomme, **meme pour le joueur qui l'a pose et en connait l'identite** : un
+#: libelle qui varierait selon son lecteur ne serait plus un libelle d'action, ce serait une
+#: observation deguisee, et rien ne garantirait qu'elle ne finisse pas dans le journal d'un
+#: autre joueur.
+LIBELLE_DU_DOS = "dos"
+
+
+def _apparence(carte: Carte) -> str:
+    """Ce que tout le monde voit de cette carte, en clair.
+
+    La decision de ce qui est visible n'est pas prise ici : elle vient de
+    `cards.apparence_publique`, seul endroit du moteur qui la porte. Ce module ne fait que
+    la mettre en mots.
+    """
+    apparence = apparence_publique(carte)
+    if apparence is None:
+        return LIBELLE_DU_DOS
+    famille, role = apparence
+    return f"f{famille}-{role.name}"
+
+
+def _situation(zone: Zone) -> str:
+    """Ou se trouve une carte, en clair.
+
+    Le proprietaire d'un domaine est designe en **absolu**, pas relativement au joueur qui
+    lit : il est public (paragraphe 2.6 des regles), et un indice relatif ferait dependre le
+    libelle de son lecteur -- exactement ce que le dos anonyme cherche a eviter.
+    """
+    if zone.genre is GenreZone.BANQUET:
+        return f"en {zone.position.name}"
+    return f"dans le domaine de J{zone.proprietaire}"
+
+
+def _ordinal(rang: int) -> str:
+    """L'ordinal francais d'un rang compte a partir de 1.
+
+    Toujours present, `1er` compris. Un ordinal qu'on n'ecrirait que lorsqu'il departage
+    quelque chose serait une branche de plus et un mode de defaut silencieux, pour zero
+    gain de lisibilite.
+    """
+    return "1er" if rang == 1 else f"{rang}e"
 
 
 def parametres_depuis_config(config: GameConfig) -> dict:
@@ -298,6 +341,25 @@ class EtatCourtisans(pyspiel.State):
     def _apply_action(self, action: int) -> None:
         self._etat.apply(action)
 
+    def _libelle_de_cible(self, cible: CartePosee) -> str:
+        """Le nom d'une cible d'Assassin : ce qu'elle est, et laquelle c'est.
+
+        **Une carte cachee n'est jamais nommee.** Le joueur qui choisit sa cible ne voit
+        qu'un dos ; ecrire `f3-ESPION` mettrait en clair, dans une trace de partie, une
+        identite qu'aucun joueur ne connait. Rien n'en fuitait tant que ces libelles
+        n'etaient lus que par du debogage, et rien ne l'aurait signale : l'invariant I7 ne
+        surveille qu'`information_state_string`, pas `action_to_string`.
+
+        Ce qu'on dit alors, c'est **ou** est ce dos -- sa position est publique
+        (paragraphe 2.6 des regles) -- et **lequel** c'est, par son rang dans sa zone. Le
+        rang est indispensable et il ne fuite rien ; les deux raisons sont ecrites dans
+        `rules.rang_public_dans_zone`, avec ce qui les etablit.
+        """
+        return (
+            f"tuer le {_ordinal(self._etat.rang_public_de_cible(cible))} "
+            f"{_apparence(cible.carte)} {_situation(cible.zone)}"
+        )
+
     def _action_to_string(self, player: int, action: int) -> str:
         """Nom lisible d'une action, pour les traces et le debogage.
 
@@ -305,8 +367,13 @@ class EtatCourtisans(pyspiel.State):
         l'exige, et son harnais `random_sim_test` le verifie. En phase de ciblage, deux
         exemplaires du meme couple (famille, role) dans une meme zone sont deux cibles
         distinctes -- le controle C15 exige `nb_cibles + 1` actions legales, donc on ne les
-        masque pas, contrairement aux actions de pose. Le nom porte donc l'indice de la
-        cible, qui est precisement ce que l'action designe.
+        masque pas, contrairement aux actions de pose. C'est le rang de `_libelle_de_cible`
+        qui les separe, et il les separe aussi quand ce sont deux dos.
+
+        **Le nom ne depend pas de `player`.** Un libelle qui varierait selon son lecteur ne
+        serait plus le nom d'une action : deux joueurs relisant la meme trace n'y liraient
+        pas la meme partie, et le libelle du poseur d'un Espion suffirait a le trahir. Seul
+        le hasard est traite a part, parce que ses actions ne sont pas celles d'un joueur.
         """
         if player == pyspiel.PlayerId.CHANCE:
             famille, role = rules.decoder_type_carte(action, self._jeu.config)
@@ -315,8 +382,7 @@ class EtatCourtisans(pyspiel.State):
             cibles = self._etat.cibles_courantes()
             if action == len(cibles):
                 return "ne pas tuer"
-            carte = cibles[action].carte
-            return f"tuer la cible {action} : f{carte.famille}-{carte.role.name}"
+            return self._libelle_de_cible(cibles[action])
         pose = rules.decoder_action_pose(action, self._jeu.config)
         return (
             f"pose {pose.indices_main} {pose.position.name} "

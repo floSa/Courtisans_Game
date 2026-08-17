@@ -160,6 +160,17 @@ class State:
             return ()
         return rules.cibles_valides(self._posees, assassin)
 
+    def rang_public_de_cible(self, cible: CartePosee) -> int:
+        """Le rang public d'une cible dans sa zone -- voir `rules.rang_public_dans_zone`.
+
+        **Rend un entier, jamais une carte.** C'est ce qui permet a l'adaptateur de situer
+        une cible dans sa zone sans passer par `vue_privilegiee` : la regle R-d reserve la
+        vue de dieu aux tests et a l'interface, et un libelle d'action n'est ni l'un ni
+        l'autre. Ce qui sort d'ici est calcule sur de l'information publique et n'a aucun
+        moyen de nommer une carte cachee.
+        """
+        return rules.rang_public_dans_zone(self._posees, cible)
+
     def tours_restants(self, joueur: int) -> int:
         """Tours qu'il reste a jouer a ce joueur, celui en cours compris s'il n'a pas pose.
 

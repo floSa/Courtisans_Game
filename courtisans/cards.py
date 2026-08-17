@@ -92,6 +92,21 @@ class Carte:
         return self.role in ROLES_CACHES
 
 
+def apparence_publique(carte: Carte) -> tuple[int, Role] | None:
+    """Ce que **tout le monde** voit d'une carte posee sur la table.
+
+    Son couple (famille, role) si elle est face visible ; `None` si elle est face cachee,
+    parce qu'alors il n'y a rien a voir qu'un dos (paragraphe 4.2 des regles). C'est la
+    seule chose qu'un affichage, une trace ou un libelle d'action ait le droit de nommer.
+
+    **Ecrit ici et nulle part ailleurs.** Deux endroits qui decideraient separement de ce
+    qui est visible finiraient par ne plus etre d'accord, et c'est le libelle qui aurait
+    tort sans que rien ne le signale -- la faute que le paragraphe 2 des conventions
+    interdit.
+    """
+    return None if carte.face_cachee else (carte.famille, carte.role)
+
+
 @dataclass(frozen=True)
 class Zone:
     """Un emplacement du plateau : une position du banquet, ou le domaine d'un joueur.

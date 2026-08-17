@@ -21,7 +21,14 @@ from dataclasses import dataclass
 from enum import IntEnum
 from itertools import permutations
 
-from courtisans.cards import Carte, CartePosee, GenreZone, Position, Role
+from courtisans.cards import (
+    Carte,
+    CartePosee,
+    GenreZone,
+    Position,
+    Role,
+    apparence_publique,
+)
 from courtisans.config import CARTES_PAR_TOUR, GameConfig
 
 #: Roles qu'un Assassin ne peut pas tuer (paragraphe 4.3). Le Garde est immunise ; il
@@ -201,6 +208,50 @@ def cibles_valides(
         if posee.zone == assassin.zone
         and posee.carte.role not in ROLES_IMMUNISES_CONTRE_ASSASSIN
         and posee.carte != assassin.carte
+    )
+
+
+def rang_public_dans_zone(cartes_vivantes: Iterable[CartePosee], cible: CartePosee) -> int:
+    """Le rang de `cible`, a partir de 1, parmi les cartes de sa zone de meme apparence.
+
+    Deux cartes se comparent sur leur **apparence publique** (`cards.apparence_publique`) :
+    tous les dos d'une zone forment donc une seule suite, numerotee dans l'ordre ou ils
+    sont arrives, et deux exemplaires du meme couple (famille, role) visible en forment
+    une autre. C'est ce qu'un joueur humain compte sur la table.
+
+    **Pourquoi ce rang ne fuite rien -- et c'est le seul endroit du libelle ou ce serait
+    possible.** Il se calcule sur deux choses, toutes les deux publiques :
+
+      - **l'ordre de pose**, public parce que tout le monde a vu les cartes arriver. Une
+        pose est un evenement ouvert : la carte va dans une zone nommee, a la vue de tous.
+        Meme pour un Espion, dont l'identite reste cachee, chacun sait quand il est arrive
+        et ou -- « leur position est connue », paragraphe 2.6 des regles ;
+      - **« encore en jeu »**, public parce qu'un meurtre est public et que la defausse
+        l'est aussi (paragraphe 4.1) : personne ne peut se tromper sur les cartes qui ont
+        quitte la zone.
+
+    Le rang est donc une fonction de la seule information publique. Il ne depend ni de la
+    famille ni du role d'une carte cachee : echanger deux dos d'une meme zone laisse tous
+    les rangs inchanges. Ce n'est pas suppose, c'est verifie -- un test hostile compare les
+    libelles de deux plateaux qui ne different que par cet echange.
+
+    Ce qu'il porte en revanche est indispensable : **lequel** des dos on designe. Sans lui,
+    deux dos d'une meme zone porteraient le meme libelle, ce qu'OpenSpiel interdit et ce
+    que son harnais `random_sim_test` fait echouer -- le defaut 7 de l'audit de la phase 0.
+    Anonymiser sans numeroter aurait corrige une fuite en rouvrant ce defaut-la.
+    """
+    apparence = apparence_publique(cible.carte)
+    memes = [
+        posee
+        for posee in cartes_vivantes
+        if posee.zone == cible.zone and apparence_publique(posee.carte) == apparence
+    ]
+    for rang, posee in enumerate(memes, start=1):
+        if posee == cible:
+            return rang
+    raise ValueError(
+        f"la carte {cible.carte} n'est pas en jeu dans la zone {cible.zone} : un rang ne "
+        f"se calcule que sur une carte vivante"
     )
 
 

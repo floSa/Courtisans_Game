@@ -194,11 +194,36 @@ MUTATIONS: tuple[Mutation, ...] = (
     Mutation(
         nom="libelle-de-cible-ambigu",
         fichier="courtisans/openspiel_adapter.py",
-        avant='            return f"tuer la cible {action} : f{carte.famille}-{carte.role.name}"',
-        apres='            return f"tuer f{carte.famille}-{carte.role.name}"',
+        avant=(
+            '            f"tuer le {_ordinal(self._etat.rang_public_de_cible(cible))} "\n'
+            '            f"{_apparence(cible.carte)} {_situation(cible.zone)}"'
+        ),
+        apres=(
+            '            f"tuer le "\n'
+            '            f"{_apparence(cible.carte)} {_situation(cible.zone)}"'
+        ),
         vise=(
-            "deux cibles distinctes de meme famille et meme role portent le meme nom, ce "
-            "qu'OpenSpiel interdit (defaut trouve par random_sim_test)"
+            "deux cibles de meme apparence dans une meme zone portent le meme nom, ce "
+            "qu'OpenSpiel interdit (defaut 7, trouve par random_sim_test)"
+        ),
+    ),
+    Mutation(
+        nom="libelle-nomme-un-dos",
+        fichier="courtisans/openspiel_adapter.py",
+        avant=(
+            "    apparence = apparence_publique(carte)\n"
+            "    if apparence is None:\n"
+            "        return LIBELLE_DU_DOS\n"
+            "    famille, role = apparence"
+        ),
+        apres=(
+            "    apparence = (carte.famille, carte.role)\n"
+            "    famille, role = apparence"
+        ),
+        vise=(
+            "le libelle d'une cible nomme la famille et le role d'une carte posee face "
+            "cachee, que le joueur qui choisit ne connait pas (arbitrage du 17/08 ; "
+            "l'invariant I7 ne couvre pas action_to_string)"
         ),
     ),
     Mutation(
