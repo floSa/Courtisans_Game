@@ -13,9 +13,15 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Action 3 terminée — les huit étapes.** 502 tests, tous verts ; les 8 critères d'acceptation atteints |
-| Prochaine action | **Action 4 — l'audit croisé**, dans une conversation neuve |
+| Étape en cours | **Phase 0 CLOSE le 17/08, audit croisé compris.** 576 tests verts, 8 critères d'acceptation atteints, 18 mutations sur 18 détectées, couverture 618/618. Verdict : **ACCEPTÉ SOUS RÉSERVE** |
+| Prochaine action | **Phase 1 — l'instance d'entraînement.** Coller [prompts/06_phase1_construction.md](prompts/06_phase1_construction.md) dans une conversation neuve |
+| À trancher avant | **Un seul point** : le libellé des cartes cachées — [prompts/05_libelle_de_cible.md](prompts/05_libelle_de_cible.md), 20 lignes de code |
 | Bloquant | **Rien.** Deux reports assumés, écrits dans le README : canonicalisation et encodage par cible. |
+
+**L'audit croisé a servi.** Il a rejeté une première fois — six défauts — puis, après
+correction, en a trouvé deux de plus, dont un qui bloquait `deep_cfr` et le calcul
+d'exploitabilité. Neuf défauts au total, tous corrigés, chacun tenu par un test **et** par une
+mutation. Détail au [journal](documentations/06_journal_decisions.md), entrée du 17/08.
 
 Le dépôt est poussé sur la branche `moteur-conforme` de
 [floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique
@@ -134,7 +140,11 @@ puis retour à la conversation d'audit pour re-vérifier **uniquement** ces déf
 
 ## Action 5 — Reporter au journal
 
-**Pour toi. Cinq minutes.** Une entrée dans
+**C'est l'agent qui l'écrit, pas toi.** Tu le relis et tu valides. L'auditeur rédige
+l'entrée à la fin de son audit, puisque c'est lui qui détient les chiffres remesurés et
+la liste de ce que le constructeur avait manqué.
+
+Une entrée dans
 [documentations/06_journal_decisions.md](documentations/06_journal_decisions.md) : hypothèse,
 instrument, résultat, audit, décision, impact sur le plan.
 

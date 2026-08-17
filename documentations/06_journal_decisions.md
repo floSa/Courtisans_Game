@@ -16,6 +16,67 @@ Impact plan : phases invalidées ou modifiées
 
 ---
 
+## [2026-08-17] Phase 0 — Audit croisé du moteur conforme
+
+**Hypothèse.** Le moteur construit par la conversation de l'action 3 implémente les règles de
+`01_regles.md`, et ses 502 tests verts l'établissent.
+
+**Instrument.** Protocole d'audit croisé, `07_protocole_audit_croise.md`. Contrôles A1 à A7
+par une conversation distincte, qui rejoue tous les chiffres elle-même et écrit ses propres
+tests hostiles contre le **texte des règles**, sans appeler une seule fonction du moteur pour
+calculer un attendu. Seuil de rejet fixé d'avance : un critère non satisfait, un test hostile
+rouge, ou une affirmation fausse dans le compte rendu.
+
+**Résultat.** Hypothèse **partiellement rejetée**. Aucun défaut de conformité aux règles —
+61 cas hostiles, dont une construction de fuite d'information à pioches jumelles et une
+traduction complète de l'espace d'actions sous permutation des familles, n'en ont produit
+aucun. Mais **neuf défauts** dans l'adaptateur, la stratégie de test et la documentation, en
+trois tours :
+
+| Tour | Défauts | Les deux qui comptent |
+|---|---|---|
+| Audit initial | 6 (2 majeurs, 4 mineurs) | `make_py_observer` absent → le harnais de validité d'OpenSpiel ne pouvait pas tourner ; l'observation d'un identifiant réservé rendait une vue **n'appartenant à aucun joueur**, sans lever |
+| Correction 1 | +1 trouvé par le correctif | libellés d'action dupliqués — trouvé par `random_sim_test` en une exécution, que 502 tests maison n'avaient pas vu |
+| Re-vérification | +2 | régression sur le motif d'appel d'OpenSpiel (34 sites, dont `deep_cfr` et `best_response`) ; le jeu ne survivait pas à un aller-retour par sa propre chaîne de paramètres |
+
+État final, **remesuré par l'auditeur** sur `b90f714` : 576 tests verts, 127/127/127 sur les
+trois moteurs, 143 invariants, 8/8 critères, **618 instructions et 0 manquante**, **18
+mutations sur 18 détectées**, `ruff` propre.
+
+**Audit du résultat.** Deux mesures méritent d'être distinguées de tout le reste :
+
+1. **Deux des neuf défauts vivaient à 100 % de couverture d'instructions.** Le défaut 2 était
+   une branche exécutée à chaque appel mais jamais avec l'argument omis ; la régression du
+   tour 2 était un refus exécuté mais jamais dans le cas où il devait rendre une valeur. La
+   couverture d'instructions **ne peut pas** les voir. La couverture de **branches** est le
+   seul changement d'instrument qui les aurait signalés.
+2. **La preuve que les phases 2 et 3 sont débloquées a été faite, pas déduite.** L'auditeur a
+   fait tourner de vrais consommateurs OpenSpiel de bout en bout sur `rapide-2j` :
+   `mcts.MCTSBot` — partie entière, 38 coups, gains [1.0, −1.0] — et
+   `rl_environment.Environment` — 14 pas, rewards [1.0, −1.0].
+
+**Décision.** **Go.** Verdict **ACCEPTÉ SOUS RÉSERVE**. La phase 0 est close.
+
+Une réserve reste ouverte et demande un arbitrage : `action_to_string` nomme la famille et le
+rôle d'un **Espion caché**. L'invariant I7 ne couvre que `information_state_string`, donc rien
+ne le signale. Non bloquant tant que ces libellés ne sont ni affichés ni consommés par un
+agent — à traiter avant la phase 3.
+
+**Impact plan.** Aucun. La phase 1 s'ouvre sans modification. Trois enseignements de méthode
+sont à reporter dans les phases suivantes :
+
+- **La section « Incertain » d'un compte rendu désigne le défaut suivant.** Le constructeur
+  avait écrit « SUPPOSÉ que la sérialisation passerait » ; c'était faux, et c'est devenu le
+  défaut 9. Un `SUPPOSÉ` dans un compte rendu est un test qui manque.
+- **Un arbitrage mal formulé produit une régression.** La consigne disait « la substitution
+  disparaît » là où elle aurait dû dire « la substitution est validée » — d'où le défaut R1.
+  Un arbitrage doit énoncer ce qui doit **continuer de marcher**, pas seulement ce qui doit
+  échouer.
+- **Le harnais standard de l'écosystème trouve ce que la suite maison ne cherche pas.**
+  Débloquer `random_sim_test` a produit un défaut réel à la première exécution.
+
+---
+
 ## [2026-08-15] Pré-phase 0 — Conformité des instances aux règles
 
 **Hypothèse.** Les instances CFR implémentent les règles de Courtisans.

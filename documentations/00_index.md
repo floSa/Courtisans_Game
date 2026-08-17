@@ -120,7 +120,7 @@ fondées.
 
 | Phase | Objet | Exécution | Bloquante |
 |---|---|---:|---|
-| **0** | ~~Moteur conforme réécrit~~ — **fait le 16/08** : 502 tests verts, 8 critères d'acceptation atteints, 10 mutations sur 10 détectées. Reste l'audit croisé. | tests : 79 s | **oui** |
+| **0** | ~~Moteur conforme réécrit~~ — **close le 17/08, audit croisé compris** : 576 tests verts, 8 critères d'acceptation atteints, 18 mutations sur 18 détectées, couverture 618/618. Verdict de l'auditeur : **ACCEPTÉ SOUS RÉSERVE**. | tests : 205 s | **oui** |
 | **1** | **Instance d'entraînement** — 4 familles, 3 joueurs, conforme | quelques min | **oui** |
 | **2** | **Banc de test 2 joueurs** — instance symétrique + oracle CFR+ + métrique corrigée | oracle ~4 h | **oui** |
 | **3** | **Diagnostic du plafond** — trancher entre les 3 hypothèses | P3.0 : 10 s · P3.1 : ~3 h · P3.2 : ~20 min GPU | **oui** |
@@ -140,9 +140,14 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    tranchés les 15 et 16/08.
 2. **Fast-forward de `main` sur `cfr-pivot`**, et tag `alphazero-final` — sur l'ancien dépôt.
 3. ~~Coller [../prompts/01_moteur_construction.md](../prompts/01_moteur_construction.md)~~ —
-   **fait, les huit étapes.** 502 tests verts, les 8 critères d'acceptation atteints,
-   10 mutations sur 10 détectées. Reste l'audit croisé, action 4 du
-   [PILOTE](../PILOTE.md).
+   **fait, les huit étapes.** Puis l'audit croisé — action 4 — qui a rejeté une
+   première fois, puis accepté sous réserve après deux tours de correction.
+   **État final : 576 tests verts, les 8 critères d'acceptation atteints,
+   18 mutations sur 18 détectées, couverture 618/618.** Neuf défauts trouvés et
+   corrigés. Voir l'entrée du 17/08 au
+   [journal](06_journal_decisions.md).
+4. **Écrire les prompts de la phase 1** — construction et audit, sur le modèle des
+   deux premiers.
 
 ---
 
