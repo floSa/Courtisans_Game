@@ -126,10 +126,14 @@ def test_hors_ciblage_il_n_y_a_ni_assassin_en_cours_ni_cible(instance: Instance)
     assert etat.phase().name == "POSE"
     assert etat.assassin_en_resolution() is None
     assert etat.cibles_courantes() == ()
+    assert etat.chance_outcomes() == [], (
+        "une pioche fixee ne laisse aucune issue de hasard a tirer"
+    )
 
     termine = partie(moteur, 4)
     assert termine.assassin_en_resolution() is None
     assert termine.cibles_courantes() == ()
+    assert termine.chance_outcomes() == []
 
 
 def test_une_action_illegale_est_refusee() -> None:

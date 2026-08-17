@@ -413,6 +413,25 @@ def test_les_gardes_fous_des_fonctions_pures_levent() -> None:
         rules.destinataire(0, -1, RAPIDE_2J.joueurs)
     with pytest.raises(ValueError):
         rules.gains_depuis_scores([7])
+    with pytest.raises(ValueError):
+        rules.decoder_type_carte(rules.nb_types_de_carte(config), config)
+    with pytest.raises(ValueError):
+        rules.decoder_type_carte(-1, config)
+
+
+def test_le_type_de_carte_fait_un_aller_retour() -> None:
+    """Les issues de chance sont des types : l'encodage doit etre bijectif."""
+    rules = module("rules")
+    config = construire_config(RAPIDE_2J)
+
+    vus = set()
+    for carte in rules.paquet(config):
+        action = rules.encoder_type_carte(carte, config)
+        assert rules.decoder_type_carte(action, config) == (carte.famille, carte.role)
+        vus.add(action)
+
+    assert sorted(vus) == list(range(rules.nb_types_de_carte(config)))
+    assert len(vus) == RAPIDE_2J.familles * len(RAPIDE_2J.roles)
 
 
 @pytest.mark.parametrize("joueurs", [2, 3, 4])

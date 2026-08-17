@@ -230,6 +230,37 @@ def test_l_adaptateur_produit_exactement_les_memes_etats_que_le_coeur(
         assert empreinte(etat_coeur, instance) == empreinte(etat_adapte, instance)
 
 
+@pytest.mark.parametrize("instance", INSTANCES_RAPIDES, ids=noms(INSTANCES_RAPIDES))
+def test_la_facade_expose_la_meme_surface_que_le_coeur(instance: Instance) -> None:
+    """Toutes les entrees du coeur doivent exister sur l'adaptateur, et rendre la meme
+    chose. C'est ce qui permet aux memes tests de tourner des deux cotes ; une methode
+    oubliee ne se verrait qu'en lancant la suite dans l'autre mode."""
+    jeu = _jeu(instance)
+    coeur = module("engine").Engine(construire_config(instance))
+
+    assert [
+        (c.famille, c.role.name, c.exemplaire) for c in jeu.pioche_depuis_seed(7)
+    ] == [(c.famille, c.role.name, c.exemplaire) for c in coeur.pioche_depuis_seed(7)]
+
+    par_hasard = jeu.reset_par_hasard()
+    assert par_hasard.phase().name == "CHANCE"
+    assert par_hasard.assassins_en_attente() == ()
+    assert par_hasard.tours_restants(0) == instance.tours
+    assert isinstance(str(par_hasard), str) and str(par_hasard)
+
+    etat = jeu.reset(7)
+    reference = coeur.reset(7)
+    assert etat.phase().name == reference.phase().name
+    assert etat.scores() == reference.scores()
+    assert etat.assassin_en_resolution() is reference.assassin_en_resolution() is None
+    assert etat.cibles_courantes() == reference.cibles_courantes()
+    assert etat.assassins_en_attente() == reference.assassins_en_attente()
+    assert [etat.tours_restants(j) for j in range(instance.joueurs)] == [
+        reference.tours_restants(j) for j in range(instance.joueurs)
+    ]
+    assert str(etat) == reference.information_state_string(0)
+
+
 def test_les_noms_d_action_couvrent_les_trois_phases() -> None:
     """`action_to_string` doit rester lisible dans les trois phases, y compris le refus."""
     jeu = _jeu(RAPIDE_3J)

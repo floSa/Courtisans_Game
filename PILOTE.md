@@ -13,9 +13,9 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Action 3, étapes 1 à 3 terminées** — 301 cas de test, dont 31 verts : `GameConfig` est écrite et validée |
-| Prochaine action | Étape 4 — `cards.py` et `rules.py`, fonctions pures |
-| Bloquant | **Rien.** |
+| Étape en cours | **Action 3 terminée — les huit étapes.** 502 tests, tous verts ; les 8 critères d'acceptation atteints |
+| Prochaine action | **Action 4 — l'audit croisé**, dans une conversation neuve |
+| Bloquant | **Rien.** Deux reports assumés, écrits dans le README : canonicalisation et encodage par cible. |
 
 Le dépôt est poussé sur la branche `moteur-conforme` de
 [floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique

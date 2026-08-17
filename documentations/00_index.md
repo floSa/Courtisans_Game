@@ -120,7 +120,7 @@ fondées.
 
 | Phase | Objet | Exécution | Bloquante |
 |---|---|---:|---|
-| **0** | **Moteur conforme réécrit** — 18 tests de conformité, 11 invariants, moteur paramétré | tests : < 1 min | **oui** |
+| **0** | ~~Moteur conforme réécrit~~ — **fait le 16/08** : 502 tests verts, 8 critères d'acceptation atteints, 10 mutations sur 10 détectées. Reste l'audit croisé. | tests : 79 s | **oui** |
 | **1** | **Instance d'entraînement** — 4 familles, 3 joueurs, conforme | quelques min | **oui** |
 | **2** | **Banc de test 2 joueurs** — instance symétrique + oracle CFR+ + métrique corrigée | oracle ~4 h | **oui** |
 | **3** | **Diagnostic du plafond** — trancher entre les 3 hypothèses | P3.0 : 10 s · P3.1 : ~3 h · P3.2 : ~20 min GPU | **oui** |
@@ -178,6 +178,8 @@ personne ne l'a vu pendant toute une brique.
 | 3 | Instance 2 joueurs : symétrique **avec** pioche coûte 369 600 donnes contre 924 **sans**. Lequel des deux mécanismes sacrifie-t-on ? | Phase 2 |
 | 5 | `.git/index.lock` bloque les commits depuis le 15/08 19h30 — **sur l'ancien dépôt** ; celui-ci n'est pas encore un dépôt git | Versionnement |
 | 7 | `app/greedy_bot.py` et `cfr/solve_mini.py` ne sont pas dans ce dépôt — **normal**, ils n'appartiennent pas à la phase moteur et arriveront pour les phases 2 et 3 | Phases 2 et 3 |
+| 8 | **La canonicalisation par permutation des familles n'est pas implémentée.** Elle exige une traduction de l'espace d'actions que le §4 de [03](03_specification_moteur.md) ne définit pas ; la moitié du mécanisme produirait un agent qui croit poser une carte et en pose une autre. Étape à part entière, spécification d'abord. | Phase 3 |
+| 9 | **L'encodage par cible de la phase de ciblage n'est pas écrit.** Sa forme dépend du réseau qui le consomme. | Phase 3 |
 
 **Fermés le 16/08 :**
 
