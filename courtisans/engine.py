@@ -39,9 +39,14 @@ JOUEUR_TERMINAL = -4
 class Phase(IntEnum):
     """Les phases d'un etat.
 
-    `CHANCE` n'est **jamais** rendue par le coeur : la pioche est fixee a la construction
-    de l'etat. Elle existe pour l'adaptateur OpenSpiel, qui expose la distribution et
-    chaque repioche comme de vrais noeuds de hasard.
+    `CHANCE` est rendue par les etats issus de `reset_par_hasard`, ou chaque carte tiree
+    ouvre un noeud de distribution. Les etats issus de `reset(seed)` et de
+    `reset_depuis_pioche` ne l'atteignent jamais : leur pioche est fixee a la construction.
+
+    Les deux coexistent volontairement -- l'un sert au determinisme des tests et des
+    parties de mesure, l'autre est l'arbre de jeu qu'expose l'adaptateur OpenSpiel. La
+    machine a etats est la meme : la reecrire dans l'adaptateur aurait viole le
+    paragraphe 2 des conventions.
     """
 
     POSE = 0

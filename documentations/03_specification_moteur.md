@@ -56,7 +56,7 @@ code de test.
 | `cards.py` | Carte, famille, rôle, valeur, visibilité |
 | `rules.py` | Fonctions **pures** : cibles valides, décompte, actions légales, fin de partie |
 | `engine.py` | Machine à états : `reset`, `legal_actions`, `apply`, `is_terminal`, `returns` |
-| `infoset.py` | Vue d'un joueur : string et tenseur, canonicalisation |
+| `infoset.py` | Vue d'un joueur : string et tenseur. **La canonicalisation n'y est pas implémentée** — voir le point ouvert 8 de [00_index](00_index.md) |
 | `openspiel_adapter.py` | Enveloppe `pyspiel.Game` / `pyspiel.State` |
 
 ---
@@ -148,6 +148,8 @@ class Engine:
     def pioche_depuis_seed(self, seed: int) -> tuple[Carte, ...]:
         """L'ordre de pioche produit par un seed. Seul effet du seed : `reset(seed)`
         doit être exactement `reset_depuis_pioche(pioche_depuis_seed(seed))`."""
+    def reset_par_hasard(self) -> State:
+        """L'arbre de jeu : chaque carte tirée ouvre un nœud de chance."""
 
 class State:
     def current_player(self) -> int | ChanceId | TerminalId: ...
@@ -170,14 +172,35 @@ class State:
         """Cibles de l'Assassin en cours. L'indice i est l'action i de la phase CIBLAGE,
         l'indice `len(cibles)` étant le refus de tuer."""
     def assassin_en_resolution(self) -> CartePosee | None: ...
+    def assassins_en_attente(self) -> tuple[CartePosee, ...]:
+        """Ceux qui n'ont pas encore choisi, celui en cours en tête. Public."""
+    def tours_restants(self, joueur: int) -> int:
+        """Tours qu'il reste à ce joueur, celui en cours compris s'il n'a pas posé.
+        Public : tout le monde connaît le nombre de tours restants (§2.6 des règles)."""
+    def chance_outcomes(self) -> list[tuple[int, float]]:
+        """Les types de carte encore en pioche et leur probabilité. Vide hors nœud de
+        distribution."""
 ```
 
 **Déterminisme et hasard — deux mécanismes distincts, qui coexistent** (arbitrage du 16/08) :
 
 | Mécanisme | Où | Rôle |
 |---|---|---|
-| `reset(seed)` / `reset_depuis_pioche` | cœur | Pioche fixée à la construction de l'état. Le cœur **n'expose jamais** `Phase.CHANCE`. Sert au déterminisme des tests et des parties de mesure. |
-| Nœuds de chance explicites | adaptateur OpenSpiel | La distribution initiale **et chaque repioche** sont des nœuds de chance. Sans eux, l'adaptateur n'est pas un jeu OpenSpiel valide et aucun algorithme travaillant sur l'arbre n'est utilisable. |
+| `reset(seed)` / `reset_depuis_pioche` | cœur | Pioche fixée à la construction de l'état. Ces états n'atteignent jamais `Phase.CHANCE`. Sert au déterminisme des tests et des parties de mesure. |
+| `reset_par_hasard()` | cœur | La distribution initiale **et chaque repioche** sont des nœuds de chance. C'est l'arbre que l'adaptateur OpenSpiel expose par `new_initial_state()`. |
+
+> *Corrigé le 16/08, après l'étape 7.* Ce tableau annonçait que « le cœur n'expose jamais
+> `Phase.CHANCE` » et plaçait les nœuds de chance dans l'adaptateur. **C'était faux, et
+> c'était impraticable** : l'adaptateur aurait dû, ou bien piloter le remplissage des mains
+> à travers l'état privé du moteur, ou bien réimplémenter la machine à états — ce que le §2
+> des conventions interdit, et qui est le mécanisme exact ayant propagé un défaut entre
+> quatre fichiers dans la tentative précédente. La distribution par hasard vit donc dans
+> `engine.py`, où elle partage tout le reste de la machine ; l'adaptateur se contente de
+> l'exposer.
+>
+> **Les issues de chance sont des *types* de carte, pas des cartes** : deux exemplaires du
+> même couple (famille, rôle) sont interchangeables, en faire deux issues distinctes
+> doublerait l'arbre sans rien distinguer. `max_chance_outcomes` vaut `familles × rôles`.
 
 `Phase.CHANCE` ne doit donc pas rester une valeur morte de l'énumération : elle est
 atteinte à travers l'adaptateur. Les tests de conformité traitent `CHANCE` comme n'importe
@@ -239,8 +262,14 @@ fonction dans un perceptron plat.
 dos adverses au banquet × poseur relatif · dos adverses par domaine × poseur relatif · mes
 tours restants · poses au banquet restantes par joueur · taille de la pioche · nombre total
 de morts · **phase (pose / ciblage)** · **zone de l'Assassin en cours de résolution** ·
-**Assassins restant à résoudre ce tour** · score provisoire par joueur relatif · écart au
-meilleur adversaire.
+**Assassins restant à résoudre ce tour** · score provisoire **visible** par joueur relatif ·
+écart au meilleur adversaire.
+
+> *Corrigé le 16/08, après l'étape 6.* Cette ligne demandait « score provisoire ». Le vrai
+> score — `State.scores()` — compte les Espions adverses posés dans les domaines, **dont la
+> famille est cachée** : l'encoder viole l'invariant I7. Le vecteur porte donc un score
+> **visible**, calculé sur les seules cartes dont le joueur connaît la famille. Mesuré par
+> mutation : encoder le vrai score fait tomber 12 cas du test hostile de I7.
 
 > *Corrigé le 16/08.* Le compteur « Espions morts non révélés » est **supprimé**, pas mis à
 > zéro. Il reposait sur une question Q2 présentée ici comme non tranchée alors que le §11 de
@@ -296,10 +325,18 @@ l'apprentissage par renforcement n'ont plus de garantie.
 
 Deux conséquences à traiter :
 
-- **Cartes identiques en main.** Avec 3 exemplaires, deux cartes identiques dans une main de
-  3 arrivent dans environ **7 %** des tours. Les 6 permutations dégénèrent alors en 3, ou en
-  1 si les trois sont identiques. Les actions dupliquées doivent être **masquées**, sinon le
-  test C14 échoue.
+- **Cartes interchangeables en main.** Avec 3 exemplaires, deux cartes de **même famille et
+  même rôle** dans une main de 3 arrivent dans environ **7 %** des tours. Les 6 permutations
+  dégénèrent alors en 3, ou en 1 si les trois le sont. Les actions dupliquées doivent être
+  **masquées**, sinon le test C14 échoue.
+
+  > *Corrigé le 16/08, après l'étape 4.* Ce paragraphe disait « cartes **identiques** ». Or
+  > une carte est unique par (famille, rôle, **exemplaire**) : deux cartes strictement
+  > identiques n'arrivent jamais. Masquer sur l'identité complète n'aurait donc **jamais rien
+  > masqué**, et C14 serait passé quand même — deux actions qui échangent les deux Nobles
+  > auraient décodé vers deux placements « distincts » alors qu'elles donnent le même état.
+  > Le masquage porte sur **(famille, rôle)**. Le même raisonnement vaut pour les issues de
+  > chance de l'adaptateur.
 - **Ordre de composition avec la canonicalisation.** Si l'on canonicalise par permutation des
   familles **et** qu'on trie la main par indice de famille, permuter les familles réordonne
   la main, donc change la carte désignée par chaque action. **L'ordre est imposé :
@@ -342,7 +379,8 @@ voir : il suffit qu'un champ de debug fuite l'identité d'un espion adverse. Le 
 construire deux états qui ne diffèrent **que** par une information cachée et vérifier que
 les strings sont identiques.
 
-> **État au 16/08 : les 11 invariants sont testés dans `tests/invariants/`, tous rouges.**
+> **État au 16/08, phase 0 terminée : les 11 invariants sont testés dans
+> `tests/invariants/` — 143 cas, tous verts, sur 7 configurations.**
 > I7 y reçoit trois constructions — Espion adverse échangé avec son jumeau jamais pioché,
 > ordre du fond de pioche permuté, et un garde-fou contre l'encodage dégénéré, sans lequel
 > une chaîne constante passerait les deux premières.
@@ -397,6 +435,29 @@ Le moteur est accepté quand **tous** les points ci-dessous sont vrais. Aucune e
 | A8 | Un test hostile tente de construire une `GameConfig` non conforme (tours inégaux) et vérifie qu'elle **lève**. |
 
 **A1 et A3 sont les critères les plus importants** : ils prouvent que le moteur joue le jeu décrit par les règles, à la cible visée.
+
+### État au 16/08 — les huit sont atteints
+
+| # | Mesure | Où la rejouer |
+|---|---|---|
+| A1 | 127/127, et **sur les trois moteurs** — cœur, adaptateur à pioche fixée, adaptateur à nœuds de chance | `tests/conformite/`, plus les deux commandes `COURTISANS_MOTEUR` du [README](../README.md) |
+| A2 | 143/143 sur 7 configurations | `tests/invariants/` |
+| A3 | 1 000 parties sur `complet-3j` : `tours == [10, 10, 10]` mille fois, 90 cartes posées mille fois | `tests/acceptation/` |
+| A4 | Sous-processus : aucun module interdit chargé. Témoin positif inclus | `tests/adaptateur/` |
+| A5 | 7 quadruplets de tailles distincts | `tests/config/` |
+| A6 | Deux processus, `PYTHONHASHSEED` différent, signature identique | `tests/acceptation/` |
+| A7 | **592 instructions, 0 manquante** | `uv run pytest --cov=courtisans` |
+| A8 | 26 cas de refus | `tests/config/` |
+
+**Un neuvième contrôle, non prévu par ce document, s'est révélé nécessaire** : la batterie
+de mutation (`outillage/mutation.py`). Elle a montré que deux des trois pièges du §4.2
+n'étaient enforcés par **aucun** test alors que la suite entière était verte. Dix mutations,
+dix détectées. Une suite qui passe sans qu'on ait vérifié qu'elle sait échouer n'est pas une
+suite de tests.
+
+**Deux mécanismes de ce document ne sont pas implémentés**, chacun avec sa raison écrite :
+la canonicalisation par permutation des familles et l'encodage par cible de la phase de
+ciblage. Points ouverts 8 et 9 de [00_index](00_index.md).
 
 ---
 

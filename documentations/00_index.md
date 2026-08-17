@@ -14,7 +14,7 @@ jouable dans l'interface, d'abord à 3 joueurs**, puis 2, puis 4.
 | | |
 |---|---|
 | Jeu | 6 familles × 5 rôles × 3 exemplaires = 90 cartes |
-| Moteur | **en réécriture** — `courtisans/`, tests d'abord, 2 à 4 joueurs. L'ancien `app/jeu.py` n'est pas dans ce dépôt |
+| Moteur | `courtisans/` — **réécrit et conforme**, 2 à 4 joueurs, adaptateur OpenSpiel. L'ancien `app/jeu.py` n'est pas dans ce dépôt |
 | Interface | Streamlit, adversaire par défaut = greedy PIMC |
 | Approche IA | famille CFR à 2 joueurs ; méthode de population au-delà |
 | Vérité-terrain | exploitabilité à 2 joueurs ; Elo contre pool au-delà |
@@ -140,8 +140,9 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    tranchés les 15 et 16/08.
 2. **Fast-forward de `main` sur `cfr-pivot`**, et tag `alphazero-final` — sur l'ancien dépôt.
 3. ~~Coller [../prompts/01_moteur_construction.md](../prompts/01_moteur_construction.md)~~ —
-   **en cours** : étape 1 terminée, les 18 tests de conformité sont écrits et tous rouges
-   dans `tests/conformite/`.
+   **fait, les huit étapes.** 502 tests verts, les 8 critères d'acceptation atteints,
+   10 mutations sur 10 détectées. Reste l'audit croisé, action 4 du
+   [PILOTE](../PILOTE.md).
 
 ---
 

@@ -486,9 +486,10 @@ Leur absence a été le manque le plus coûteux du projet : elle a laissé passe
 obligatoire et les tours inégaux pendant cinq briques d'entraînement. Chaque test s'applique
 au moteur complet **et** à toute instance réduite.
 
-> **État au 16/08 : les 18 tests sont écrits, dans `tests/conformite/`, et tous rouges** —
-> le moteur n'existe pas encore. C'est l'étape 1 du prompt de construction. Ils sont
-> paramétrés sur sept configurations couvrant `joueurs ∈ {2, 3, 4}`.
+> **État au 16/08, phase 0 terminée : les 18 tests sont écrits, dans `tests/conformite/`,
+> et tous verts** — 127 cas, sur sept configurations couvrant `joueurs ∈ {2, 3, 4}`, et
+> rejoués à l'identique sur les trois moteurs : le cœur, l'adaptateur OpenSpiel à pioche
+> fixée, et l'adaptateur à nœuds de chance.
 
 | # | Test | Vérifie |
 |---|---|---|
