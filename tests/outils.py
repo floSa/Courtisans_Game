@@ -417,8 +417,23 @@ def action_image(
 
 
 def cle(carte: Any) -> tuple[int, str, int]:
-    """Identite d'une carte : (famille, nom du role, exemplaire). Unique dans le paquet."""
+    """Identite d'une carte : (famille, nom du role, exemplaire). Unique dans le paquet.
+
+    **Cle d'identite, pas cle d'ordre.** Elle porte le NOM du role, donc l'ordonner trie
+    les roles alphabetiquement -- ASSASSIN, ESPION, GARDE, NEUTRE, NOBLE -- et non dans
+    l'ordre canonique de l'enumeration. Pour comparer un ORDRE, utiliser
+    `cle_canonique`. Confondre les deux fait echouer un test juste sur un moteur juste.
+    """
     return (carte.famille, carte.role.name, carte.exemplaire)
+
+
+def cle_canonique(carte: Any) -> tuple[int, int, int]:
+    """Cle d'ordre : (famille, rang du role dans l'enumeration, exemplaire).
+
+    C'est l'ordre sur lequel `rules.main_canonique` trie, donc celui sur lequel les
+    actions de pose indexent (regle R-c).
+    """
+    return (carte.famille, int(carte.role), carte.exemplaire)
 
 
 def cles(cartes_posees: Iterable[Any]) -> list[tuple[int, str, int]]:
