@@ -471,11 +471,38 @@ def section_controles(lignes: list[str], parties: Sequence[Partie]) -> None:
                     temoins_r3_sans_r1 += 1
     # Sortie en ASCII pur : la console Windows encode en cp1252, ou le signe d'inclusion
     # fait lever l'ecriture du rapport entier.
+    nb_supports = len(supports(CONFIG.joueurs))
+    couples = len(parties) * nb_supports * CONFIG.familles
     lignes.append(
-        f"  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : {violations}"
+        f"  denominateur de cette section : {len(parties)} parties x {nb_supports} supports "
+        f"({len(Grain)} grains x {len(vues(CONFIG.joueurs))} vues) x {CONFIG.familles} familles "
+        f"= {couples} couples famille x support"
     )
     lignes.append(
-        f"  familles R1 sans R3 : {temoins_r1_sans_r3}   |   R3 sans R1 : {temoins_r3_sans_r1}"
+        f"  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : {violations} "
+        f"/ {couples}"
+    )
+    lignes.append(
+        f"  familles R1 sans R3 : {temoins_r1_sans_r3} / {couples}   |   "
+        f"R3 sans R1 : {temoins_r3_sans_r1} / {couples}"
+    )
+
+    # Le chiffre ci-dessus additionne dix supports, dont les cinq vues d'une meme partie :
+    # il compte donc plusieurs fois la meme famille. Celui-ci porte sur le seul support de
+    # reference, ou une famille n'est comptee qu'une fois.
+    r1_sans_r3 = r3_sans_r1 = 0
+    for partie in parties:
+        for retournement in partie.retournements_par_famille(Grain.TOUR, Vue.VRAIE):
+            r1_sans_r3 += retournement.r1 and not retournement.r3
+            r3_sans_r1 += retournement.r3 and not retournement.r1
+    familles_uniques = len(parties) * CONFIG.familles
+    lignes.append(
+        f"  sur le seul support de reference (grain tour, vue vraie), "
+        f"{familles_uniques} familles :"
+    )
+    lignes.append(
+        f"    R1 sans R3 : {r1_sans_r3} / {familles_uniques}   |   "
+        f"R3 sans R1 : {r3_sans_r1} / {familles_uniques}"
     )
     lignes.append("    (les deux non nuls confirment que R1 et R3 ne sont pas ordonnees)")
     longueurs = Counter(

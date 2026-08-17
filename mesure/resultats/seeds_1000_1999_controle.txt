@@ -14,9 +14,9 @@ donne : Engine.reset(seed), seeds 1000 a 1999  |  politique : uniforme, Random(1
 
 2. DUREE ET LONGUEUR D'UNE PARTIE
 ---------------------------------
-  temps total du run          : 1.68 s
-  temps par partie            : moyenne 1.599 ms, mediane 1.497 ms, max 7.589 ms
-  parties par seconde         : 596
+  temps total du run          : 1.69 s
+  temps par partie            : moyenne 1.608 ms, mediane 1.497 ms, max 7.055 ms
+  parties par seconde         : 592
   noeuds de pose par partie   : min 12, max 12 (attendu 12 = 3 joueurs x 4 tours)
   noeuds de ciblage par partie: moyenne 7.19, min 5, max 8
   decisions par partie        : moyenne 19.19
@@ -162,8 +162,11 @@ donne : Engine.reset(seed), seeds 1000 a 1999  |  politique : uniforme, Random(1
 
 8. CONTROLES DU COMPTEUR LUI-MEME
 ---------------------------------
-  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : 0
-  familles R1 sans R3 : 885   |   R3 sans R1 : 5300
+  denominateur de cette section : 1000 parties x 10 supports (2 grains x 5 vues) x 4 familles = 40000 couples famille x support
+  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : 0 / 40000
+  familles R1 sans R3 : 885 / 40000   |   R3 sans R1 : 5300 / 40000
+  sur le seul support de reference (grain tour, vue vraie), 4000 familles :
+    R1 sans R3 : 103 / 4000   |   R3 sans R1 : 516 / 4000
     (les deux non nuls confirment que R1 et R3 ne sont pas ordonnees)
   longueurs des suites au grain tour : {13: 4000}
     (attendu 13 = 1 statut initial + 12 tours)
