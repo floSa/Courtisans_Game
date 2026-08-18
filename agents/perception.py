@@ -8,7 +8,7 @@ signature.
 Ce qui entre, et pourquoi c'est legitime
 ----------------------------------------
 `connues` : les faces visibles, plus ses propres Espions. C'est exactement
-`infoset._vue_du_joueur`, le support de `information_state_string`, tenu par l'invariant I7.
+`infoset.vue_du_joueur`, le support de `information_state_string`, tenu par l'invariant I7.
 
 `dos_par_zone` : le **nombre** de dos par zone et par poseur, jamais leur identite. « Leur
 position est connue » (paragraphe 2.6 des regles).
@@ -32,14 +32,12 @@ La pioche, les mains adverses, l'identite des dos adverses, `scores()`, `returns
 resultat brut de `State.cibles_courantes()` -- qui rend de vrais `CartePosee`, identite des dos
 comprise. **C'est ici que la redaction a lieu**, et nulle part ailleurs.
 
-Un import prive, assume
------------------------
-`infoset._vue_du_joueur` est prive. L'appeler plutot que de reecrire son predicat est un choix :
-« un Espion pose face cachee n'est connu que de son poseur » est une **regle** (paragraphe 4.2),
-et la reecrire ici serait exactement la duplication que le paragraphe 2 des conventions
-interdit -- deux definitions finissent par ne plus etre d'accord. Le paquet `courtisans` n'est
-pas modifie pour rendre ce nom public : ce serait toucher a un module audite deux fois pour la
-commodite d'un appelant.
+La vue vient du moteur, pas d'ici
+--------------------------------
+`infoset.vue_du_joueur` est appelee plutot que reecrite. « Un Espion pose face cachee n'est
+connu que de son poseur » est une **regle** (paragraphe 4.2), et la reecrire ici serait la
+duplication que le paragraphe 2 des conventions interdit -- deux definitions finissent par ne
+plus etre d'accord, et c'est la mesure qui aurait tort sans que rien ne le signale.
 """
 
 from __future__ import annotations
@@ -49,7 +47,7 @@ from dataclasses import dataclass, field
 from courtisans.cards import Carte, CartePosee, Zone
 from courtisans.config import GameConfig
 from courtisans.engine import Phase, State
-from courtisans.infoset import _vue_du_joueur
+from courtisans.infoset import vue_du_joueur
 
 
 @dataclass(frozen=True)
@@ -122,7 +120,7 @@ def percevoir(etat: State, joueur: int) -> Perception:
             f"un agent ne decide pas en phase {etat.phase().name} : "
             f"le pilote de partie ne doit pas l'y appeler"
         )
-    vue = _vue_du_joueur(etat, joueur)
+    vue = vue_du_joueur(etat, joueur)
 
     dos: dict[tuple[Zone, int], int] = {}
     for posee in vue.dos_adverses:
