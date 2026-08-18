@@ -33,7 +33,7 @@ from courtisans import rules
 from courtisans.cards import CartePosee, Role
 from courtisans.engine import Phase, State
 from courtisans.rules import Statut
-from mesure.retournement import Retournements, analyser_suite
+from mesure.retournement import Retournements, analyser_suite, evenements_r2
 
 #: Une politique lit un etat et rend une action legale. La seule de ce paquet est uniforme.
 Politique = Callable[[State], int]
@@ -147,8 +147,19 @@ class Partie:
         return tuple(analyser_suite(suite) for suite in self.suites[grain, vue])
 
     def retournements(self, grain: Grain, vue: Vue) -> Retournements:
-        """Les quatre definitions au niveau de la partie : au moins une famille les tient."""
+        """Les quatre definitions au niveau de la partie : au moins une famille les tient.
+
+        **A ne jamais comparer a une autre vue.** C'est deja un OU sur les familles : deux
+        vues peuvent le rendre vrai toutes les deux sur des familles differentes, et une
+        comparaison de ces booleens ne dit alors rien de ce qui se voit. L'audit croise a
+        rejete la premiere version de la mesure exactement la-dessus. Pour comparer des
+        vues, passer par `retournements_par_famille` ou `evenements_r2_par_famille`.
+        """
         return Retournements.ou(self.retournements_par_famille(grain, vue))
+
+    def evenements_r2_par_famille(self, grain: Grain, vue: Vue) -> tuple[tuple[int, ...], ...]:
+        """Pour chaque famille, les instants ou elle perd un acquis. Non agrege."""
+        return tuple(evenements_r2(suite) for suite in self.suites[grain, vue])
 
 
 def politique_uniforme(alea: random.Random) -> Politique:
@@ -245,3 +256,63 @@ def _relever(
         statuts = rules.statuts([posee for posee in posees if vue.retient(posee)], familles)
         for famille in range(familles):
             releves[grain, vue][famille].append(statuts[famille])
+
+
+@dataclass(frozen=True)
+class ComptageInvisible:
+    """Ce que les Espions caches soustraient a la connaissance des joueurs.
+
+    **Aucun de ces six nombres n'agrege les familles ni les sieges.** C'est la lecon du
+    rejet de l'audit croise : le compte precedent comparait un booleen de partie -- deja un
+    OU sur quatre familles -- a un `any` sur trois sieges, et la conjonction resultante
+    etait quasi impossible par construction. Le zero qu'elle affichait ne mesurait pas
+    l'invisibilite, il mesurait l'improbabilite d'une double agregation.
+
+    Attributes:
+        familles_r2: familles ayant perdu un acquis, en vue vraie.
+        familles_invisibles: parmi elles, celles dont **aucun** siege ne voit la moindre
+            perte d'acquis.
+        parties_avec_famille_invisible: parties contenant au moins une telle famille.
+        evenements: pertes d'acquis vraies, datees, toutes familles confondues.
+        evenements_invisibles: parmi elles, celles qu'aucun siege ne voit **au meme
+            instant**. Plus severe que le niveau famille : un siege peut voir la famille
+            bouger sans voir cette perte-la.
+        parties_avec_evenement_invisible: parties contenant au moins une telle perte.
+    """
+
+    familles_r2: int
+    familles_invisibles: int
+    parties_avec_famille_invisible: int
+    evenements: int
+    evenements_invisibles: int
+    parties_avec_evenement_invisible: int
+
+
+def compter_invisible(
+    parties: Sequence[Partie], joueurs: int, familles: int, grain: Grain = Grain.TOUR
+) -> ComptageInvisible:
+    """Compte, sans agreger, ce qu'aucun siege ne voit."""
+    totaux = [0] * 6
+    for partie in parties:
+        vrais = partie.evenements_r2_par_famille(grain, Vue.VRAIE)
+        par_siege = [
+            partie.evenements_r2_par_famille(grain, Vue.du_joueur(siege))
+            for siege in range(joueurs)
+        ]
+        famille_ici = evenement_ici = 0
+        for famille in range(familles):
+            vus: set[int] = set()
+            for siege in par_siege:
+                vus |= set(siege[famille])
+            if vrais[famille]:
+                totaux[0] += 1
+                if not vus:
+                    totaux[1] += 1
+                    famille_ici += 1
+            totaux[3] += len(vrais[famille])
+            invisibles = set(vrais[famille]) - vus
+            totaux[4] += len(invisibles)
+            evenement_ici += len(invisibles)
+        totaux[2] += famille_ici > 0
+        totaux[5] += evenement_ici > 0
+    return ComptageInvisible(*totaux)

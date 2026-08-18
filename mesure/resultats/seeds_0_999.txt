@@ -14,9 +14,9 @@ donne : Engine.reset(seed), seeds 0 a 999  |  politique : uniforme, Random(10000
 
 2. DUREE ET LONGUEUR D'UNE PARTIE
 ---------------------------------
-  temps total du run          : 1.70 s
-  temps par partie            : moyenne 1.622 ms, mediane 1.496 ms, max 7.427 ms
-  parties par seconde         : 587
+  temps total du run          : 4.45 s
+  temps par partie            : moyenne 4.242 ms, mediane 4.080 ms, max 19.816 ms
+  parties par seconde         : 225
   noeuds de pose par partie   : min 12, max 12 (attendu 12 = 3 joueurs x 4 tours)
   noeuds de ciblage par partie: moyenne 7.21, min 5, max 8
   decisions par partie        : moyenne 19.21
@@ -72,6 +72,15 @@ donne : Engine.reset(seed), seeds 0 a 999  |  politique : uniforme, Random(10000
   => distribution non degeneree : OUI (10/10 criteres satisfaits)
   Controle somme nulle des gains : 100.00%  (1000 / 1000) IC99 [99.47% ; 100.00%]
 
+  Pouvoir discriminant de chaque critere -- a partir de combien de parties
+  est-il deja satisfait, et le reste-t-il jusqu'a la fin de la campagne ?
+  Un critere satisfait des la douzieme partie ne discrimine rien a 1 000 :
+  il constate, il ne teste pas. Releve par l'audit croise sur D2.
+    D1 ecart-type >= 1         : satisfait des 3 partie(s), puis toujours vrai -- discrimine peu
+    D2 >= 8 valeurs distinctes : satisfait des 12 partie(s), puis toujours vrai -- discrimine peu
+    D3 mode < 50 %             : satisfait des 3 partie(s), puis toujours vrai -- discrimine peu
+    D4 trois ex aequo < 50 %   : satisfait des 1 partie(s), puis toujours vrai -- discrimine peu
+
 5. GO/NO-GO 3 -- LES RETOURNEMENTS
 ----------------------------------
   Proportion de parties ou AU MOINS UNE famille satisfait la definition :
@@ -118,30 +127,35 @@ donne : Engine.reset(seed), seeds 0 a 999  |  politique : uniforme, Random(10000
 
 6. CE QUE LES ESPIONS CACHENT -- QUI VOIT LE RETOURNEMENT
 ---------------------------------------------------------
-  R2 au grain tour, selon la vue. La vue publique est le savoir COMMUN :
-  elle n'est la vue de personne, puisque chaque joueur y ajoute ses propres
-  Espions. Les trois vues par siege sont donc necessaires pour dire ce que
-  « invisible » veut dire.
+  La vue publique est le savoir COMMUN : elle n'est la vue de personne,
+  puisque chaque joueur y ajoute ses propres Espions. Les vues par siege
+  sont donc necessaires pour dire ce que « invisible » veut dire.
+
+  RIEN N'EST AGREGE ICI. La premiere version de cette section comparait
+  `retournements(...)`, deja un OU sur les quatre familles, puis un `any`
+  sur les trois sieges : la conjonction « vrai oui, aucun siege » etait
+  alors quasi impossible par construction, et le 0 qu'elle affichait ne
+  mesurait pas ce que sa phrase annoncait. Defaut bloquant de l'audit
+  croise. On compte desormais par famille, et par evenement.
+
+  Rappel non comparable, une ligne par vue -- parties ayant au moins une
+  famille en R2, grain tour (ces cinq nombres ne se soustraient PAS) :
     vue vraie      :  96.00%  (960 / 1000) IC99 [94.12% ; 97.42%]
     vue publique   :  91.70%  (917 / 1000) IC99 [89.20% ; 93.79%]
     vue joueur 0   :  93.80%  (938 / 1000) IC99 [91.57% ; 95.60%]
     vue joueur 1   :  93.40%  (934 / 1000) IC99 [91.11% ; 95.26%]
     vue joueur 2   :  92.80%  (928 / 1000) IC99 [90.43% ; 94.75%]
 
-  Decomposition, partie par partie :
-    R2 vrai, invisible du savoir commun     :   4.70%  (47 / 1000) IC99 [3.15% ; 6.70%]
-    R2 vrai, vu par AUCUN des trois joueurs :   0.00%  (0 / 1000) IC99 [0.00% ; 0.53%]
-    R2 vrai, vu par au moins un joueur      :  96.00%  (960 / 1000) IC99 [94.12% ; 97.42%]
-    R2 dans le savoir commun, pas dans le vrai :   0.40%  (4 / 1000) IC99 [0.07% ; 1.25%]
-      (une famille dont un Espion cache annule un retournement visible :
-       les joueurs croient qu'il a eu lieu, le decompte dira que non)
+  NIVEAU FAMILLE -- denominateur 1000 parties x 4 familles = 4000 familles
+    familles en R2, vue vraie                  : 2075 / 4000
+    dont AUCUN siege n'en voit rien            :   0.24%  (5 / 2075) IC99 [0.05% ; 0.68%]
+    parties contenant une telle famille        :   0.50%  (5 / 1000) IC99 [0.11% ; 1.41%]
 
-  Familles retournees (R2, grain tour), toutes parties confondues :
-    vue vraie      : 2075
-    vue publique   : 1712
-    vue joueur 0   : 1842
-    vue joueur 1   : 1840
-    vue joueur 2   : 1839
+  NIVEAU EVENEMENT -- une perte d'acquis datee, denominateur 2665
+    vues par AUCUN siege au meme instant       :   2.96%  (79 / 2665) IC99 [2.18% ; 3.92%]
+    parties contenant une telle perte          :   7.40%  (74 / 1000) IC99 [5.43% ; 9.79%]
+      (un siege peut voir la famille bouger sans voir CETTE perte-la :
+       le niveau famille est donc plus indulgent que le niveau evenement)
 
 7. OU REFUSER DE TUER EST POSSIBLE
 ----------------------------------

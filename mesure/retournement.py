@@ -87,3 +87,32 @@ def analyser_suite(suite: Sequence[Statut]) -> Retournements:
     r3 = bool(signes) and suite[-1] is not signes[0]
 
     return Retournements(r0=r0, r1=r1, r2=r2, r3=r3)
+
+
+def evenements_r2(suite: Sequence[Statut]) -> tuple[int, ...]:
+    """Les indices ou une **perte d'acquis** se produit, et pas seulement s'il y en a une.
+
+    `analyser_suite(...).r2` repond « cette famille a-t-elle perdu un acquis », un booleen.
+    Cette fonction repond « quand », ce qui est la seule facon de comparer deux vues
+    **evenement par evenement** : deux vues peuvent toutes les deux porter un R2 sans que
+    ce soit le meme.
+
+    **Ecrite apres l'audit croise, qui a rejete la premiere version de la mesure.** Le
+    rapport comparait la vue vraie et les vues par siege apres avoir agrege les quatre
+    familles en un booleen de partie, puis agrege les trois sieges par un `any` : la
+    conjonction « vrai oui, aucun siege » etait alors quasi impossible par construction, et
+    le zero qu'elle affichait ne mesurait pas ce que la phrase annoncait. On ne compare
+    plus que des grandeurs non agregees.
+
+    Raises:
+        ValueError: si la suite est vide, comme `analyser_suite`.
+    """
+    if not suite:
+        raise ValueError(
+            "une suite de statuts contient au moins un statut, celui du plateau initial"
+        )
+    return tuple(
+        indice
+        for indice, (avant, apres) in enumerate(zip(suite, suite[1:], strict=False), start=1)
+        if avant is not Statut.INDIFFERENTE and avant is not apres
+    )

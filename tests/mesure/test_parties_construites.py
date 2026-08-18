@@ -19,10 +19,12 @@ que le script ne designe pas sont sans effet sur les attendus de ce fichier.
 
 from __future__ import annotations
 
+from dataclasses import replace
+
 from courtisans.cards import Position, Role
-from courtisans.config import GameConfig
 from courtisans.rules import Statut
-from mesure.partie import Grain, Vue, observer
+from mesure.instance import ENTRAINEMENT_3J
+from mesure.partie import ComptageInvisible, Grain, Vue, compter_invisible, observer
 from mesure.retournement import Retournements
 from tests.mesure.scenario import TourScripte, etat_scripte, politique_scriptee
 
@@ -33,7 +35,9 @@ OBS = Statut.OBSCURITE
 ESTIME = Position.ESTIME
 DISGRACE = Position.DISGRACE
 
-CONFIG = GameConfig(familles=4, roles=tuple(Role), exemplaires=2, joueurs=3)
+#: L'instance mesuree, importee et non redefinie : deux definitions finissent par ne plus
+#: etre d'accord (paragraphe 2 des conventions).
+CONFIG = ENTRAINEMENT_3J
 
 
 def _jouer(script: list[TourScripte]):
@@ -303,15 +307,92 @@ def test_partie_3_les_deux_premiers_noeuds_de_ciblage_ont_0_puis_1_cible() -> No
     assert partie.cibles_par_noeud[:2] == (0, 1)
 
 
-def test_partie_3_le_compteur_de_refus_possible_ignore_le_noeud_sans_cible() -> None:
-    """`noeuds_avec_cible` compte les noeuds ou le refus est un choix, pas une obligation."""
-    partie = _jouer(SCRIPT_3)
-    attendus = sum(1 for cibles in partie.cibles_par_noeud if cibles >= 1)
-    assert partie.noeuds_avec_cible == attendus
-    assert partie.noeuds_ciblage == len(partie.cibles_par_noeud)
-    assert partie.noeuds_avec_cible < partie.noeuds_ciblage
+def test_le_compteur_de_refus_possible_ignore_les_noeuds_sans_cible() -> None:
+    """`noeuds_avec_cible` compte les noeuds ou le refus est un choix, pas une obligation.
+
+    Sur une liste de cibles ecrite a la main : `(0, 1, 5, 0)` -- deux noeuds sans cible, ou
+    l'Assassin ne choisit pas, et deux avec. Attendu calcule de tete : 4 noeuds, 2 a choix.
+
+    La version precedente de ce test recalculait `sum(... if cibles >= 1)` sur la meme
+    donnee que la propriete, puis comparait les deux : elle reimplementait la formule
+    testee et ne pouvait pas echouer. Defaut releve par l'audit croise.
+    """
+    partie = replace(_jouer(SCRIPT_3), cibles_par_noeud=(0, 1, 5, 0))
+    assert partie.noeuds_ciblage == 4
+    assert partie.noeuds_avec_cible == 2
 
 
 def test_partie_3_aucun_meurtre_car_le_script_refuse_partout() -> None:
     """Le script ne demande aucun meurtre : rien ne meurt, meme la cible disponible."""
     assert _jouer(SCRIPT_3).morts == 0
+
+
+def test_partie_1_l_evenement_de_la_famille_3_n_est_vu_par_personne() -> None:
+    """Le cas exact que la premiere version du rapport declarait a zero.
+
+    Famille 3, vue vraie : `(IND x 8, LUM, IND x 4)`. La seule perte d'acquis est en `t = 9`
+    -- l'Espion de P2, en Disgrace, annule celui de P1. Dans les trois vues par siege :
+
+      - P0 ne voit aucun des deux Espions : jamais rien, donc aucun evenement ;
+      - P1 ne voit que le sien : il entre en Lumiere en `t = 8` et y reste. Entrer depuis
+        l'Indifference n'est pas une perte d'acquis : aucun evenement ;
+      - P2 ne voit que le sien : il entre en Obscurite en `t = 9` et y reste. Idem.
+
+    **Un evenement vrai, zero evenement vu.** Ce retournement n'est planifiable par
+    personne -- pas meme par un poseur, contrairement a ce que le paragraphe 5.3 de la
+    pre-inscription affirmait.
+    """
+    partie = _jouer(SCRIPT_1)
+    vrais = partie.evenements_r2_par_famille(Grain.TOUR, Vue.VRAIE)
+    assert vrais[3] == (9,)
+    for siege in range(CONFIG.joueurs):
+        assert partie.evenements_r2_par_famille(Grain.TOUR, Vue.du_joueur(siege))[3] == ()
+
+
+def test_partie_1_les_evenements_des_quatre_familles_sont_ceux_calcules_a_la_main() -> None:
+    """Quatre pertes d'acquis dans toute la partie, dont une seule invisible de tous.
+
+    f0 `(IND, LUM, IND, OBS x 7, IND x 3)` : Lumiere annulee en `t = 2`, Obscurite annulee
+    en `t = 10`. f1 `(IND x 4, LUM, IND x 6, LUM, LUM)` : Lumiere annulee en `t = 5`.
+    f2 entre en Lumiere en `t = 6` et n'en sort jamais : aucun evenement. f3 : `t = 9`.
+    """
+    partie = _jouer(SCRIPT_1)
+    assert partie.evenements_r2_par_famille(Grain.TOUR, Vue.VRAIE) == ((2, 10), (5,), (), (9,))
+
+
+def test_partie_2_l_evenement_intra_tour_n_existe_qu_au_grain_fin() -> None:
+    """La famille 0 ne perd son acquis qu'entre la pose de l'Assassin et son meurtre."""
+    partie = _jouer(SCRIPT_2)
+    assert partie.evenements_r2_par_famille(Grain.TOUR, Vue.VRAIE)[0] == ()
+    assert len(partie.evenements_r2_par_famille(Grain.FIN, Vue.VRAIE)[0]) == 1
+
+
+def test_le_comptage_invisible_sur_la_partie_1_construite_a_la_main() -> None:
+    """Le comptage qui a fait rejeter la mesure, sur une partie dont on sait tout.
+
+    Partie 1, vue vraie : quatre pertes d'acquis en tout -- f0 en `t = 2` et `t = 10`,
+    f1 en `t = 5`, f3 en `t = 9`. Trois familles sur quatre en R2 (f2 n'en a aucune).
+
+    Une seule de ces pertes n'est vue par aucun siege : celle de f3, ou deux Espions poses
+    par deux joueurs differents s'annulent sans qu'aucun des deux ne voie la resultante.
+    Donc : 3 familles en R2 dont 1 invisible, 4 evenements dont 1 invisible, et l'unique
+    partie compte une fois a chaque niveau.
+
+    **Ce test aurait fait tomber la premiere version du rapport**, qui annoncait zero.
+    """
+    comptage = compter_invisible([_jouer(SCRIPT_1)], CONFIG.joueurs, CONFIG.familles)
+    assert comptage == ComptageInvisible(
+        familles_r2=3,
+        familles_invisibles=1,
+        parties_avec_famille_invisible=1,
+        evenements=4,
+        evenements_invisibles=1,
+        parties_avec_evenement_invisible=1,
+    )
+
+
+def test_le_comptage_invisible_ne_compte_rien_sans_espion_au_banquet() -> None:
+    """Partie 3 : aucun Espion designe au banquet, donc tout se voit de tous les sieges."""
+    comptage = compter_invisible([_jouer(SCRIPT_3)], CONFIG.joueurs, CONFIG.familles)
+    assert comptage.familles_invisibles == 0
+    assert comptage.evenements_invisibles == 0

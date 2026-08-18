@@ -22,7 +22,7 @@ from itertools import product
 import pytest
 
 from courtisans.rules import Statut
-from mesure.retournement import Retournements, analyser_suite
+from mesure.retournement import Retournements, analyser_suite, evenements_r2
 
 IND = Statut.INDIFFERENTE
 LUM = Statut.LUMIERE
@@ -116,3 +116,44 @@ def test_l_agregation_d_une_partie_est_le_ou_de_ses_familles() -> None:
 def test_l_agregation_de_rien_ne_declenche_rien() -> None:
     """Une partie sans famille -- cas impossible en jeu, mais le neutre doit etre faux."""
     assert Retournements.ou([]) == Retournements(r0=False, r1=False, r2=False, r3=False)
+
+
+# ---------------------------------------------------------------------------------
+# evenements_r2 -- « quand », et pas seulement « si »
+# ---------------------------------------------------------------------------------
+
+EVENEMENTS = [
+    ("famille jamais posee", [IND], ()),
+    ("Lumiere prise, jamais perdue", [IND, LUM, LUM], ()),
+    ("Lumiere annulee au 2e pas", [IND, LUM, IND], (2,)),
+    ("perdue, reprise, reperdue", [IND, LUM, IND, LUM, IND], (2, 4)),
+    ("inversion directe", [IND, LUM, OBS], (2,)),
+    # L'entree en Lumiere depuis Indifferente n'est PAS une perte d'acquis : c'est le
+    # piege que R0 ne sait pas eviter et que R2 evite par sa garde.
+    ("entree tardive puis annulation", [IND, IND, LUM, IND], (3,)),
+]
+
+
+@pytest.mark.parametrize(
+    ("intitule", "suite", "attendus"), EVENEMENTS, ids=[cas[0] for cas in EVENEMENTS]
+)
+def test_les_indices_des_pertes_d_acquis(
+    intitule: str, suite: list[Statut], attendus: tuple[int, ...]
+) -> None:
+    """Les indices sont calcules de tete : `suite[t-1]` non-Indifferent et `suite[t]` autre."""
+    assert evenements_r2(suite) == attendus, intitule
+
+
+def test_avoir_un_evenement_equivaut_a_r2() -> None:
+    """Les deux fonctions repondent a la meme question, l'une par oui/non, l'autre par ou.
+
+    Exhaustif sur les 364 suites de longueur <= 6 : si elles divergeaient, l'une des deux
+    compterait autre chose que la perte d'acquis.
+    """
+    for suite in _toutes_les_suites(6):
+        assert bool(evenements_r2(suite)) == analyser_suite(suite).r2, suite
+
+
+def test_une_suite_vide_est_refusee_aussi_pour_les_evenements() -> None:
+    with pytest.raises(ValueError, match="au moins un statut"):
+        evenements_r2([])

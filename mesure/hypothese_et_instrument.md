@@ -214,6 +214,23 @@ tel.
    Espions cachés compris ; la part que les autres joueurs ne peuvent pas voir est isolée
    (§2.4), et cette part-là ne peut, par construction, être anticipée par personne d'autre
    que le poseur.
+
+   > **ERRATUM, après audit croisé — la dernière proposition est fausse.** « Personne
+   > d'autre que le poseur » suppose qu'un Espion caché n'a qu'un seul auteur, donc un seul
+   > témoin. C'est faux dès que **deux joueurs différents** posent chacun un Espion de la
+   > même famille au banquet : chacun ne voit que le sien, aucun des deux ne voit la
+   > résultante, et le retournement n'est anticipable par **personne** — pas même par un
+   > poseur. Ce cas était déjà construit et asserté dans
+   > `tests/mesure/test_parties_construites.py`, sous le nom
+   > `test_partie_1_l_evenement_de_la_famille_3_n_est_vu_par_personne` : la
+   > pré-inscription et le test se contredisaient dans le même livrable.
+   >
+   > MESURÉ après correction du compteur, seeds 0–999 : **5 familles sur 2 075** en R2
+   > ne sont vues par aucun des trois sièges, et **79 pertes d'acquis sur 2 665** ne le
+   > sont pas non plus, touchant **7,40 % des parties**.
+   >
+   > La phrase d'origine est conservée telle quelle : c'est elle qui a orienté le premier
+   > compteur, et la remplacer effacerait la trace de l'erreur.
 4. **La mesure ne dit rien de l'instance complète** `complet-3j`. 4 familles et 4 tours ne se
    comparent à 6 familles et 10 tours par aucun chiffre produit ici.
 5. **La mesure ne valide pas le moteur.** Elle le suppose conforme — c'est la phase 0 qui

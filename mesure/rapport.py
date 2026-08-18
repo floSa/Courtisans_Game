@@ -20,17 +20,19 @@ import random
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import exp, lgamma, log, log1p
+from math import exp, factorial, lgamma, log, log1p
 from statistics import mean, median, pstdev
 from time import perf_counter
 
-from courtisans.cards import Role
-from courtisans.config import GameConfig
+from courtisans.cards import Position
+from courtisans.config import CARTES_PAR_TOUR
 from courtisans.engine import Engine
+from mesure.instance import ENTRAINEMENT_3J
 from mesure.partie import (
     Grain,
     Partie,
     Vue,
+    compter_invisible,
     observer,
     politique_uniforme,
     supports,
@@ -38,10 +40,15 @@ from mesure.partie import (
 )
 from mesure.retournement import Retournements
 
-#: L'instance mesuree : `entrainement-3j` du paragraphe 3 de la specification du moteur.
-#: Elle n'est pas choisie ici, elle est fixee -- la variante a 20 cartes est refusee a la
-#: construction par le plancher `tours >= 3` du paragraphe 8 des regles.
-CONFIG = GameConfig(familles=4, roles=tuple(Role), exemplaires=2, joueurs=3)
+#: L'instance mesuree. Definie dans `mesure/instance.py`, et nulle part ailleurs.
+CONFIG = ENTRAINEMENT_3J
+
+#: Les facteurs de l'espace d'actions de pose (paragraphe 3.2 des regles) : les `3!`
+#: assignations des trois cartes aux trois zones, et le choix Estime / Disgrace. Lus dans le
+#: moteur, jamais ecrits en dur : une decomposition dont un facteur est un litteral cesse
+#: d'etre juste des que la configuration change, sans que rien ne le signale.
+ASSIGNATIONS = factorial(CARTES_PAR_TOUR)
+POSITIONS = len(Position)
 
 #: Decalage entre le seed de la donne et celui de la politique, pour que les deux tirages
 #: soient independants tout en restant reproductibles depuis le seul seed de partie.
@@ -91,6 +98,10 @@ def intervalle_clopper_pearson(k: int, n: int, alpha: float = 0.01) -> tuple[flo
     Exact au sens ou il ne suppose pas la normalite : a 1 000 parties l'approximation
     normale serait suffisante, mais elle ne le serait plus sur les sous-populations.
     """
+    if n <= 0:
+        raise ValueError(
+            f"une proportion sur {n} parties n'existe pas : il en faut au moins une"
+        )
     if not 0 <= k <= n:
         raise ValueError(f"{k} succes sur {n} parties : impossible")
     # Borne basse : le `p` tel que `P(X >= k) = alpha/2`.
@@ -190,16 +201,21 @@ def section_instance(lignes: list[str]) -> None:
         f"= {CONFIG.nb_cartes} cartes"
     )
     lignes.append(
-        f"  tours/joueur  : {CONFIG.nb_cartes} // (3 x {CONFIG.joueurs}) = {CONFIG.tours}"
+        f"  tours/joueur  : {CONFIG.nb_cartes} // ({CARTES_PAR_TOUR} x {CONFIG.joueurs}) "
+        f"= {CONFIG.tours}"
     )
     lignes.append(
-        f"  cartes jouees : 3 x {CONFIG.joueurs} x {CONFIG.tours} = {CONFIG.cartes_jouees}"
+        f"  cartes jouees : {CARTES_PAR_TOUR} x {CONFIG.joueurs} x {CONFIG.tours} "
+        f"= {CONFIG.cartes_jouees}"
     )
     lignes.append(
         f"  non piochees  : {CONFIG.nb_cartes} - {CONFIG.cartes_jouees} "
         f"= {CONFIG.reste_en_pioche}"
     )
-    lignes.append(f"  actions de pose : 6 x 2 x ({CONFIG.joueurs} - 1) = {CONFIG.actions_de_pose}")
+    lignes.append(
+        f"  actions de pose : {ASSIGNATIONS} x {POSITIONS} x ({CONFIG.joueurs} - 1) "
+        f"= {CONFIG.actions_de_pose}"
+    )
 
 
 def section_duree(lignes: list[str], parties: Sequence[Partie], duree_totale: float) -> None:
@@ -215,7 +231,8 @@ def section_duree(lignes: list[str], parties: Sequence[Partie], duree_totale: fl
     lignes.append(f"  parties par seconde         : {len(parties) / duree_totale:.0f}")
     lignes.append(
         f"  noeuds de pose par partie   : min {min(poses)}, max {max(poses)} "
-        f"(attendu {CONFIG.cartes_jouees // 3} = {CONFIG.joueurs} joueurs x {CONFIG.tours} tours)"
+        f"(attendu {CONFIG.cartes_jouees // CARTES_PAR_TOUR} = {CONFIG.joueurs} joueurs "
+        f"x {CONFIG.tours} tours)"
     )
     lignes.append(
         f"  noeuds de ciblage par partie: moyenne {mean(ciblages):.2f}, "
@@ -242,6 +259,52 @@ def section_tours(lignes: list[str], parties: Sequence[Partie]) -> None:
         f"  distribution des tours par siege      : "
         f"{Counter(partie.poses_par_joueur for partie in parties)}"
     )
+
+
+def _pouvoir_discriminant(
+    parties: Sequence[Partie],
+) -> list[tuple[str, int, bool]]:
+    """Pour chaque critere, la premiere taille d'echantillon qui le satisfait.
+
+    Un seuil franchi par une poignee de parties ne separe rien : il decrit une propriete
+    que presque toute instance non triviale aurait. Le rapport doit le dire lui-meme,
+    plutot que de presenter les quatre criteres comme s'ils pesaient pareil.
+
+    Rend, par critere : son nom, la plus petite taille de prefixe qui le satisfait, et si
+    tous les prefixes plus grands le satisfont aussi.
+    """
+    criteres = {
+        "D1 ecart-type >= 1        ": lambda scores: all(
+            pstdev(colonne) >= SEUIL_ECART_TYPE for colonne in scores
+        ),
+        "D2 >= 8 valeurs distinctes": lambda scores: all(
+            len(set(colonne)) >= SEUIL_VALEURS_DISTINCTES for colonne in scores
+        ),
+        "D3 mode < 50 %            ": lambda scores: all(
+            Counter(colonne).most_common(1)[0][1] / len(colonne) < SEUIL_PART_MODALE
+            for colonne in scores
+        ),
+        "D4 trois ex aequo < 50 %  ": lambda scores: sum(
+            1 for tirage in zip(*scores, strict=True) if len(set(tirage)) == 1
+        )
+        / len(scores[0])
+        < SEUIL_PART_TRIPLE_EX_AEQUO,
+    }
+    resultats = []
+    for nom, satisfait in criteres.items():
+        premier, stable = 0, True
+        for taille in range(1, len(parties) + 1):
+            colonnes = [
+                [partie.scores[siege] for partie in parties[:taille]]
+                for siege in range(CONFIG.joueurs)
+            ]
+            vrai = satisfait(colonnes)
+            if vrai and premier == 0:
+                premier = taille
+            elif not vrai and premier:
+                stable = False
+        resultats.append((nom, premier, stable))
+    return resultats
 
 
 def section_scores(lignes: list[str], parties: Sequence[Partie]) -> None:
@@ -304,6 +367,18 @@ def section_scores(lignes: list[str], parties: Sequence[Partie]) -> None:
 
     somme_nulle = sum(1 for partie in parties if abs(sum(partie.gains)) < 1e-9)
     lignes.append(f"  Controle somme nulle des gains : {Proportion(somme_nulle, total)}")
+
+    lignes.append("")
+    lignes.append("  Pouvoir discriminant de chaque critere -- a partir de combien de parties")
+    lignes.append("  est-il deja satisfait, et le reste-t-il jusqu'a la fin de la campagne ?")
+    lignes.append("  Un critere satisfait des la douzieme partie ne discrimine rien a 1 000 :")
+    lignes.append("  il constate, il ne teste pas. Releve par l'audit croise sur D2.")
+    for nom, premier, stable in _pouvoir_discriminant(parties):
+        verdict = "discrimine peu" if premier <= 50 else "discrimine"
+        constance = "puis toujours vrai" if stable else "puis a nouveau faux ensuite"
+        lignes.append(
+            f"    {nom} : satisfait des {premier} partie(s), {constance} -- {verdict}"
+        )
 
 
 def section_retournements(lignes: list[str], parties: Sequence[Partie]) -> None:
@@ -374,50 +449,62 @@ def section_retournements(lignes: list[str], parties: Sequence[Partie]) -> None:
 
 def section_espions(lignes: list[str], parties: Sequence[Partie]) -> None:
     lignes.append(_titre("6. CE QUE LES ESPIONS CACHENT -- QUI VOIT LE RETOURNEMENT"))
+    lignes.append("  La vue publique est le savoir COMMUN : elle n'est la vue de personne,")
+    lignes.append("  puisque chaque joueur y ajoute ses propres Espions. Les vues par siege")
+    lignes.append("  sont donc necessaires pour dire ce que « invisible » veut dire.")
+    lignes.append("")
+    lignes.append("  RIEN N'EST AGREGE ICI. La premiere version de cette section comparait")
+    lignes.append("  `retournements(...)`, deja un OU sur les quatre familles, puis un `any`")
+    lignes.append("  sur les trois sieges : la conjonction « vrai oui, aucun siege » etait")
+    lignes.append("  alors quasi impossible par construction, et le 0 qu'elle affichait ne")
+    lignes.append("  mesurait pas ce que sa phrase annoncait. Defaut bloquant de l'audit")
+    lignes.append("  croise. On compte desormais par famille, et par evenement.")
+
     total = len(parties)
-    lignes.append("  R2 au grain tour, selon la vue. La vue publique est le savoir COMMUN :")
-    lignes.append("  elle n'est la vue de personne, puisque chaque joueur y ajoute ses propres")
-    lignes.append("  Espions. Les trois vues par siege sont donc necessaires pour dire ce que")
-    lignes.append("  « invisible » veut dire.")
+    familles = CONFIG.familles
+
+    lignes.append("")
+    lignes.append("  Rappel non comparable, une ligne par vue -- parties ayant au moins une")
+    lignes.append("  famille en R2, grain tour (ces cinq nombres ne se soustraient PAS) :")
     for vue in vues(CONFIG.joueurs):
         succes = sum(1 for partie in parties if partie.retournements(Grain.TOUR, vue).r2)
         lignes.append(f"    vue {vue.nom:10s} : {Proportion(succes, total)}")
 
-    vrai = [partie.retournements(Grain.TOUR, Vue.VRAIE).r2 for partie in parties]
-    public = [partie.retournements(Grain.TOUR, Vue.PUBLIQUE).r2 for partie in parties]
-    par_siege = [
-        [
-            partie.retournements(Grain.TOUR, Vue.du_joueur(siege)).r2
-            for siege in range(CONFIG.joueurs)
-        ]
-        for partie in parties
-    ]
-    vu_par_au_moins_un = [any(sieges) for sieges in par_siege]
-
-    couples = list(zip(vrai, public, vu_par_au_moins_un, strict=True))
-    lignes.append("")
-    lignes.append("  Decomposition, partie par partie :")
-    for intitule, condition in (
-        ("R2 vrai, invisible du savoir commun    ", lambda v, p, u: v and not p),
-        ("R2 vrai, vu par AUCUN des trois joueurs", lambda v, p, u: v and not u),
-        ("R2 vrai, vu par au moins un joueur     ", lambda v, p, u: v and u),
-        ("R2 dans le savoir commun, pas dans le vrai", lambda v, p, u: p and not v),
-    ):
-        succes = sum(1 for v, p, u in couples if condition(v, p, u))
-        lignes.append(f"    {intitule} : {Proportion(succes, total)}")
-    lignes.append("      (une famille dont un Espion cache annule un retournement visible :")
-    lignes.append("       les joueurs croient qu'il a eu lieu, le decompte dira que non)")
+    comptage = compter_invisible(parties, CONFIG.joueurs, familles)
+    familles_vues = total * familles
 
     lignes.append("")
-    lignes.append("  Familles retournees (R2, grain tour), toutes parties confondues :")
-    for vue in vues(CONFIG.joueurs):
-        familles = sum(
-            1
-            for partie in parties
-            for retournement in partie.retournements_par_famille(Grain.TOUR, vue)
-            if retournement.r2
-        )
-        lignes.append(f"    vue {vue.nom:10s} : {familles}")
+    lignes.append(
+        f"  NIVEAU FAMILLE -- denominateur {total} parties x {familles} familles "
+        f"= {familles_vues} familles"
+    )
+    lignes.append(
+        f"    familles en R2, vue vraie                  : {comptage.familles_r2} "
+        f"/ {familles_vues}"
+    )
+    lignes.append(
+        f"    dont AUCUN siege n'en voit rien            : "
+        f"{Proportion(comptage.familles_invisibles, comptage.familles_r2)}"
+    )
+    lignes.append(
+        f"    parties contenant une telle famille        : "
+        f"{Proportion(comptage.parties_avec_famille_invisible, total)}"
+    )
+
+    lignes.append("")
+    lignes.append(
+        f"  NIVEAU EVENEMENT -- une perte d'acquis datee, denominateur {comptage.evenements}"
+    )
+    lignes.append(
+        f"    vues par AUCUN siege au meme instant       : "
+        f"{Proportion(comptage.evenements_invisibles, comptage.evenements)}"
+    )
+    lignes.append(
+        f"    parties contenant une telle perte          : "
+        f"{Proportion(comptage.parties_avec_evenement_invisible, total)}"
+    )
+    lignes.append("      (un siege peut voir la famille bouger sans voir CETTE perte-la :")
+    lignes.append("       le niveau famille est donc plus indulgent que le niveau evenement)")
 
 
 def section_refus(lignes: list[str], parties: Sequence[Partie]) -> None:
