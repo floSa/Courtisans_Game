@@ -38,6 +38,22 @@ INSTANCE_PHASE_1 = GameConfig(
     joueurs=3,
 )
 
+#: Decalage entre la graine de la donne et celle de la politique. **Il fait partie de
+#: l'echantillon** : deux blocs qui ne different que par lui jouent les memes 1 000 donnes
+#: mais pas les memes parties, et rendent donc des chiffres differents -- tous deux justes.
+#:
+#: Il y en a deux, et ils sont nommes parce que les confondre a produit une incoherence
+#: dans mon premier rapport : 70 evenements invisibles sous l'un, 81 sous l'autre, sur les
+#: memes seeds 0-999. Un decalage laisse en dur dans le corps de `joue_campagne` ne se
+#: lisait pas dans les chiffres qu'il produisait -- c'est exactement le defaut A6 que cet
+#: audit reproche au constructeur, commis ici.
+DECALAGE_AUDITEUR = 10**9
+
+#: Celui du constructeur, `mesure/rapport.py::DECALAGE_POLITIQUE`. **C'est celui qu'il faut
+#: employer pour toute comparaison chiffre a chiffre avec son rapport** : il donne les memes
+#: parties, donc des chiffres opposables aux siens.
+DECALAGE_CONSTRUCTEUR = 1_000_000
+
 
 @dataclass
 class Campagne:
@@ -45,6 +61,7 @@ class Campagne:
 
     config: GameConfig
     seeds: range | list[int]
+    decalage: int = DECALAGE_AUDITEUR
     parties: list[Partie] = field(default_factory=list)
     secondes: float = 0.0
 
@@ -132,21 +149,42 @@ class Campagne:
         return sum(1 for p in self.parties if p.noeuds_avec_cible > 0)
 
 
-def joue_campagne(config: GameConfig, seeds: range | list[int]) -> Campagne:
+def nom_du_decalage(decalage: int) -> str:
+    """Le nom du decalage, pour qu'un releve dise toujours de quel echantillon il parle."""
+    if decalage == DECALAGE_AUDITEUR:
+        return "auditeur"
+    if decalage == DECALAGE_CONSTRUCTEUR:
+        return "constructeur"
+    return "autre"
+
+
+def joue_campagne(
+    config: GameConfig,
+    seeds: range | list[int],
+    decalage: int = DECALAGE_AUDITEUR,
+) -> Campagne:
     """Joue un bloc de parties : la graine fixe la pioche **et** la politique.
 
-    Meme graine, meme partie : c'est ce qui rend un bloc rejouable a l'identique. La
-    politique tire sur un generateur derive (`graine + 10**9`) pour que l'ordre de pioche et
-    les choix ne soient pas produits par le meme flux -- sinon deux parties de graines
-    voisines partageraient une partie de leurs decisions.
+    Meme graine et meme decalage, meme partie : c'est ce qui rend un bloc rejouable a
+    l'identique. La politique tire sur un generateur derive (`graine + decalage`) pour que
+    l'ordre de pioche et les choix ne soient pas produits par le meme flux -- sinon deux
+    parties de graines voisines partageraient une partie de leurs decisions.
+
+    Args:
+        config: l'instance mesuree.
+        seeds: les graines de donne, une par partie.
+        decalage: `DECALAGE_AUDITEUR` par defaut. Passer `DECALAGE_CONSTRUCTEUR` pour
+            rejouer **ses** parties et opposer un chiffre au sien. Le decalage est un
+            parametre et non une constante enfouie, parce qu'il fait partie de
+            l'echantillon : le taire rend deux chiffres justes incomparables.
     """
     engine = Engine(config)
-    campagne = Campagne(config=config, seeds=seeds)
+    campagne = Campagne(config=config, seeds=seeds, decalage=decalage)
     depart = time.perf_counter()
     for seed in seeds:
         pioche = engine.pioche_depuis_seed(seed)
         campagne.parties.append(
-            rejoue(engine, pioche, politique_aleatoire(seed + 10**9))
+            rejoue(engine, pioche, politique_aleatoire(seed + decalage))
         )
     campagne.secondes = time.perf_counter() - depart
     return campagne
@@ -158,6 +196,9 @@ def rapport(campagne: Campagne, titre: str) -> str:
     lignes = [f"=== {titre} : {n} parties, instance {c.config.familles} familles / "
               f"{c.config.nb_roles} roles / {c.config.exemplaires} ex. / "
               f"{c.config.joueurs} joueurs ==="]
+    lignes.append(f"  echantillon : seeds {min(c.seeds)}-{max(c.seeds)}, "
+                  f"decalage de politique {c.decalage} ({nom_du_decalage(c.decalage)}) "
+                  f"-- deux decalages differents = deux echantillons differents")
 
     lignes.append(f"  paquet {c.config.nb_cartes} cartes, tours/joueur {c.config.tours}, "
                   f"cartes jouees {c.config.cartes_jouees}, reste en pioche "
