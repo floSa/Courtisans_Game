@@ -1,0 +1,191 @@
+============================================================================================
+PHASE 1 -- MESURE DE L'INSTANCE entrainement-3j -- 1000 PARTIES
+donne : Engine.reset(seed), seeds 0 a 999  |  politique : uniforme, Random(1000000 + seed)
+============================================================================================
+
+1. L'INSTANCE MESUREE
+---------------------
+  familles=4  roles=5  exemplaires=2  joueurs=3
+  paquet        : 4 x 5 x 2 = 40 cartes
+  tours/joueur  : 40 // (3 x 3) = 4
+  cartes jouees : 3 x 3 x 4 = 36
+  non piochees  : 40 - 36 = 4
+  actions de pose : 6 x 2 x (3 - 1) = 24
+
+2. DUREE ET LONGUEUR D'UNE PARTIE
+---------------------------------
+  temps total du run          : 4.45 s
+  temps par partie            : moyenne 4.242 ms, mediane 4.080 ms, max 19.816 ms
+  parties par seconde         : 225
+  noeuds de pose par partie   : min 12, max 12 (attendu 12 = 3 joueurs x 4 tours)
+  noeuds de ciblage par partie: moyenne 7.21, min 5, max 8
+  decisions par partie        : moyenne 19.21
+
+3. GO/NO-GO 1 -- LES TROIS JOUEURS JOUENT LE MEME NOMBRE DE TOURS
+-----------------------------------------------------------------
+  parties ou les 3 sieges jouent autant : 100.00%  (1000 / 1000) IC99 [99.47% ; 100.00%]
+  parties ou chacun joue exactement 4 tours : 100.00%  (1000 / 1000) IC99 [99.47% ; 100.00%]
+  cartes restees en pioche             : {4: 1000}
+  distribution des tours par siege      : Counter({(4, 4, 4): 1000})
+
+4. GO/NO-GO 2 -- LA DISTRIBUTION DES SCORES FINAUX
+--------------------------------------------------
+  Par siege :
+    siege   moyenne  ecart-type   min   max   valeurs   mode (part)     D1   D2   D3
+      0     -0.189       4.539   -13    13        26     1 ( 9.4%)    ok   ok   ok
+      1     -0.205       4.406   -14    13        25    -1 ( 8.7%)    ok   ok   ok
+      2     -0.033       4.379   -13    13        26    -2 ( 9.3%)    ok   ok   ok
+  Tous sieges confondus : 3000 scores, moyenne -0.142, ecart-type 4.442, etendue [-14, 13]
+  Histogramme des scores (tous sieges) :
+     -14 :     3   0.10%  
+     -13 :     3   0.10%  
+     -12 :     1   0.03%  
+     -11 :     7   0.23%  
+     -10 :    16   0.53%  #
+      -9 :    37   1.23%  ##
+      -8 :    77   2.57%  #####
+      -7 :   100   3.33%  ######
+      -6 :   101   3.37%  ######
+      -5 :   171   5.70%  ###########
+      -4 :   194   6.47%  ############
+      -3 :   212   7.07%  ##############
+      -2 :   243   8.10%  ################
+      -1 :   266   8.87%  #################
+       0 :   240   8.00%  ################
+       1 :   261   8.70%  #################
+       2 :   224   7.47%  ##############
+       3 :   196   6.53%  #############
+       4 :   167   5.57%  ###########
+       5 :   164   5.47%  ##########
+       6 :   105   3.50%  #######
+       7 :    84   2.80%  #####
+       8 :    53   1.77%  ###
+       9 :    38   1.27%  ##
+      10 :    14   0.47%  
+      11 :    11   0.37%  
+      12 :     9   0.30%  
+      13 :     3   0.10%  
+  Vainqueur unique :  85.30%  (853 / 1000) IC99 [82.20% ; 88.06%]
+  Deux ex aequo    :  13.20%  (132 / 1000) IC99 [10.57% ; 16.18%]
+  Trois ex aequo   :   1.50%  (15 / 1000) IC99 [0.69% ; 2.80%]
+  D4 (trois ex aequo < 50%) : ok
+  => distribution non degeneree : OUI (10/10 criteres satisfaits)
+  Controle somme nulle des gains : 100.00%  (1000 / 1000) IC99 [99.47% ; 100.00%]
+
+  Pouvoir discriminant de chaque critere -- a partir de combien de parties
+  est-il deja satisfait, et le reste-t-il jusqu'a la fin de la campagne ?
+  Un critere satisfait des la douzieme partie ne discrimine rien a 1 000 :
+  il constate, il ne teste pas. Releve par l'audit croise sur D2.
+    D1 ecart-type >= 1         : satisfait des 3 partie(s), puis toujours vrai -- discrimine peu
+    D2 >= 8 valeurs distinctes : satisfait des 12 partie(s), puis toujours vrai -- discrimine peu
+    D3 mode < 50 %             : satisfait des 3 partie(s), puis toujours vrai -- discrimine peu
+    D4 trois ex aequo < 50 %   : satisfait des 1 partie(s), puis toujours vrai -- discrimine peu
+
+5. GO/NO-GO 3 -- LES RETOURNEMENTS
+----------------------------------
+  Proportion de parties ou AU MOINS UNE famille satisfait la definition :
+    support                R0        R1        R2        R3
+    fin  / vraie      100.00%    73.40%    96.00%    85.80%
+    fin  / publique   100.00%    62.70%    91.80%    80.10%
+    fin  / joueur 0   100.00%    65.90%    93.80%    82.20%
+    fin  / joueur 1   100.00%    67.60%    93.40%    82.00%
+    fin  / joueur 2   100.00%    67.00%    92.90%    81.60%
+    tour / vraie      100.00%    73.00%    96.00%    85.80%
+    tour / publique   100.00%    62.00%    91.70%    80.10%
+    tour / joueur 0   100.00%    65.30%    93.80%    82.20%
+    tour / joueur 1   100.00%    66.90%    93.40%    82.00%
+    tour / joueur 2   100.00%    66.30%    92.80%    81.60%
+
+  Parties ou les deux grains ne disent PAS la meme chose (vue vraie) :
+    R0 :    0 / 1000
+    R1 :    4 / 1000
+    R2 :    0 / 1000
+    R3 :    0 / 1000
+    (un desaccord est un transitoire intra-tour : le grain fin le voit,
+     le grain tour ne le voit pas)
+
+  Le go/no-go porte sur R2, grain tour, vue vraie. Seuil 33.3%.
+    R2 grain fin  vue vraie :  96.00%  (960 / 1000) IC99 [94.12% ; 97.42%]
+      -> au-dessus du seuil de 33.3% (borne basse 94.12%)
+    R2 grain tour vue vraie :  96.00%  (960 / 1000) IC99 [94.12% ; 97.42%]
+      -> au-dessus du seuil de 33.3% (borne basse 94.12%)
+
+  Nombre de familles retournees par partie (R2, grain tour, vue vraie) :
+    0 famille(s) :    40   4.00%
+    1 famille(s) :   220  22.00%
+    2 famille(s) :   424  42.40%
+    3 famille(s) :   257  25.70%
+    4 famille(s) :    59   5.90%
+    moyenne : 2.075 famille(s) sur 4
+
+  Par famille, toutes parties confondues (les familles sont interchangeables,
+  invariant I11 : ces quatre chiffres doivent etre proches) :
+    famille 0 :  51.00%  (510 / 1000) IC99 [46.88% ; 55.11%]
+    famille 1 :  53.00%  (530 / 1000) IC99 [48.88% ; 57.09%]
+    famille 2 :  52.20%  (522 / 1000) IC99 [48.08% ; 56.30%]
+    famille 3 :  51.30%  (513 / 1000) IC99 [47.18% ; 55.41%]
+
+6. CE QUE LES ESPIONS CACHENT -- QUI VOIT LE RETOURNEMENT
+---------------------------------------------------------
+  La vue publique est le savoir COMMUN : elle n'est la vue de personne,
+  puisque chaque joueur y ajoute ses propres Espions. Les vues par siege
+  sont donc necessaires pour dire ce que « invisible » veut dire.
+
+  RIEN N'EST AGREGE ICI. La premiere version de cette section comparait
+  `retournements(...)`, deja un OU sur les quatre familles, puis un `any`
+  sur les trois sieges : la conjonction « vrai oui, aucun siege » etait
+  alors quasi impossible par construction, et le 0 qu'elle affichait ne
+  mesurait pas ce que sa phrase annoncait. Defaut bloquant de l'audit
+  croise. On compte desormais par famille, et par evenement.
+
+  Rappel non comparable, une ligne par vue -- parties ayant au moins une
+  famille en R2, grain tour (ces cinq nombres ne se soustraient PAS) :
+    vue vraie      :  96.00%  (960 / 1000) IC99 [94.12% ; 97.42%]
+    vue publique   :  91.70%  (917 / 1000) IC99 [89.20% ; 93.79%]
+    vue joueur 0   :  93.80%  (938 / 1000) IC99 [91.57% ; 95.60%]
+    vue joueur 1   :  93.40%  (934 / 1000) IC99 [91.11% ; 95.26%]
+    vue joueur 2   :  92.80%  (928 / 1000) IC99 [90.43% ; 94.75%]
+
+  NIVEAU FAMILLE -- denominateur 1000 parties x 4 familles = 4000 familles
+    familles en R2, vue vraie                  : 2075 / 4000
+    dont AUCUN siege n'en voit rien            :   0.24%  (5 / 2075) IC99 [0.05% ; 0.68%]
+    parties contenant une telle famille        :   0.50%  (5 / 1000) IC99 [0.11% ; 1.41%]
+
+  NIVEAU EVENEMENT -- une perte d'acquis datee, denominateur 2665
+    vues par AUCUN siege au meme instant       :   2.96%  (79 / 2665) IC99 [2.18% ; 3.92%]
+    parties contenant une telle perte          :   7.40%  (74 / 1000) IC99 [5.43% ; 9.79%]
+      (un siege peut voir la famille bouger sans voir CETTE perte-la :
+       le niveau famille est donc plus indulgent que le niveau evenement)
+
+7. OU REFUSER DE TUER EST POSSIBLE
+----------------------------------
+  noeuds de ciblage, toutes parties : 7206
+  dont au moins une cible valide    :  82.53%  (5947 / 7206) IC99 [81.35% ; 83.67%]
+  parties avec au moins un tel noeud : 100.00%  (1000 / 1000) IC99 [99.47% ; 100.00%]
+  noeuds a choix par partie          : moyenne 5.95, max 8
+  distribution du nombre de cibles valides par noeud :
+     0 cible(s) :   1259  17.47%
+     1 cible(s) :   1344  18.65%
+     2 cible(s) :   1389  19.28%
+     3 cible(s) :   1272  17.65%
+     4 cible(s) :    971  13.47%
+     5 cible(s) :    588   8.16%
+     6 cible(s) :    262   3.64%
+     7 cible(s) :     89   1.24%
+     8 cible(s) :     25   0.35%
+     9 cible(s) :      5   0.07%
+    10 cible(s) :      1   0.01%
+    11 cible(s) :      1   0.01%
+  cartes tuees par partie : moyenne 4.16, min 0, max 8 -- politique uniforme, donc refus tire au hasard
+
+8. CONTROLES DU COMPTEUR LUI-MEME
+---------------------------------
+  denominateur de cette section : 1000 parties x 10 supports (2 grains x 5 vues) x 4 familles = 40000 couples famille x support
+  violations des inclusions R1 dans R2, R3 dans R2, R2 dans R0 : 0 / 40000
+  familles R1 sans R3 : 1085 / 40000   |   R3 sans R1 : 5833 / 40000
+  sur le seul support de reference (grain tour, vue vraie), 4000 familles :
+    R1 sans R3 : 131 / 4000   |   R3 sans R1 : 602 / 4000
+    (les deux non nuls confirment que R1 et R3 ne sont pas ordonnees)
+  longueurs des suites au grain tour : {13: 4000}
+    (attendu 13 = 1 statut initial + 12 tours)
+
