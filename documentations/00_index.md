@@ -153,13 +153,24 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    « 0 sur 1 000 » qui ne mesurait pas sa propre phrase, contredit par un test du
    même livrable — puis **accepté sous réserve** après correction. Voir l'entrée du
    18/08 au [journal](06_journal_decisions.md).
-5. **Écrire les prompts de la phase 2** — construction et audit, sur le modèle des
-   quatre premiers. La phase 2 mesure le terrain avant d'entraîner quoi que ce soit :
-   avantage de siège, variance du score, winrate du greedy, et **ligne de base des
-   comportements B1–B7**. Un point s'y ajoute, sorti de l'audit de la phase 1 : la
-   fréquence des retournements qu'**aucun** siège ne voit — ~7 % des parties — est un
-   **plafond de ce que B1 peut mesurer**, et la ligne de base doit être lue en la
-   retranchant.
+5. ~~Écrire les prompts de la phase 2~~ — **fait**,
+   [../prompts/08_phase2_construction.md](../prompts/08_phase2_construction.md) et
+   [../prompts/09_phase2_audit.md](../prompts/09_phase2_audit.md). La phase 2 mesure le
+   terrain avant d'entraîner quoi que ce soit : avantage de siège, variance du score,
+   winrate du greedy, et **ligne de base des comportements B1–B7**. Trois trous du
+   protocole y sont signalés à l'agent plutôt que découverts par lui : **le greedy
+   n'existe pas dans ce dépôt** — la version de `cfr-pivot` importe le moteur non
+   conforme et un `_pick_target_heuristic` qui ne sait pas refuser de tuer, donc B4
+   serait inmesurable ; **B1–B7 ne sont pas des définitions mesurables**, exactement le
+   trou de « retournement » en phase 1 ; et le **seuil de 38 % de l'avantage de siège ne
+   discrimine rien** — à 10 000 parties il est à 9,9 erreurs-type de l'attendu, si bien
+   qu'un avantage de 35 %, statistiquement certain, passerait sans être signalé. Un point
+   s'y ajoute, sorti de l'audit de la phase 1 : la fréquence des retournements
+   qu'**aucun** siège ne voit — ~7 % des parties — est un **plafond de ce que B1 peut
+   mesurer**, et la ligne de base doit être lue en la retranchant.
+
+6. **Lancer la phase 2.** Deux conversations neuves et distinctes, construction puis
+   audit.
 
 ---
 
