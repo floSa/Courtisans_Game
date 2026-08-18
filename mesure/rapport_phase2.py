@@ -375,6 +375,8 @@ def section_m4(
     hasard: dict[str, comp.Compte],
     b6_greedy: dict[str, float | None],
     b6_hasard: dict[str, float | None],
+    b6_concurrente_greedy: dict[str, float | None],
+    b6_concurrente_hasard: dict[str, float | None],
 ) -> None:
     """M4 : les sept comportements, deux lignes de base, definitions concurrentes comprises."""
     lignes.append(_titre("5. M4 -- B1 a B7, ligne de base du greedy ET du hasard"))
@@ -485,16 +487,26 @@ def section_m4(
         "mecaniquement differemment sans rien savoir de la pioche. La phase 3 ne conclura que "
         "sur l'**ecart** entre sa distance et celles-ci.",
         "",
-        "| Groupe de categories | Greedy | Hasard |",
-        "|---|---:|---:|",
+        "**La concurrente est publiee a cote, et son ecart avec la retenue est un resultat.** "
+        f"**B6-dernier-contre-reste** compare le tour {CONFIG.tours} aux tours 1 a "
+        f"{CONFIG.tours - 1} **agreges** : son terme de comparaison porte trois fois plus de "
+        "nœuds, donc il est plus stable -- et il melange trois etats de plateau differents, donc "
+        "il **dilue** l'ecart. Le choix du paragraphe 6.6 de la pre-inscription se lit sur les "
+        "deux colonnes de droite.",
+        "",
+        f"| Groupe de categories | Greedy, tour 1 vs {CONFIG.tours} | Hasard, tour 1 vs "
+        f"{CONFIG.tours} | Greedy, dernier vs reste | Hasard, dernier vs reste |",
+        "|---|---:|---:|---:|---:|",
     ]
     for groupe in comp.GROUPES_B6:
-        gv, hv = b6_greedy.get(groupe), b6_hasard.get(groupe)
-        lignes.append(
-            f"| {groupe} | "
-            f"{'sans objet' if gv is None else f'{gv:.4f}'} | "
-            f"{'sans objet' if hv is None else f'{hv:.4f}'} |"
+        cellules = [
+            source.get(groupe)
+            for source in (b6_greedy, b6_hasard, b6_concurrente_greedy, b6_concurrente_hasard)
+        ]
+        rendues = " | ".join(
+            "sans objet" if valeur is None else f"{valeur:.4f}" for valeur in cellules
         )
+        lignes.append(f"| {groupe} | {rendues} |")
 
 
 def section_pouvoir_discriminant(
@@ -664,6 +676,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     resultat_m2 = phase2.mesurer_m2(groupes)
     hasard = phase2.mesurer_m4(groupes)
     b6_hasard = phase2.mesurer_b6(groupes)
+    b6_concurrente_hasard = phase2.mesurer_b6_concurrente(groupes)
     del groupes
 
     # --- Bloc de controle : M1 seul, sur des seeds disjoints --------------------------
@@ -684,6 +697,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     ]
     greedy = phase2.mesurer_m4(groupes)
     b6_greedy = phase2.mesurer_b6(groupes)
+    b6_concurrente_greedy = phase2.mesurer_b6_concurrente(groupes)
     del groupes
 
     # --- Les deux variantes rapportees a cote de M3 -----------------------------------
@@ -706,7 +720,15 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     )
     section_m2(lignes, resultat_m2)
     section_m3(lignes, resultats_m3)
-    section_m4(lignes, greedy, hasard, b6_greedy, b6_hasard)
+    section_m4(
+        lignes,
+        greedy,
+        hasard,
+        b6_greedy,
+        b6_hasard,
+        b6_concurrente_greedy,
+        b6_concurrente_hasard,
+    )
     section_pouvoir_discriminant(lignes, greedy, hasard)
     section_ce_que_ca_n_etablit_pas(lignes, greedy)
 

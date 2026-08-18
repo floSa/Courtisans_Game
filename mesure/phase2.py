@@ -571,8 +571,15 @@ def mesurer_m4(groupes: Sequence[Groupe]) -> dict[str, comp.Compte]:
     return cumul
 
 
-def mesurer_b6(groupes: Sequence[Groupe]) -> dict[str, float | None]:
-    """La distance de variation totale entre le tour 1 et le dernier, par groupe de categories."""
+def distributions_b6(
+    groupes: Sequence[Groupe],
+) -> dict[tuple[str, int], dict[str, comp.Compte]]:
+    """Les distributions de B6, par groupe et par tour, agregees sur toutes les campagnes.
+
+    Extraite pour que les **deux** definitions de B6 -- celle retenue et sa concurrente -- se
+    calculent sur la meme agregation. La recopier ferait deux endroits ou se tromper de siege
+    mesure.
+    """
     par_sieges: dict[tuple[int, ...], list[TracePartie]] = {}
     for groupe in groupes:
         for trace, sieges in zip(groupe.traces, groupe.sieges_mesures, strict=True):
@@ -594,8 +601,31 @@ def mesurer_b6(groupes: Sequence[Groupe]) -> dict[str, float | None]:
                 )
                 for categorie, compte in classes.items()
             }
+    return distributions
+
+
+def mesurer_b6(groupes: Sequence[Groupe]) -> dict[str, float | None]:
+    """La distance de variation totale entre le tour 1 et le dernier, par groupe de categories."""
+    distributions = distributions_b6(groupes)
     return {
         groupe: comp.distance_de_variation_totale(distributions, groupe, 1, CONFIG.tours)
+        for groupe in comp.GROUPES_B6
+    }
+
+
+def mesurer_b6_concurrente(groupes: Sequence[Groupe]) -> dict[str, float | None]:
+    """**B6-dernier-contre-reste** : le dernier tour contre tous les precedents agreges.
+
+    La concurrente pre-inscrite au paragraphe 6.6. Son terme de comparaison porte trois fois
+    plus de nœuds, donc elle est plus stable -- et elle melange trois etats de plateau, donc
+    elle dilue l'ecart. Publiee a cote de la retenue, jamais a sa place.
+    """
+    distributions = distributions_b6(groupes)
+    premiers = tuple(range(1, CONFIG.tours))
+    return {
+        groupe: comp.distance_dernier_contre_reste(
+            distributions, groupe, CONFIG.tours, premiers
+        )
         for groupe in comp.GROUPES_B6
     }
 
@@ -639,7 +669,9 @@ __all__ = [
     "parties_pour_separer_un_taux",
     "ecart_detectable",
     "main",
+    "distributions_b6",
     "mesurer_b6",
+    "mesurer_b6_concurrente",
     "mesurer_m1",
     "mesurer_m2",
     "mesurer_m3",

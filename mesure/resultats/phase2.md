@@ -257,6 +257,8 @@ Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux d
 | `B1-strict-par-partie` | 38.66 % (3867/10002) | 56.83 % (5684/10002) | parties (au moins un siege mesure) | decideur pour le choix, vraie pour ce qui paie |
 | `B1-collectif` | 70.07 % (7008/10002) | 67.18 % (20157/30006) | couples (partie, siege) | decideur pour le choix, vraie pour ce qui paie |
 | `B1-collectif-par-partie` | 70.07 % (7008/10002) | 89.88 % (8990/10002) | parties (au moins un siege mesure) | decideur pour le choix, vraie pour ce qui paie |
+| `B1-savoir-commun` | 48.27 % (4828/10002) | 36.21 % (10865/30006) | couples (partie, siege) | publique pour le choix, vraie pour ce qui paie |
+| `B1-savoir-commun-par-partie` | 48.27 % (4828/10002) | 71.98 % (7199/10002) | parties (au moins un siege mesure) | publique pour le choix, vraie pour ce qui paie |
 | `B2-contestee` | 68.32 % (16391/23991) | 64.90 % (46790/72090) | poses d'Assassin | decideur |
 | `B2-contestee-publique` | 67.00 % (16073/23991) | 63.01 % (45427/72090) | poses d'Assassin | publique |
 | `B2-fragile-2` | 78.83 % (18911/23991) | 75.22 % (54225/72090) | poses d'Assassin | decideur |
@@ -306,11 +308,13 @@ Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux d
 
 **Elle n'est pas nulle chez le greedy, et ce n'est pas une preuve de comprehension** : l'etat du plateau change avec le tour, donc un agent a horizon un tour joue mecaniquement differemment sans rien savoir de la pioche. La phase 3 ne conclura que sur l'**ecart** entre sa distance et celles-ci.
 
-| Groupe de categories | Greedy | Hasard |
-|---|---:|---:|
-| banquet | 0.1589 | 0.0017 |
-| domaine adverse | 0.6566 | 0.5823 |
-| ciblage | 0.2793 | 0.2712 |
+**La concurrente est publiee a cote, et son ecart avec la retenue est un resultat.** **B6-dernier-contre-reste** compare le tour 4 aux tours 1 a 3 **agreges** : son terme de comparaison porte trois fois plus de nœuds, donc il est plus stable -- et il melange trois etats de plateau differents, donc il **dilue** l'ecart. Le choix du paragraphe 6.6 de la pre-inscription se lit sur les deux colonnes de droite.
+
+| Groupe de categories | Greedy, tour 1 vs 4 | Hasard, tour 1 vs 4 | Greedy, dernier vs reste | Hasard, dernier vs reste |
+|---|---:|---:|---:|---:|
+| banquet | 0.1589 | 0.0017 | 0.0560 | 0.0036 |
+| domaine adverse | 0.6566 | 0.5823 | 0.3328 | 0.2918 |
+| ciblage | 0.2793 | 0.2712 | 0.1438 | 0.1366 |
 
 ## 6. Ce que chaque compteur peut separer -- M4 pour la phase 3
 
@@ -328,6 +332,8 @@ Le `denominateur par partie` est ce qui decide : un compteur d'action en offre p
 | `B1-strict-par-partie` | 38.66 % | 1.0000 | 7.44 % | -18.17 pt | 168 |
 | `B1-collectif` | 70.07 % | 1.0000 | 7.00 % | +2.89 pt | 5868 |
 | `B1-collectif-par-partie` | 70.07 % | 1.0000 | 7.00 % | -19.82 pt | 125 |
+| `B1-savoir-commun` | 48.27 % | 1.0000 | 7.64 % | +12.06 pt | 401 |
+| `B1-savoir-commun-par-partie` | 48.27 % | 1.0000 | 7.64 % | -23.71 pt | 104 |
 | `B2-contestee` | 68.32 % | 2.3986 | 4.59 % | +3.42 pt | 1806 |
 | `B2-contestee-publique` | 67.00 % | 2.3986 | 4.64 % | +3.98 pt | 1359 |
 | `B2-fragile-2` | 78.83 % | 2.3986 | 4.03 % | +3.61 pt | 1250 |
@@ -380,10 +386,10 @@ L'ecart greedy-hasard observe vaut -0.02 point, quand l'ecart detectable a 1000 
 
 | Campagne | Duree |
 |---|---:|
-| A | 210.9 s |
-| A controle | 216.4 s |
-| B | 261.0 s |
-| B, 2 greedys contre 1 aleatoire | 307.3 s |
-| B, 1 greedy, departage deterministe | 261.6 s |
+| A | 244.8 s |
+| A controle | 247.3 s |
+| B | 301.5 s |
+| B, 2 greedys contre 1 aleatoire | 351.1 s |
+| B, 1 greedy, departage deterministe | 297.5 s |
 
-<!-- duree totale : 1692.0 s -->
+<!-- duree totale : 1961.2 s -->

@@ -117,9 +117,14 @@ def test_b1_le_motif_est_compte_et_le_statut_final_est_bien_l_obscurite():
     assert comptes["B1-strict"].succes == 1
     assert comptes["B1-tentative"].succes == 1
     assert comptes["B1-collectif"].succes == 1
-    for compte in comptes.values():
+    for nom, compte in comptes.items():
         assert compte.total == 1
-        assert compte.vue == comp.VUE_MIXTE
+        # B1-savoir-commun juge sa clause 1 sur le savoir commun, les quatre autres sur la vue
+        # du donneur. Toutes ont la meme clause 3 -- ce qui paie se lit sur la vue vraie.
+        attendue = (
+            comp.VUE_MIXTE_PUBLIQUE if nom.startswith("B1-savoir-commun") else comp.VUE_MIXTE
+        )
+        assert compte.vue == attendue, nom
     # A un seul siege mesure, les deux grains coincident -- et c'est pourquoi la faute
     # d'agregation etait invisible sur le greedy de reference.
     assert comptes["B1-motif"].grain == "couples (partie, siege)"
@@ -223,6 +228,110 @@ def test_b1_collectif_compte_ce_que_b1_motif_refuse():
     comptes = comp.motif_b1([par_deux_joueurs], CONFIG, sieges=[0, 1, 2])
     assert comptes["B1-motif"].succes == 0
     assert comptes["B1-collectif"].succes == 1
+
+
+def test_b1_savoir_commun_compte_ce_que_le_donneur_savait_deja_empoisonne():
+    """Sens 1 : le donneur voit un poison, le savoir commun voit une famille neutre.
+
+    Le joueur 0 a pose lui-meme un **Espion f1 en Disgrace**. Dans SA vue `d(f1) = -1`, donc f1
+    est en **Obscurite** : donner du f1 au joueur 1 n'est pas nourrir, c'est empoisonner, et la
+    clause 1 de B1-motif tombe. Dans le **savoir commun** le dos est retire du plateau, donc
+    `d(f1) = 0` -> **Indifferente**, et la clause 1 tient.
+
+    Le reste du motif est identique a `_trace_b1` : bascule au nœud 1, f1 en Obscurite au
+    decompte (`-1 - 2 = -3`), le joueur 1 detient encore un Noble f1 vivant.
+
+    Attendu de tete : **B1-savoir-commun = 1**, les quatre autres = 0.
+    """
+    dos = banquet(1, Role.ESPION, Position.DISGRACE, poseur=0)
+    nourrir = pose(
+        numero=0,
+        joueur=0,
+        tour=1,
+        cartes=(
+            banquet(2, Role.GARDE, Position.ESTIME, poseur=0),
+            domaine(2, Role.GARDE, proprietaire=0, poseur=0, exemplaire=1),
+            domaine(1, Role.NOBLE, proprietaire=1, poseur=0),
+        ),
+        connues=(dos,),
+    )
+    connues_apres = nourrir.posees + nourrir.cartes_posees
+    baisser = pose(
+        numero=1,
+        joueur=0,
+        tour=2,
+        cartes=(
+            banquet(1, Role.NOBLE, Position.DISGRACE, poseur=0, exemplaire=1),
+            domaine(3, Role.GARDE, proprietaire=0, poseur=0),
+            domaine(3, Role.NEUTRE, proprietaire=1, poseur=0),
+        ),
+        connues=connues_apres,
+    )
+    finales = connues_apres + baisser.cartes_posees
+    une = trace((nourrir, baisser), posees_finales=finales)
+    assert statut_de(une.posees_finales, 1) is Statut.OBSCURITE
+
+    for sieges, denominateur in (([0], 1), ([0, 1, 2], 3)):
+        comptes = comp.motif_b1([une], CONFIG, sieges=sieges)
+        assert comptes["B1-savoir-commun"].succes == 1, sieges
+        assert comptes["B1-savoir-commun"].total == denominateur
+        assert comptes["B1-savoir-commun"].vue == comp.VUE_MIXTE_PUBLIQUE
+        for nom in ("B1-motif", "B1-tentative", "B1-strict", "B1-collectif"):
+            assert comptes[nom].succes == 0, nom
+
+
+def test_b1_savoir_commun_ne_majore_pas_b1_motif():
+    """Sens 2 : le donneur voit une famille neutre, le savoir commun voit un poison.
+
+    Le plateau porte un **Noble f1 visible en Disgrace** (`-2`) pose par le joueur 1, et **deux
+    Espions f1 en Estime** poses par le joueur 0 (`+1` chacun). Vue du joueur 0 : `d(f1) = 0`
+    -> **Indifferente**, clause 1 de B1-motif tenue. Savoir commun : les deux dos sont retires,
+    `d(f1) = -2` -> **Obscurite**, clause 1 de B1-savoir-commun tombee.
+
+    C'est le cas qui interdit d'asserter une inclusion entre les deux compteurs : elle tombe
+    dans les deux sens, donc leur ecart se publie **sans direction attendue**. Le cas precedent
+    montre l'autre sens.
+
+    Attendu de tete : **B1-motif = 1**, **B1-savoir-commun = 0**.
+    """
+    plateau = (
+        banquet(1, Role.NOBLE, Position.DISGRACE, poseur=1),
+        banquet(1, Role.ESPION, Position.ESTIME, poseur=0),
+        banquet(1, Role.ESPION, Position.ESTIME, poseur=0, exemplaire=1),
+    )
+    nourrir = pose(
+        numero=0,
+        joueur=0,
+        tour=1,
+        cartes=(
+            banquet(2, Role.GARDE, Position.ESTIME, poseur=0),
+            domaine(2, Role.GARDE, proprietaire=0, poseur=0, exemplaire=1),
+            domaine(1, Role.NEUTRE, proprietaire=1, poseur=0),
+        ),
+        connues=plateau,
+    )
+    connues_apres = nourrir.posees + nourrir.cartes_posees
+    baisser = pose(
+        numero=1,
+        joueur=0,
+        tour=2,
+        cartes=(
+            banquet(1, Role.NOBLE, Position.DISGRACE, poseur=0, exemplaire=1),
+            domaine(3, Role.GARDE, proprietaire=0, poseur=0),
+            domaine(3, Role.NEUTRE, proprietaire=1, poseur=0),
+        ),
+        connues=connues_apres,
+    )
+    finales = connues_apres + baisser.cartes_posees
+    une = trace((nourrir, baisser), posees_finales=finales)
+    # `d(f1) = -2 + 1 + 1 - 2 = -2` sur la vue vraie, Espions retournes : Obscurite.
+    assert statut_de(une.posees_finales, 1) is Statut.OBSCURITE
+
+    for sieges in ([0], [0, 1, 2]):
+        comptes = comp.motif_b1([une], CONFIG, sieges=sieges)
+        assert comptes["B1-motif"].succes == 1, sieges
+        assert comptes["B1-strict"].succes == 1, sieges
+        assert comptes["B1-savoir-commun"].succes == 0, sieges
 
 
 def test_b1_ne_se_compare_pas_entre_un_siege_et_trois_sans_changer_de_grain():
@@ -651,6 +760,84 @@ def test_b6_une_distance_sans_l_un_des_deux_tours_rend_none():
     une = trace((_au_tour(0, 1, Position.ESTIME),))
     distributions = comp.distributions_b6([une], CONFIG, sieges=[0])
     assert comp.distance_de_variation_totale(distributions, "banquet", 1, 4) is None
+
+
+def _quatre_tours_au_banquet(positions):
+    """Quatre poses, une par tour, chacune avec des cartes **distinctes**.
+
+    `_au_tour` reutilise la meme famille : a deux nœuds ca reste un plateau possible, a quatre
+    non. La fabrique ne controle les doublons qu'a l'interieur d'un nœud, donc c'est ici qu'il
+    faut varier la famille -- un attendu calcule de tete sur un plateau impossible a deja ete
+    faux une fois dans ce projet.
+    """
+    return trace(
+        tuple(
+            pose(
+                numero=tour - 1,
+                joueur=0,
+                tour=tour,
+                cartes=(
+                    banquet(tour - 1, Role.GARDE, position, poseur=0),
+                    domaine(tour - 1, Role.NEUTRE, proprietaire=0, poseur=0),
+                    domaine(tour - 1, Role.GARDE, proprietaire=1, poseur=0, exemplaire=1),
+                ),
+            )
+            for tour, position in enumerate(positions, start=1)
+        )
+    )
+
+
+def test_b6_dernier_contre_reste_melange_trois_etats_de_jeu_et_le_chiffre_le_montre():
+    """La concurrente pre-inscrite, et pourquoi elle n'est pas retenue.
+
+    Tour 1 en Estime, tours 2, 3 et 4 en Disgrace.
+
+      - **B6-distance**, tour 1 contre tour 4 : les deux tours n'ont aucune categorie commune,
+        donc la distance vaut **1**.
+      - **B6-dernier-contre-reste**, tour 4 contre les tours 1 a 3 agreges : le terme de
+        comparaison vaut Estime `1/3`, Disgrace `2/3`, donc la distance vaut
+        `0,5 x (1/3 + 1/3) = 1/3`.
+
+    Le meme comportement, deux chiffres qui different d'un facteur 3 : la concurrente est plus
+    stable statistiquement -- trois fois plus de nœuds dans son terme de comparaison -- et elle
+    dilue l'ecart parce qu'elle melange trois etats de plateau differents. C'est l'arbitrage
+    ecrit au paragraphe 6.6 de la pre-inscription, et il est ici chiffre.
+    """
+    une = _quatre_tours_au_banquet(
+        (Position.ESTIME, Position.DISGRACE, Position.DISGRACE, Position.DISGRACE)
+    )
+    distributions = comp.distributions_b6([une], CONFIG, sieges=[0])
+    assert comp.distance_de_variation_totale(distributions, "banquet", 1, 4) == pytest.approx(
+        1.0, abs=1e-12
+    )
+    assert comp.distance_dernier_contre_reste(
+        distributions, "banquet", 4, (1, 2, 3)
+    ) == pytest.approx(1 / 3, abs=1e-12)
+
+
+def test_b6_dernier_contre_reste_rend_none_si_le_terme_de_comparaison_est_vide():
+    """Un terme de comparaison sans nœud n'est pas un terme de comparaison identique.
+
+    Une seule pose, au tour 4 : les tours 1 a 3 n'ont aucun nœud. Rendre 0 ferait lire
+    « le dernier tour ressemble au reste de la partie » la ou il n'y a pas de reste.
+    """
+    une = trace(
+        (
+            pose(
+                numero=0,
+                joueur=0,
+                tour=4,
+                cartes=(
+                    banquet(0, Role.GARDE, Position.ESTIME, poseur=0),
+                    domaine(0, Role.NEUTRE, proprietaire=0, poseur=0),
+                    domaine(0, Role.GARDE, proprietaire=1, poseur=0, exemplaire=1),
+                ),
+            ),
+        )
+    )
+    distributions = comp.distributions_b6([une], CONFIG, sieges=[0])
+    assert comp.distance_dernier_contre_reste(distributions, "banquet", 4, (1, 2, 3)) is None
+    assert comp.distance_dernier_contre_reste(distributions, "banquet", 1, (2, 3, 4)) is None
 
 
 def test_b6_le_don_est_classe_cadeau_neutre_ou_poison_selon_la_vue_du_poseur():

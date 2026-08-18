@@ -50,6 +50,11 @@ VUE_DECIDEUR = "decideur"
 VUE_PUBLIQUE = "publique"
 VUE_VRAIE = "vraie"
 VUE_MIXTE = "decideur pour le choix, vraie pour ce qui paie"
+#: La meme chose au savoir commun : c'est la variante B1-savoir-commun, dont la clause 1
+#: se juge sur ce que TOUT LE MONDE voit. Elle ne majore ni ne minore B1-motif -- retirer
+#: un dos peut faire monter comme descendre l'influence percue --, donc aucune inclusion
+#: n'est assertee entre les deux : leur ecart est le resultat.
+VUE_MIXTE_PUBLIQUE = "publique pour le choix, vraie pour ce qui paie"
 
 
 @dataclass(frozen=True)
@@ -177,35 +182,50 @@ def _sieges(sieges: Sequence[int] | None, config: GameConfig) -> tuple[int, ...]
 
 def _evenements_b1(
     trace: TracePartie, siege: int, config: GameConfig
-) -> tuple[dict[tuple[int, int], list[int]], dict[int, list[int]]]:
-    """Les deux familles d'evenements de B1, pour un siege.
+) -> tuple[
+    dict[tuple[int, int], list[int]], dict[tuple[int, int], list[int]], dict[int, list[int]]
+]:
+    """Les evenements de B1, pour un siege, et les deux lectures de la clause 1.
 
-    Rend `(nourrir, baisser)` : `nourrir[(famille, adversaire)]` liste les numeros de nœud ou
-    `siege` a donne une carte de cette famille a cet adversaire alors que la famille etait
-    **Lumiere ou Indifferente dans SA vue** -- nourrir n'a de sens que si ce n'est pas deja un
-    poison. `baisser[famille]` liste les numeros ou il a fait baisser l'influence de la
-    famille : une pose au banquet en **Disgrace**, ou un meurtre d'une carte de cette famille
-    en **Estime**.
+    Rend `(nourrir, nourrir_publique, baisser)`.
+
+    `nourrir[(famille, adversaire)]` liste les numeros de nœud ou `siege` a donne une carte de
+    cette famille a cet adversaire alors que la famille etait **Lumiere ou Indifferente dans SA
+    vue** -- nourrir n'a de sens que si ce n'est pas deja un poison. `nourrir_publique` est le
+    meme evenement juge sur le **savoir commun** : les dos sont retires du plateau avant le
+    calcul du statut. C'est la variante pre-inscrite **B1-savoir-commun**, et son ecart avec la
+    premiere mesure de combien le savoir prive deplace le jugement.
+
+    `baisser[famille]` liste les numeros ou il a fait baisser l'influence de la famille : une
+    pose au banquet en **Disgrace**, ou un meurtre d'une carte de cette famille en **Estime**.
+    Cet evenement-la **ne depend d'aucune vue** : poser en Disgrace et tuer en Estime sont des
+    faits publics, et c'est pourquoi une seule liste sert aux deux lectures.
     """
     nourrir: dict[tuple[int, int], list[int]] = {}
+    nourrir_publique: dict[tuple[int, int], list[int]] = {}
     baisser: dict[int, list[int]] = {}
     for decision in trace.decisions:
         if decision.joueur != siege:
             continue
         if decision.phase is Phase.POSE:
-            statuts = rules.statuts(decision.connues, config.familles)
             adverse = decision.carte_chez_l_adversaire()
             if adverse is not None and adverse.zone.proprietaire is not None:
                 famille = adverse.carte.famille
-                if statuts[famille] in (Statut.LUMIERE, Statut.INDIFFERENTE):
-                    cle = (famille, adverse.zone.proprietaire)
-                    nourrir.setdefault(cle, []).append(decision.numero)
+                cle = (famille, adverse.zone.proprietaire)
+                visibles = tuple(p for p in decision.connues if not p.carte.face_cachee)
+                for source, cible in (
+                    (decision.connues, nourrir),
+                    (visibles, nourrir_publique),
+                ):
+                    statuts = rules.statuts(source, config.familles)
+                    if statuts[famille] in (Statut.LUMIERE, Statut.INDIFFERENTE):
+                        cible.setdefault(cle, []).append(decision.numero)
             banquet = decision.carte_de_banquet()
             if banquet is not None and est_au_banquet(banquet, Position.DISGRACE):
                 baisser.setdefault(banquet.carte.famille, []).append(decision.numero)
         elif decision.tuee is not None and est_au_banquet(decision.tuee, Position.ESTIME):
             baisser.setdefault(decision.tuee.carte.famille, []).append(decision.numero)
-    return nourrir, baisser
+    return nourrir, nourrir_publique, baisser
 
 
 def _paye(
@@ -253,8 +273,9 @@ def motif_b1(
       4. au decompte, `j` detient encore au moins une carte de `f` **vivante**.
 
     Concurrentes publiees a cote : **B1-tentative** sans les clauses 3 et 4, **B1-strict** dont
-    la clause 3 exige l'Obscurite, et **B1-collectif** dont `t1` et `t2` peuvent etre de
-    joueurs differents.
+    la clause 3 exige l'Obscurite, **B1-collectif** dont `t1` et `t2` peuvent etre de joueurs
+    differents, et **B1-savoir-commun** dont la clause 1 se juge sur le savoir commun -- dos
+    retires -- au lieu de la vue du donneur.
 
     Le denominateur, et la faute qu'il a fallu corriger
     --------------------------------------------------
@@ -275,7 +296,7 @@ def motif_b1(
     leur grain ecrit, parce qu'elle repond a une autre question : *cette partie contient-elle
     le motif quelque part*.
     """
-    noms = ("B1-motif", "B1-tentative", "B1-strict", "B1-collectif")
+    noms = ("B1-motif", "B1-tentative", "B1-strict", "B1-collectif", "B1-savoir-commun")
     par_siege = {nom: [0, 0] for nom in noms}
     par_partie = {nom: [0, 0] for nom in noms}
     retenus = _sieges(sieges, config)
@@ -289,13 +310,13 @@ def motif_b1(
         tous_baisser: dict[int, list[int]] = {}
         evenements = {}
         for siege in range(config.joueurs):
-            nourrir, baisser = _evenements_b1(trace, siege, config)
-            evenements[siege] = (nourrir, baisser)
+            nourrir, publique, baisser = _evenements_b1(trace, siege, config)
+            evenements[siege] = (nourrir, publique, baisser)
             for famille, numeros in baisser.items():
                 tous_baisser.setdefault(famille, []).extend(numeros)
 
         for siege in retenus:
-            nourrir, baisser = evenements[siege]
+            nourrir, nourrir_publique, baisser = evenements[siege]
             trouve = {nom: False for nom in noms}
             for (famille, adversaire), donnes in nourrir.items():
                 if not [n for n in baisser.get(famille, []) if n > min(donnes)]:
@@ -314,6 +335,15 @@ def motif_b1(
                     trace, famille, adversaire, exige_obscurite=False
                 ):
                     trouve["B1-collectif"] = True
+            # B1-savoir-commun : les quatre clauses de B1-motif, la premiere jugee sur le
+            # savoir commun. Aucune inclusion dans un sens ni dans l'autre -- retirer un dos
+            # peut faire monter comme descendre l'influence percue --, donc son ecart avec
+            # B1-motif se publie sans direction attendue.
+            for (famille, adversaire), donnes in nourrir_publique.items():
+                if [n for n in baisser.get(famille, []) if n > min(donnes)] and _paye(
+                    trace, famille, adversaire, exige_obscurite=False
+                ):
+                    trouve["B1-savoir-commun"] = True
             for nom in noms:
                 par_siege[nom][0] += int(trouve[nom])
                 par_siege[nom][1] += 1
@@ -324,15 +354,16 @@ def motif_b1(
 
     resultats: dict[str, Compte] = {}
     for nom in noms:
+        vue = VUE_MIXTE_PUBLIQUE if nom == "B1-savoir-commun" else VUE_MIXTE
         succes, total = par_siege[nom]
-        resultats[nom] = Compte(nom, succes, total, "couples (partie, siege)", VUE_MIXTE)
+        resultats[nom] = Compte(nom, succes, total, "couples (partie, siege)", vue)
         succes, total = par_partie[nom]
         resultats[f"{nom}-par-partie"] = Compte(
             f"{nom}-par-partie",
             succes,
             total,
             "parties (au moins un siege mesure)",
-            VUE_MIXTE,
+            vue,
         )
     return resultats
 
@@ -774,6 +805,39 @@ def distributions_b6(
     }
 
 
+def _parts_b6(
+    distributions: dict[tuple[str, int], dict[str, Compte]],
+    groupe: str,
+    tours: Sequence[int],
+) -> dict[str, float] | None:
+    """La distribution des categories de `groupe`, agregee sur `tours`.
+
+    Rend `None` si aucun nœud n'a ete observe : un denominateur nul est un resultat -- le tour
+    n'a pas eu lieu, ou ce groupe n'y apparait pas -- et non un zero.
+
+    Ecrite une fois pour les deux definitions de B6. Les recopier ferait deux endroits ou
+    corriger le meme traitement du denominateur vide.
+    """
+    cumul = dict.fromkeys(GROUPES_B6[groupe], 0)
+    for tour in tours:
+        classes = distributions.get((groupe, tour))
+        if classes is None:
+            continue
+        for categorie, compte in classes.items():
+            cumul[categorie] += compte.succes
+    total = sum(cumul.values())
+    if total == 0:
+        return None
+    return {categorie: compte / total for categorie, compte in cumul.items()}
+
+
+def _distance(premiere: dict[str, float], seconde: dict[str, float], groupe: str) -> float:
+    """`0,5 * somme des |p_i - q_i|`, donc dans `[0, 1]`."""
+    return 0.5 * sum(
+        abs(premiere[categorie] - seconde[categorie]) for categorie in GROUPES_B6[groupe]
+    )
+
+
 def distance_de_variation_totale(
     distributions: dict[tuple[str, int], dict[str, Compte]], groupe: str, premier: int, dernier: int
 ) -> float | None:
@@ -789,18 +853,35 @@ def distance_de_variation_totale(
     Rend `None` si l'un des deux tours n'a aucun nœud dans ce groupe : un denominateur nul est
     un resultat, pas un zero.
     """
-    debut = distributions.get((groupe, premier))
-    fin = distributions.get((groupe, dernier))
+    debut = _parts_b6(distributions, groupe, (premier,))
+    fin = _parts_b6(distributions, groupe, (dernier,))
     if debut is None or fin is None:
         return None
-    total_debut = next(iter(debut.values())).total
-    total_fin = next(iter(fin.values())).total
-    if total_debut == 0 or total_fin == 0:
+    return _distance(debut, fin, groupe)
+
+
+def distance_dernier_contre_reste(
+    distributions: dict[tuple[str, int], dict[str, Compte]],
+    groupe: str,
+    dernier: int,
+    premiers: Sequence[int],
+) -> float | None:
+    """La concurrente pre-inscrite de B6 : le dernier tour contre **tous** les autres agreges.
+
+    Elle est **plus stable** -- son terme de comparaison porte trois fois plus de nœuds sur
+    cette instance a 4 tours -- et c'est pour cela qu'elle n'est pas retenue : elle melange
+    trois etats de plateau differents dans ce terme, donc elle **dilue** l'ecart qu'elle mesure.
+    Son chiffre est publie a cote de celui de `distance_de_variation_totale` pour que l'arbitrage
+    du paragraphe 6.6 de la pre-inscription se lise sur des nombres et non sur une phrase.
+
+    Rend `None` si l'un des deux termes n'a aucun nœud : un terme de comparaison vide n'est pas
+    un terme de comparaison identique.
+    """
+    fin = _parts_b6(distributions, groupe, (dernier,))
+    reste = _parts_b6(distributions, groupe, premiers)
+    if fin is None or reste is None:
         return None
-    return 0.5 * sum(
-        abs(debut[categorie].succes / total_debut - fin[categorie].succes / total_fin)
-        for categorie in GROUPES_B6[groupe]
-    )
+    return _distance(reste, fin, groupe)
 
 
 # ---------------------------------------------------------------------------------
