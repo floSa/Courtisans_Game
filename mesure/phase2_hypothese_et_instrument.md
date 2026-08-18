@@ -410,26 +410,47 @@ l'erreur exactement inverse de celle que la phase 2 doit éviter.
 `M3(G-naïf)` est rapporté à côté, sur les mêmes donnes, pour que l'écart entre les deux
 lectures soit un chiffre et non un débat.
 
-### 5.4 Le départage, et pourquoi il n'est pas déterministe
+### 5.4 Le départage EST un élément de l'instrument
 
-Plusieurs actions atteignent souvent le même argmax. Prendre le plus petit indice d'action
-serait déterministe **et biaisé** : l'indice d'une action de pose encode l'assignation, la
-position au banquet et l'adversaire visé (`rules.decoder_action_pose`, numération à base
-mixte, l'adversaire variant le plus vite). Choisir systématiquement le plus petit indice
-fabriquerait une préférence stable pour une position et un adversaire — donc **un artefact
-directement dans B2, B3 et B6**.
+Plusieurs actions atteignent souvent le même argmax. **La règle qui les sépare n'est pas un
+détail d'implémentation : elle produit directement un des chiffres de M4**, et elle est donc
+pré-inscrite ici et non pas seulement écrite dans le code.
+
+Prendre le plus petit indice d'action serait déterministe **et biaisé** : l'indice d'une action
+de pose encode l'assignation, la position au banquet et l'adversaire visé
+(`rules.decoder_action_pose`, numération à base mixte, l'adversaire variant le plus vite).
+Choisir systématiquement le plus petit indice fabriquerait une préférence stable pour une
+position et un adversaire — donc **un artefact directement dans B2, B3 et B6**.
 
 | | |
 |---|---|
-| Départage de référence | tirage uniforme dans l'ensemble des argmax, `random.Random` dédié (§1.2) |
+| Départage de référence | **tirage uniforme** dans l'ensemble des argmax, `random.Random` dédié (§1.2) |
 | Variante de robustesse | plus petit indice, rapportée sur M3 seulement |
 
-**Conséquence sur B4, à écrire avant de mesurer.** Tuer un dos adverse ne change pas
-`evaluer`, puisqu'un dos vaut zéro dans `C_i`. Refus et meurtre-d'un-dos sont donc **à
-égalité** dans ces cas, et le départage tranche. Le taux de refus brut mélangerait alors deux
-choses. B4 publie donc **deux nombres séparés** (§6.4) : le refus **strict** — refuser est
-strictement meilleur que tout meurtre disponible — et le refus **par départage**. Le premier
-seul est un comportement ; le second est une conséquence de l'évaluation aveugle aux dos.
+#### 5.4.1 La conséquence sur B4, et elle est lourde
+
+Tuer un dos adverse **ne change pas** `evaluer` : un dos ne figure pas dans `C_i`, donc son
+retrait est sans effet. Refus et meurtre-d'un-dos sont donc **exactement à égalité**. Ce n'est
+pas une approximation : c'est structurel.
+
+**Donc quand toutes les cibles d'un nœud sont des dos, TOUTES les actions du nœud sont à
+égalité, refus compris. Ce n'est plus le greedy qui décide, c'est le départage.** Avec un
+tirage uniforme sur `k` dos plus le refus, le greedy refuse avec probabilité exactement
+`1/(k+1)` — et ce nombre est une propriété **de la règle de départage**, pas du jeu ni de
+l'heuristique.
+
+Or c'est ce nombre-là qui sortirait comme ligne de base de B4. Un lecteur lirait « le greedy
+refuse de tuer dans X % des cas » là où le calcul dit « mon départage a tiré au sort X % du
+temps ». **C'est mot pour mot la faute de la phase 1** : la phrase et le calcul n'ont pas le
+même sujet grammatical.
+
+Trois conséquences, pré-inscrites :
+
+1. **B4 se décompose en trois nombres**, pas deux (§6.4) ;
+2. **la part des nœuds de ciblage où toutes les cibles sont des dos est mesurée et publiée.**
+   Si elle est élevée, B4 mesure surtout le départage, et le rapport le dit à cet endroit-là ;
+3. le même découpage s'appliquera à l'agent de la phase 3, sinon sa comparaison à cette ligne
+   de base n'aurait pas de sens.
 
 ### 5.5 Il ne lit pas la vue de dieu — par construction, puis par test
 
@@ -608,9 +629,6 @@ plus petite, plus proche d'une intention.
 
 ### 6.4 B4 — Refuser de tuer quand le meurtre coûterait
 
-> **Règles §7.2 :** fréquence du refus, et vérification qu'il survient dans les cas
-> défavorables.
-
 **Le dénominateur, d'abord — c'est là que la lecture littérale est vide.** Refuser est
 **toujours** légal (§4.1, arbitrage R2), donc « fréquence des situations où refuser est
 possible » vaut 100 % par construction. Le dénominateur est donc les **nœuds de ciblage
@@ -618,24 +636,44 @@ offrant au moins une cible**, où refuser est un **choix** et non un constat. La
 mesuré que ces nœuds sont **82,53 % des 7 206 nœuds de ciblage** de 1 000 parties aléatoires :
 prendre tous les nœuds gonflerait mécaniquement le taux de refus d'un facteur `1/0,8253`.
 
-**Trois chiffres, séparés :**
+**Trois nombres, et le partage entre les deux premiers est ce qui distingue un comportement
+d'un tirage au sort** (§5.4.1) :
 
-| # | Chiffre | Dénominateur |
+| # | Chiffre | Ce qu'il est | Dénominateur |
+|---|---|---|---|
+| **B4-strict** | refus où **tout** meurtre disponible baisse **strictement** l'écart évalué | **un comportement** | refus |
+| **B4-départage** | refus où refuser était **à égalité** avec au moins un meurtre | **un tirage au sort** | refus |
+| **B4-contre-nature** | refus où au moins un meurtre était **strictement meilleur** | **un défaut** | refus |
+
+Les trois somment à 100 % des refus par construction, et le compte rendu **vérifie cette
+identité** — c'est un contrôle, pas une déduction.
+
+**B4-contre-nature doit valoir exactement 0 chez le greedy**, puisque `choisir` prend un
+argmax : un refus strictement dominé est impossible. **Il est publié quand même**, comme
+contrôle — un zéro qu'on n'imprime pas n'est pas un zéro vérifié, et l'enseignement de la
+phase 1 est qu'un zéro absolu se confronte à un cas construit à la main avant d'être écrit
+(cas `R-refus`, §5.6). Pour un agent entraîné en phase 3, ce même nombre cesse d'être
+trivialement nul et devient un diagnostic.
+
+**Deux chiffres de contexte, sans lesquels les trois précédents ne s'interprètent pas :**
+
+| Chiffre | Dénominateur | Pourquoi |
 |---|---|---|
-| **B4-refus** | part de refus | nœuds à ≥ 1 cible |
-| **B4-strict** | part de refus où **tout** meurtre disponible baisse **strictement** l'écart évalué dans la vue du décideur | refus |
-| **B4-départage** | part de refus où refuser était **à égalité** avec au moins un meurtre | refus |
-
-`B4-strict + B4-départage = 100 %` des refus, par construction, et le compte rendu vérifie
-cette identité — c'est un contrôle, pas une déduction. La séparation est imposée par le §5.4 :
-tuer un dos adverse ne change pas l'évaluation du greedy, donc une partie de ses refus est un
-départage et non un comportement. **Publier le seul taux brut ferait lire un comportement là
-où il y a un tirage au sort.**
+| **part des nœuds tout-dos** — nœuds dont **toutes** les cibles sont des dos | nœuds de ciblage à ≥ 1 cible | c'est la part de B4 que le **départage** produit, et non l'heuristique. Si elle est élevée, le rapport le dit à cet endroit |
+| **taux de refus brut** | nœuds à ≥ 1 cible | la grandeur que le §7.2 des règles demande littéralement, publiée **avec** sa décomposition en trois |
 
 **Symétrique, rapporté aussi : B4-meurtre-coûteux**, la part des meurtres exécutés alors que
-tout meurtre baissait strictement l'écart évalué. Chez le greedy, elle doit valoir **0 par
-construction** — et un zéro se confronte à un cas construit à la main avant d'être écrit
-(cas `R-refus`, §5.6).
+tout meurtre baissait strictement l'écart évalué. Chez le greedy elle doit valoir **0 par
+construction**, pour la même raison que B4-contre-nature.
+
+**Sur quelle évaluation « coûterait » est-il jugé.** Sur `agents.greedy.evaluer_actions`, donc
+sur l'écart d'un tour dans la vue du décideur — **y compris pour l'agent de la phase 3**, dont
+la fonction de valeur propre ne servira PAS d'étalon ici. C'est un choix, et il est fait pour
+la comparabilité : deux agents jugés par deux étalons différents ne se comparent pas. Le prix
+est qu'un agent qui refuse par anticipation d'un retournement — donc pour une bonne raison à
+horizon long — comptera dans **B4-contre-nature**, et ce cas-là devra être lu comme un signe
+de planification, pas comme un défaut. Écrit ici, avant de mesurer, pour ne pas être découvert
+au moment où le chiffre dérangera.
 
 ### 6.5 B5 — Se méfier des Espions
 
@@ -743,7 +781,8 @@ mesure, jamais à supposer confirmé.*
 | B1 | parties | 10 002 |
 | B2 | poses d'Assassin | *à mesurer* — l'Assassin est 1 rôle sur 5 |
 | B3 | poses en domaine adverse | 40 008 |
-| B4 | nœuds de ciblage à ≥ 1 cible | ~20 000 *(déduit de 82,53 % × ~2,4 nœuds/siège/partie)* |
+| B4-strict / -départage / -contre-nature | refus | *à mesurer* — dépend du taux de refus |
+| B4 brut, part tout-dos | nœuds de ciblage à ≥ 1 cible | ~20 000 *(déduit de 82,53 % × ~2,4 nœuds/siège/partie)* |
 | B5 | nœuds de pose à `\|d\| = 1` + dos + carte en main | *à mesurer* — le plus étroit des sept |
 | B6 | poses du tour 1, poses du tour 4 | 40 008 chacun, par groupe |
 | B7 | poses au banquet | 40 008 |
@@ -780,21 +819,25 @@ arrondi comme les autres — le cas attendu est B5.
    basse doit se lire en le sachant : c'est un **plafond du mesurable**, pas un défaut d'agent.
    Le compte rendu remesure ce taux sur les seeds de la campagne A, pour que le plafond soit
    établi sur les mêmes parties que la ligne de base.
-4. **M3 ne dit pas que le greedy est fort.** Il dit qu'il bat le hasard. « Battre le greedy est
+4. **Une part de B4 mesure le départage, pas le jeu.** Sur un nœud dont toutes les cibles
+   sont des dos, l'évaluation du greedy est plate : c'est la règle de départage du §5.4 qui
+   choisit, et elle refuse avec probabilité `1/(k+1)` sur `k` dos. Le taux de refus brut n'est
+   donc **pas** entièrement un comportement, et c'est pourquoi il ne se publie jamais seul.
+5. **M3 ne dit pas que le greedy est fort.** Il dit qu'il bat le hasard. « Battre le greedy est
    un plancher, pas un objectif » (§7.1 des règles), et aucun chiffre de la phase 2 ne borne la
    distance entre le greedy et un bon joueur.
-5. **M1 ne dit rien de l'avantage de siège sous d'autres politiques.** Un avantage mesuré sous
+6. **M1 ne dit rien de l'avantage de siège sous d'autres politiques.** Un avantage mesuré sous
    jeu uniformément aléatoire est une propriété de la structure **plus** de cette politique. Un
    agent entraîné peut avoir un avantage de siège différent, ou l'inverse. La permutation
    systématique (§1.2) rend la question sans conséquence pratique — elle ne la résout pas.
-6. **M2 ne dimensionne que des comparaisons de gain moyen.** Les fréquences de comportement de
+7. **M2 ne dimensionne que des comparaisons de gain moyen.** Les fréquences de comportement de
    M4 ont leurs propres dénominateurs et leurs propres intervalles (§6.8) ; le tableau du §3.3
    ne s'y applique pas.
-7. **Aucune de ces mesures ne dit quoi que ce soit de `complet-3j`** — 6 familles, 3
+8. **Aucune de ces mesures ne dit quoi que ce soit de `complet-3j`** — 6 familles, 3
    exemplaires, 10 tours. Rien ici ne se transporte par un facteur.
-8. **La phase 2 ne valide pas le moteur.** Elle le suppose conforme ; c'est la phase 0 qui
+9. **La phase 2 ne valide pas le moteur.** Elle le suppose conforme ; c'est la phase 0 qui
    l'établit, et elle est close.
-9. **Les seuils et les définitions de ce document sont des propositions.** Les chiffres bruts
+10. **Les seuils et les définitions de ce document sont des propositions.** Les chiffres bruts
    du compte rendu permettront de recalculer toute décision sous d'autres définitions sans
    relancer une mesure. C'est la raison pour laquelle chaque définition concurrente est publiée
    avec son chiffre, et non seulement nommée.
@@ -807,8 +850,13 @@ arrondi comme les autres — le cas attendu est B5.
 |---|---:|---|---|
 | A — aléatoire | 10 002 | *SUPPOSÉ* ~16 s, par extrapolation du 1,6 ms/partie mesuré en phase 1 | 5 min |
 | A — bloc de contrôle | 10 002 | idem | 5 min |
-| B — greedy, référence | 10 002 | *SUPPOSÉ* 8 à 35 min : ~24 poses évaluées par décision, plus les cibles | **2 h** |
+| B — greedy, référence | 10 002 | **MESURÉ 2,4 min** — 14,64 ms par partie sur 200 parties. *SUPPOSÉ* avant l'étape 2a : 8 à 35 min, soit un ordre de grandeur de trop | **2 h** |
 | B — G-naïf, 2-greedys | 2 × 10 002 | idem | 2 h chacune |
+
+**Mon estimation était fausse d'un ordre de grandeur, dans le sens sûr.** 2,4 min mesurées
+contre 8 à 35 min supposées. Un SUPPOSÉ démenti par le bas est une bonne nouvelle, mais c'en
+est un quand même, et la phase 3 s'appuiera sur ces estimations : le compte rendu final le
+consigne comme un écart d'estimation, pas comme un succès.
 
 Le protocole annonce « environ une heure » pour la phase 2. **Un dépassement du plafond est un
 défaut d'instrumentation, pas un résultat**, et il est signalé comme tel — c'est le garde-fou
