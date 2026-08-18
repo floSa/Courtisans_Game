@@ -140,6 +140,17 @@ def quantile_bilateral(risque: float, comparaisons: int = 1) -> float:
     return _NORMALE.inv_cdf(1 - risque / comparaisons / 2)
 
 
+def quantile_de_puissance(puissance: float) -> float:
+    """Le `z` unilateral d'une puissance cible. Public parce que le plan de M3 en a besoin.
+
+    Le garder prive obligerait l'appelant a lire `_NORMALE`, et un acces prive depuis un autre
+    module est exactement ce que le renommage de `vue_du_joueur` a corrige ailleurs.
+    """
+    if not 0 < puissance < 1:
+        raise ValueError(f"une puissance vaut strictement entre 0 et 1, {puissance} recue")
+    return _NORMALE.inv_cdf(puissance)
+
+
 def seuil_de_detection(
     proportion: float, nb_parties: int, risque: float, comparaisons: int = 1
 ) -> float:

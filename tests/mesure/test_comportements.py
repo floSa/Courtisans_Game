@@ -119,8 +119,12 @@ def test_b1_le_motif_est_compte_et_le_statut_final_est_bien_l_obscurite():
     assert comptes["B1-collectif"].succes == 1
     for compte in comptes.values():
         assert compte.total == 1
-        assert compte.grain == "parties"
         assert compte.vue == comp.VUE_MIXTE
+    # A un seul siege mesure, les deux grains coincident -- et c'est pourquoi la faute
+    # d'agregation etait invisible sur le greedy de reference.
+    assert comptes["B1-motif"].grain == "couples (partie, siege)"
+    assert comptes["B1-motif-par-partie"].grain == "parties (au moins un siege mesure)"
+    assert comptes["B1-motif-par-partie"].succes == comptes["B1-motif"].succes
 
 
 def test_b1_ne_compte_pas_si_l_adversaire_ne_detient_plus_rien_de_la_famille():
@@ -165,6 +169,44 @@ def test_b1_ne_compte_pas_si_le_don_suit_la_bascule():
     assert comptes["B1-motif"].succes == 0
 
 
+def test_b1_collectif_voit_une_bascule_par_un_siege_NON_mesure():
+    """Le second defaut trouve a l'etape 4, et le cas qui l'aurait attrape.
+
+    Le joueur 0 nourrit f1 chez le joueur 1 ; c'est le **joueur 2** qui met f1 en Disgrace. On
+    ne mesure que le siege 0 -- exactement la campagne B, ou seul le greedy est mesure.
+
+    `B1-motif` doit valoir **0** : les deux actions ne sont pas du meme joueur. `B1-collectif`
+    doit valoir **1** : sa bascule peut venir de n'importe qui. La premiere version n'agregeait
+    que les sieges MESURES, donc `B1-collectif` retombait sur `B1-motif` et valait 0 -- muet
+    precisement dans le cas ou il sert : un don du greedy retourne par un adversaire.
+
+    Le tell, dans le rapport, etait que `B1-collectif` valait **exactement** `B1-motif` sur la
+    campagne B, au chiffre pres.
+    """
+    from dataclasses import replace
+
+    une = _trace_b1()
+    premier, second = une.decisions
+    par_un_autre = trace(
+        (premier, replace(second, joueur=2)), posees_finales=une.posees_finales
+    )
+    comptes = comp.motif_b1([par_un_autre], CONFIG, sieges=[0])
+    assert comptes["B1-motif"].succes == 0
+    assert comptes["B1-collectif"].succes == 1
+
+
+def test_b1_collectif_majore_toujours_b1_motif():
+    """Une inclusion par construction : la bascule collective contient la bascule propre.
+
+    Verifiee sur les deux compositions de sieges. Une inclusion qui tombe designe un compteur
+    faux, et celle-ci est tombee une fois.
+    """
+    une = _trace_b1()
+    for sieges in ([0], [0, 1, 2]):
+        comptes = comp.motif_b1([une], CONFIG, sieges=sieges)
+        assert comptes["B1-collectif"].succes >= comptes["B1-motif"].succes
+
+
 def test_b1_collectif_compte_ce_que_b1_motif_refuse():
     """Deux joueurs differents : le motif existe, l'intention non. C'est l'ecart a publier.
 
@@ -181,6 +223,48 @@ def test_b1_collectif_compte_ce_que_b1_motif_refuse():
     comptes = comp.motif_b1([par_deux_joueurs], CONFIG, sieges=[0, 1, 2])
     assert comptes["B1-motif"].succes == 0
     assert comptes["B1-collectif"].succes == 1
+
+
+def test_b1_ne_se_compare_pas_entre_un_siege_et_trois_sans_changer_de_grain():
+    """La faute que l'audit de l'etape 4 a trouvee, et le cas qui l'aurait attrapee.
+
+    B1 est **le seul des sept** dont le denominateur naturel est la partie et non une action.
+    Agreger les sieges mesures par un « au moins un » gonfle donc le numerateur **sans toucher
+    au denominateur** : une ligne de base sur trois sieges n'est pas comparable a un agent sur
+    un siege.
+
+    La trace ci-dessous porte le motif chez **le seul joueur 0**. Mesuree sur les trois sieges :
+      - au grain `(partie, siege)` : **1 sur 3** -- un siege sur trois montre le motif ;
+      - au grain `partie` : **1 sur 1** -- la partie contient le motif quelque part.
+
+    Le rapport de trois entre les deux est exactement le facteur qui avait fait lire « le greedy
+    montre le motif moins que le hasard » alors que la comparaison juste dit l'inverse.
+    """
+    une = _trace_b1()
+    comptes = comp.motif_b1([une], CONFIG, sieges=[0, 1, 2])
+    assert (comptes["B1-motif"].succes, comptes["B1-motif"].total) == (1, 3)
+    assert (
+        comptes["B1-motif-par-partie"].succes,
+        comptes["B1-motif-par-partie"].total,
+    ) == (1, 1)
+    assert comptes["B1-motif"].taux() == pytest.approx(1 / 3)
+    assert comptes["B1-motif-par-partie"].taux() == pytest.approx(1.0)
+
+
+def test_b1_le_grain_par_siege_est_le_seul_comparable_entre_compositions():
+    """Deux compositions, deux nombres de sieges mesures : seul le grain par siege se compare.
+
+    La meme trace, mesuree sur un siege puis sur trois. Le taux au grain `(partie, siege)` doit
+    rester dans une echelle comparable -- ici il **baisse**, parce que deux sieges sur trois ne
+    montrent rien --, alors que le taux par partie ne peut que **monter** avec le nombre de
+    sieges agreges. Un chiffre qui ne peut que monter avec la taille de l'agregat n'est pas une
+    frequence de comportement.
+    """
+    une = _trace_b1()
+    un_siege = comp.motif_b1([une], CONFIG, sieges=[0])
+    trois = comp.motif_b1([une], CONFIG, sieges=[0, 1, 2])
+    assert trois["B1-motif"].taux() < un_siege["B1-motif"].taux()
+    assert trois["B1-motif-par-partie"].taux() >= un_siege["B1-motif-par-partie"].taux()
 
 
 # ---------------------------------------------------------------------------------
@@ -260,7 +344,7 @@ def test_b2_la_distribution_des_quatre_destinations_somme_au_denominateur():
     ou pas du tout.
     """
     distribution = comp.distribution_b2([_trace_b2()], CONFIG, sieges=[0])
-    assert distribution["banquet-Estime"].succes == 1
+    assert distribution["B2-destination/banquet-Estime"].succes == 1
     assert sum(c.succes for c in distribution.values()) == 1
     assert {c.total for c in distribution.values()} == {1}
 

@@ -255,56 +255,86 @@ def motif_b1(
     Concurrentes publiees a cote : **B1-tentative** sans les clauses 3 et 4, **B1-strict** dont
     la clause 3 exige l'Obscurite, et **B1-collectif** dont `t1` et `t2` peuvent etre de
     joueurs differents.
+
+    Le denominateur, et la faute qu'il a fallu corriger
+    --------------------------------------------------
+    B1 est **le seul des sept** dont le denominateur naturel est la partie et non une action.
+    C'est ce qui le rend piegeux : agreger les sieges mesures par un « au moins un » gonfle le
+    numerateur **sans toucher au denominateur**, donc une ligne de base sur 3 sieges n'est pas
+    comparable a un agent sur 1 siege.
+
+    MESURE au moment de l'audit : la meme politique uniforme donne **71,00 %** en agregeant les
+    trois sieges et **37,58 %** sur un seul, sur les memes parties. Comparer 47,93 % (greedy,
+    un siege) a 71,00 % faisait conclure « le greedy montre le motif MOINS que le hasard »,
+    alors que la comparaison juste dit l'inverse. C'est mot pour mot la faute de la phase 1 :
+    un chiffre juste dont la phrase et le calcul n'ont pas le meme sujet grammatical.
+
+    **Le denominateur primaire est donc le couple `(partie, siege mesure)`.** Pour un agent
+    seul -- le greedy de reference -- il coincide avec la partie, ce que la pre-inscription
+    disait. Les variantes `-par-partie` gardent la lecture « au moins un siege mesure », avec
+    leur grain ecrit, parce qu'elle repond a une autre question : *cette partie contient-elle
+    le motif quelque part*.
     """
-    comptes = {
-        "B1-motif": [0, 0],
-        "B1-tentative": [0, 0],
-        "B1-strict": [0, 0],
-        "B1-collectif": [0, 0],
-    }
+    noms = ("B1-motif", "B1-tentative", "B1-strict", "B1-collectif")
+    par_siege = {nom: [0, 0] for nom in noms}
+    par_partie = {nom: [0, 0] for nom in noms}
     retenus = _sieges(sieges, config)
     for trace in traces:
-        motif = tentative = strict = collectif = False
-        tous_nourrir: dict[tuple[int, int], list[int]] = {}
+        vus = {nom: False for nom in noms}
+        # **Tous les sieges, pas seulement les mesures.** B1-collectif dit que `t1` et `t2`
+        # peuvent etre de joueurs DIFFERENTS : n'agreger que les sieges mesures le ramene a
+        # B1-motif des qu'on mesure un agent seul, ce qui le rend muet exactement dans le cas
+        # ou il sert -- un greedy dont le don est retourne par un adversaire. Le tell etait que
+        # `B1-collectif` valait exactement `B1-motif` sur la campagne B, au chiffre pres.
         tous_baisser: dict[int, list[int]] = {}
-        par_siege = {}
-        for siege in retenus:
+        evenements = {}
+        for siege in range(config.joueurs):
             nourrir, baisser = _evenements_b1(trace, siege, config)
-            par_siege[siege] = (nourrir, baisser)
-            for cle, numeros in nourrir.items():
-                tous_nourrir.setdefault(cle, []).extend(numeros)
+            evenements[siege] = (nourrir, baisser)
             for famille, numeros in baisser.items():
                 tous_baisser.setdefault(famille, []).extend(numeros)
 
         for siege in retenus:
-            nourrir, baisser = par_siege[siege]
+            nourrir, baisser = evenements[siege]
+            trouve = {nom: False for nom in noms}
             for (famille, adversaire), donnes in nourrir.items():
-                suivants = [n for n in baisser.get(famille, []) if n > min(donnes)]
-                if not suivants:
+                if not [n for n in baisser.get(famille, []) if n > min(donnes)]:
                     continue
-                tentative = True
+                trouve["B1-tentative"] = True
                 if _paye(trace, famille, adversaire, exige_obscurite=False):
-                    motif = True
+                    trouve["B1-motif"] = True
                 if _paye(trace, famille, adversaire, exige_obscurite=True):
-                    strict = True
-        for (famille, adversaire), donnes in tous_nourrir.items():
-            suivants = [n for n in tous_baisser.get(famille, []) if n > min(donnes)]
-            if suivants and _paye(trace, famille, adversaire, exige_obscurite=False):
-                collectif = True
+                    trouve["B1-strict"] = True
+            # B1-collectif : le don vient du siege mesure, la bascule de N'IMPORTE QUEL siege
+            # (`tous_baisser`). On l'attribue au siege qui a nourri, pour que son denominateur
+            # reste celui des trois autres. Il majore donc B1-motif par construction, et le
+            # rapport verifie cette inclusion.
+            for (famille, adversaire), donnes in nourrir.items():
+                if [n for n in tous_baisser.get(famille, []) if n > min(donnes)] and _paye(
+                    trace, famille, adversaire, exige_obscurite=False
+                ):
+                    trouve["B1-collectif"] = True
+            for nom in noms:
+                par_siege[nom][0] += int(trouve[nom])
+                par_siege[nom][1] += 1
+                vus[nom] = vus[nom] or trouve[nom]
+        for nom in noms:
+            par_partie[nom][0] += int(vus[nom])
+            par_partie[nom][1] += 1
 
-        for nom, valeur in (
-            ("B1-motif", motif),
-            ("B1-tentative", tentative),
-            ("B1-strict", strict),
-            ("B1-collectif", collectif),
-        ):
-            comptes[nom][0] += int(valeur)
-            comptes[nom][1] += 1
-
-    return {
-        nom: Compte(nom, succes, total, "parties", VUE_MIXTE)
-        for nom, (succes, total) in comptes.items()
-    }
+    resultats: dict[str, Compte] = {}
+    for nom in noms:
+        succes, total = par_siege[nom]
+        resultats[nom] = Compte(nom, succes, total, "couples (partie, siege)", VUE_MIXTE)
+        succes, total = par_partie[nom]
+        resultats[f"{nom}-par-partie"] = Compte(
+            f"{nom}-par-partie",
+            succes,
+            total,
+            "parties (au moins un siege mesure)",
+            VUE_MIXTE,
+        )
+    return resultats
 
 
 # ---------------------------------------------------------------------------------
@@ -382,7 +412,14 @@ def distribution_b2(
     Denominateur commun : les poses d'Assassin. Les quatre parts somment donc a 1 -- un
     Assassin va dans une zone et une seule -- et le rapport le verifie.
     """
-    noms = ("banquet-Estime", "banquet-Disgrace", "domaine propre", "domaine adverse")
+    # Prefixees : elles vivent dans le meme tableau que les compteurs B2, et un lecteur ne
+    # doit pas avoir a deviner qu'elles en font partie.
+    noms = (
+        "B2-destination/banquet-Estime",
+        "B2-destination/banquet-Disgrace",
+        "B2-destination/domaine propre",
+        "B2-destination/domaine adverse",
+    )
     comptes = {nom: 0 for nom in noms}
     total = 0
     retenus = _sieges(sieges, config)
@@ -396,11 +433,12 @@ def distribution_b2(
                 total += 1
                 if rang == 0:
                     estime = posee.zone.position is Position.ESTIME
-                    comptes["banquet-Estime" if estime else "banquet-Disgrace"] += 1
+                    cote = "Estime" if estime else "Disgrace"
+                    comptes[f"B2-destination/banquet-{cote}"] += 1
                 elif rang == 1:
-                    comptes["domaine propre"] += 1
+                    comptes["B2-destination/domaine propre"] += 1
                 else:
-                    comptes["domaine adverse"] += 1
+                    comptes["B2-destination/domaine adverse"] += 1
     return {
         nom: Compte(nom, comptes[nom], total, "poses d'Assassin", VUE_PUBLIQUE) for nom in noms
     }
