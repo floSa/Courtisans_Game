@@ -121,7 +121,7 @@ fondées.
 | Phase | Objet | Exécution | Bloquante |
 |---|---|---:|---|
 | **0** | ~~Moteur conforme réécrit~~ — **close le 17/08, audit croisé compris ; réserve unique levée le 17/08** : 596 tests verts, 8 critères d'acceptation atteints, 19 mutations sur 19 détectées, couverture 643/643. Verdict de l'auditeur : **ACCEPTÉ SOUS RÉSERVE**. | tests + couverture : 12 min 22 s | **oui** |
-| **1** | **Instance d'entraînement** — 4 familles, 3 joueurs, conforme | quelques min | **oui** |
+| **1** | ~~Instance d'entraînement~~ — **close le 18/08, audit croisé compris** : `entrainement-3j`, 4 familles, 5 rôles, 2 exemplaires, 3 joueurs, 40 cartes, **4 tours**. Les trois go/no-go tenus — 1 000/1 000 parties à `(4, 4, 4)` tours, 10/10 critères de non-dégénérescence, retournement R2 dans **96,00 % (960/1 000), IC99 [94,12 % ; 97,42 %]** contre un seuil de 33,3 %. 648 tests verts. Verdict de l'auditeur : **REJETÉ** puis **ACCEPTÉ SOUS RÉSERVE** — deux réserves mineures nommées au [journal](06_journal_decisions.md). | 1,6 ms/partie, 1,7 s pour 1 000 | **oui** |
 | **2** | **Banc de test 2 joueurs** — instance symétrique + oracle CFR+ + métrique corrigée | oracle ~4 h | **oui** |
 | **3** | **Diagnostic du plafond** — trancher entre les 3 hypothèses | P3.0 : 10 s · P3.1 : ~3 h · P3.2 : ~20 min GPU | **oui** |
 | 4 | Algorithme — SD-CFR, puis ESCHER si besoin | run ~2 h | non |
@@ -147,8 +147,19 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    corrigés, plus la réserve unique de l'auditeur — le libellé qui nommait une carte
    cachée — levée le 17/08. Voir l'entrée du 17/08 au
    [journal](06_journal_decisions.md).
-4. **Écrire les prompts de la phase 1** — construction et audit, sur le modèle des
-   deux premiers.
+4. ~~Écrire les prompts de la phase 1~~ — **fait**, construction et audit. La phase 1
+   est **close le 18/08** : l'instance `entrainement-3j` est validée, les trois
+   go/no-go tenus, 648 tests verts. L'audit a **rejeté** au premier tour — un
+   « 0 sur 1 000 » qui ne mesurait pas sa propre phrase, contredit par un test du
+   même livrable — puis **accepté sous réserve** après correction. Voir l'entrée du
+   18/08 au [journal](06_journal_decisions.md).
+5. **Écrire les prompts de la phase 2** — construction et audit, sur le modèle des
+   quatre premiers. La phase 2 mesure le terrain avant d'entraîner quoi que ce soit :
+   avantage de siège, variance du score, winrate du greedy, et **ligne de base des
+   comportements B1–B7**. Un point s'y ajoute, sorti de l'audit de la phase 1 : la
+   fréquence des retournements qu'**aucun** siège ne voit — ~7 % des parties — est un
+   **plafond de ce que B1 peut mesurer**, et la ligne de base doit être lue en la
+   retranchant.
 
 ---
 
