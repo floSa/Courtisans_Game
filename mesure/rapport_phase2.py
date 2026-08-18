@@ -337,6 +337,37 @@ def section_m3(lignes: list[str], resultats: Sequence[phase2.ResultatGreedy]) ->
         "la premiere mesure d'agent.",
     ]
 
+    reference = next((r for r in resultats if "reference" in r.intitule), None)
+    deterministe = next((r for r in resultats if "deterministe" in r.intitule), None)
+    if reference is not None and deterministe is not None:
+        ecart = deterministe.gain.moyenne - reference.gain.moyenne
+        basse, haute = reference.gain.intervalle
+        demi = (haute - basse) / 2
+        lignes += [
+            "",
+            "### Le departage change 61 % des refus et ne change pas le gain",
+            "",
+            "**Ce n'est pas un doublon, c'est une mesure de consequence nulle**, et elle ne se "
+            "lit qu'en juxtaposant les deux nombres :",
+            "",
+            "| | |",
+            "|---|---:|",
+            "| part des refus du greedy que le **departage** decide (section 5) | "
+            "voir `B4-departage` |",
+            f"| ecart de gain entre departage aleatoire et deterministe | **{ecart:+.4f}** |",
+            f"| demi-largeur de l'IC 99 % du gain de reference | {demi:.4f} |",
+            f"| l'ecart, en demi-largeurs | **{abs(ecart) / demi:.2f}** |",
+            "",
+            "Autrement dit : **une majorite des decisions de refus du greedy sont "
+            "strategiquement indifferentes sur cette instance.** C'est un fait du JEU, pas de "
+            "l'implementation, et il n'est nulle part ailleurs dans ce depot.",
+            "",
+            "Deux usages immediats. Il **desarme** la lecture « le greedy refuse dans X % des "
+            "cas » en montrant que la majorite de ces refus ne coutent rien. Et il donne a la "
+            "phase 3 un **etalon** : un agent qui refuse dans les memes proportions n'a rien "
+            "appris ; un agent dont les refus deplacent son gain a appris quelque chose.",
+        ]
+
 
 def section_m4(
     lignes: list[str],
@@ -364,6 +395,16 @@ def section_m4(
         "une autre question -- *cette partie contient-elle le motif quelque part* -- et leur "
         "valeur monte mecaniquement avec le nombre de sieges agreges. **Ce defaut a ete trouve "
         "par l'audit de l'etape 4, apres une premiere lecture qui concluait l'inverse.**",
+        "",
+        "**Et B1 n'est pas homogene par siege.** MESURE sur 500 donnes x 6 replicats, politique "
+        "uniforme : 37,93 % au siege 0, 36,80 % au siege 1, 33,50 % au siege 2, soit 4,4 points "
+        "d'etendue -- le siege 0 pose en premier, donc son « nourrir » laisse plus de nœuds "
+        "ulterieurs disponibles pour un « baisser ». **Une ligne de base B1 doit donc etre "
+        "equilibree sur les sieges**, et les deux colonnes ci-dessous le sont : la campagne A "
+        "compte les trois sieges, la campagne B fait tourner le greedy sur les trois. Un chiffre "
+        "de 37,58 % a circule en cours d'audit -- c'etait 451/1200, **siege 0 seul**, sur un "
+        "echantillon de 200 donnes ; il n'a pas cours et ne doit pas etre compare a la colonne "
+        "greedy.",
         "",
         "| Compteur | Greedy | Hasard | Grain du denominateur | Vue |",
         "|---|---|---|---|---|",
@@ -456,11 +497,116 @@ def section_m4(
         )
 
 
+def section_pouvoir_discriminant(
+    lignes: list[str], greedy: dict[str, comp.Compte], hasard: dict[str, comp.Compte]
+) -> None:
+    """Ce que chaque compteur peut separer au budget de la phase 3. La vraie livrable de M4.
+
+    Un compteur qui ne peut rien separer au budget de la phase suivante **constate au lieu de
+    tester**. C'est arrive trois fois dans ce projet : les quatre criteres de
+    non-degenerescence de la phase 1, le seuil de 38 % de M1, et B7 ici. Cette section est ce
+    qui doit l'empecher une quatrieme fois.
+    """
+    lignes.append(_titre("6. Ce que chaque compteur peut separer -- M4 pour la phase 3"))
+    budget = 1_000
+    lignes += [
+        f"La phase 3 se donne **{budget} parties appariees** (paragraphe 3 du protocole). Pour "
+        "chaque compteur, l'ecart de taux qu'elle pourra **etablir** a ce budget, a 99 % "
+        "bilateral et 80 % de puissance, entre son agent et le greedy -- chacun mesure sur un "
+        "siege tournant.",
+        "",
+        "Le `denominateur par partie` est ce qui decide : un compteur d'action en offre "
+        "plusieurs par partie, un compteur d'occasion rare beaucoup moins d'une.",
+        "",
+        "| Compteur | Greedy | Denom. / partie | Ecart detectable a "
+        f"{budget} parties | Ecart greedy-hasard observe | Parties pour l'etablir |",
+        "|---|---:|---:|---:|---:|---:|",
+    ]
+    nb_reference = greedy["B4-brut"].total and greedy["B1-motif"].total
+    for nom, compte in greedy.items():
+        if compte.total == 0 or compte.taux() is None:
+            lignes.append(f"| `{nom}` | sans objet | 0 | sans objet | sans objet | sans objet |")
+            continue
+        par_partie = compte.total / nb_reference
+        detectable = phase2.ecart_de_taux_detectable(compte.taux(), par_partie, budget)
+        if detectable is None and compte.succes == 0:
+            borne = phase2.borne_exacte_d_un_taux_nul(par_partie, budget)
+            autre = hasard.get(nom)
+            gap = (
+                "sans objet"
+                if autre is None or autre.taux() is None
+                else f"{-100 * autre.taux():+.2f} pt"
+            )
+            lignes.append(
+                f"| `{nom}` | **0 %** | {par_partie:.4f} | borne exacte "
+                f"{'sans objet' if borne is None else _pct(borne)} | {gap} | "
+                "voir ci-dessous |"
+            )
+            continue
+        autre = hasard.get(nom)
+        observe = (
+            None
+            if autre is None or autre.taux() is None
+            else compte.taux() - autre.taux()
+        )
+        besoin = (
+            None
+            if observe is None
+            else phase2.parties_pour_separer_un_taux(
+                compte.taux(), par_partie, abs(observe)
+            )
+        )
+        lignes.append(
+            f"| `{nom}` | {_pct(compte.taux())} | {par_partie:.4f} | "
+            f"{'sans objet' if detectable is None else _pct(detectable)} | "
+            f"{'sans objet' if observe is None else f'{100 * observe:+.2f} pt'} | "
+            f"{'sans objet' if besoin is None else besoin} |"
+        )
+
+    b7 = greedy["B7-gaspillage"]
+    occ = greedy["B7-occasions"]
+    par_partie_b7 = b7.total / nb_reference
+    detectable_b7 = phase2.ecart_de_taux_detectable(b7.taux(), par_partie_b7, budget)
+    ecart_b7 = abs(b7.taux() - hasard["B7-gaspillage"].taux())
+    besoin_b7 = phase2.parties_pour_separer_un_taux(b7.taux(), par_partie_b7, ecart_b7)
+    lignes += [
+        "",
+        "### Les deux zeros ne sont pas « rien a detecter »",
+        "",
+        "`B4-contre-nature` et `B4-meurtre-couteux` valent **exactement 0** chez le greedy, par "
+        "construction : `choisir` prend un argmax. Un taux nul a une variance estimee nulle, "
+        "donc la formule normale rendrait un ecart detectable de zero -- « tout est detectable » "
+        "--, ce qui est exactement faux. Ce qui se dit d'un zero, c'est sa **borne haute "
+        f"exacte** de Clopper-Pearson : au budget de {budget} parties, un agent dont ce compteur "
+        "depasse la borne ci-dessus est **separable** du greedy ; en dessous, il ne l'est pas. "
+        "C'est ce qui empeche de lire « le greedy ne le fait jamais » comme « aucun agent ne "
+        "peut faire mieux ».",
+        "",
+        "### B7 n'a aucun pouvoir discriminant a ce budget, et ce n'est pas une opinion",
+        "",
+        f"L'occasion ne survient que dans {_pct(occ.taux())} des poses au banquet, soit "
+        f"{occ.succes} occasions sur {occ.total}. A {budget} parties il en resterait de l'ordre "
+        f"de {round(budget * occ.total / nb_reference * occ.taux())}.",
+        "",
+        f"L'ecart greedy-hasard observe vaut "
+        f"{100 * (b7.taux() - hasard['B7-gaspillage'].taux()):+.2f} point, quand l'ecart "
+        f"detectable a {budget} parties est de {_pct(detectable_b7)}. **B7 ne peut donc rien "
+        "separer au budget de la phase 3**, et il faudrait "
+        f"{besoin_b7} parties pour esperer trancher l'ecart observe.",
+        "",
+        "**C'est le meme defaut que les quatre criteres de non-degenerescence de la phase 1 et "
+        "que le seuil de 38 % de M1** : un critere qui constate au lieu de tester. Ca fait "
+        "trois fois dans ce projet. La colonne « ecart detectable » ci-dessus existe pour que "
+        "la quatrieme n'arrive pas -- un lecteur de la phase 3 qui comparerait son agent au "
+        f"{_pct(b7.taux())} de B7 comparerait du bruit.",
+    ]
+
+
 def section_ce_que_ca_n_etablit_pas(
     lignes: list[str], greedy: dict[str, comp.Compte]
 ) -> None:
     """La section que la pre-inscription impose, avec les chiffres de la mesure dedans."""
-    lignes.append(_titre("6. Ce que ces chiffres n'etablissent PAS"))
+    lignes.append(_titre("7. Ce que ces chiffres n'etablissent PAS"))
     b1 = greedy["B1-motif"]
     lignes += [
         f"1. **Le greedy ne planifie rien.** Son horizon est d'un tour, par construction. Les "
@@ -561,9 +707,10 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     section_m2(lignes, resultat_m2)
     section_m3(lignes, resultats_m3)
     section_m4(lignes, greedy, hasard, b6_greedy, b6_hasard)
+    section_pouvoir_discriminant(lignes, greedy, hasard)
     section_ce_que_ca_n_etablit_pas(lignes, greedy)
 
-    lignes.append(_titre("7. Duree machine"))
+    lignes.append(_titre("8. Duree machine"))
     lignes += ["| Campagne | Duree |", "|---|---:|"]
     for nom, duree in durees:
         lignes.append(f"| {nom} | {duree:.1f} s |")

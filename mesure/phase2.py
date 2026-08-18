@@ -42,7 +42,12 @@ from agents.politique import politique_greedy, politique_greedy_deterministe
 from courtisans.engine import Engine
 from mesure import comportements as comp
 from mesure import dimensionnement as dim
-from mesure.bootstrap import EffetDePlan, bootstrap_par_donne, correlation_intra_donne
+from mesure.binomiale import intervalle_clopper_pearson
+from mesure.bootstrap import (
+    EffetDePlan,
+    bootstrap_par_donne,
+    correlation_intra_donne,
+)
 from mesure.instance import ENTRAINEMENT_3J
 from mesure.partie import politique_uniforme
 from mesure.trace import TracePartie, tracer
@@ -441,6 +446,95 @@ def mesurer_m3(
 
 
 # ---------------------------------------------------------------------------------
+# Le pouvoir discriminant d'un compteur -- la vraie livrable de M4 pour la phase 3
+# ---------------------------------------------------------------------------------
+
+
+def ecart_de_taux_detectable(
+    taux: float,
+    par_partie: float,
+    nb_parties: int,
+    risque: float = dim.RISQUE,
+    puissance: float = dim.PUISSANCE,
+) -> float | None:
+    """L'ecart de taux detectable entre deux agents, chacun mesure sur `nb_parties` parties.
+
+    Un compteur de comportement n'a de valeur pour la phase 3 que s'il peut **separer** deux
+    agents au budget qu'elle se donne. Trois fois dans ce projet un critere a constate au lieu
+    de tester : les quatre criteres de non-degenerescence de la phase 1, le seuil de 38 % de M1,
+    et B7 ici. Ce chiffre est ce qui l'empeche une quatrieme fois.
+
+    Args:
+        taux: le taux de reference -- celui du greedy, la ligne de base a battre.
+        par_partie: le denominateur **par partie** du compteur. `12` pour une pose au banquet
+            tous sieges confondus, `4` pour le seul siege mesure, `0,0122` pour une occasion de
+            B7... C'est lui qui fait qu'un compteur d'action discrimine et qu'un compteur
+            d'occasion rare ne discrimine pas.
+        nb_parties: le budget, en parties, de **chacun** des deux agents compares.
+
+    Rend `None` dans deux cas, et les deux sont des resultats :
+
+      - le denominateur attendu est inferieur a 1 : sur un compteur aussi rare, l'ecart
+        detectable n'est pas un grand nombre, il **n'existe pas** ;
+      - le taux vaut **exactement 0 ou 1**. La variance binomiale y est nulle, donc la formule
+        normale rendrait un ecart detectable de zero -- « tout est detectable » -- ce qui est
+        exactement faux. Un zero observe se traite par sa **borne exacte**, que rend
+        `borne_exacte_d_un_taux_nul`.
+    """
+    effectif = nb_parties * par_partie
+    if effectif < 1:
+        return None
+    if taux <= 0.0 or taux >= 1.0:
+        return None
+    erreur = (2 * taux * (1 - taux) / effectif) ** 0.5
+    return (dim.quantile_bilateral(risque) + dim.quantile_de_puissance(puissance)) * erreur
+
+
+def borne_exacte_d_un_taux_nul(
+    par_partie: float, nb_parties: int, risque: float = dim.RISQUE
+) -> float | None:
+    """La borne haute exacte d'un taux observe **nul**, au budget donne.
+
+    Un compteur a 0 sur `n` observations n'a pas d'ecart detectable au sens normal : sa variance
+    estimee est nulle. Ce qu'on peut dire est **jusqu'ou** le vrai taux pourrait monter sans
+    qu'on l'ait vu -- la borne haute de Clopper-Pearson pour `k = 0`, exacte et sans hypothese
+    de normalite.
+
+    Lecture pour la phase 3 : un agent dont ce compteur depasse cette borne est **separable** du
+    greedy ; en dessous, il ne l'est pas. C'est la seule facon de donner un pouvoir discriminant
+    a un zero, et le seul moyen d'empecher qu'on lise « le greedy ne le fait jamais » comme
+    « aucun agent ne peut faire mieux ».
+
+    Rend `None` si le budget ne produit aucune observation.
+    """
+    effectif = int(nb_parties * par_partie)
+    if effectif < 1:
+        return None
+    return intervalle_clopper_pearson(0, effectif, risque)[1]
+
+
+def parties_pour_separer_un_taux(
+    taux: float,
+    par_partie: float,
+    ecart: float,
+    risque: float = dim.RISQUE,
+    puissance: float = dim.PUISSANCE,
+) -> int | None:
+    """Les parties necessaires pour separer un ecart de `ecart` sur un compteur de ce taux.
+
+    L'inverse de `ecart_de_taux_detectable`. Rend `None` si `ecart` est nul ou si le compteur
+    n'a aucun denominateur -- aucun nombre de parties n'etablit un ecart nul.
+    """
+    if ecart <= 0 or par_partie <= 0 or taux <= 0.0 or taux >= 1.0:
+        # A taux nul ou unitaire la variance estimee est nulle : la formule rendrait « 0 partie
+        # suffit », ce qui est le contraire de la verite. Voir `borne_exacte_d_un_taux_nul`.
+        return None
+    z = dim.quantile_bilateral(risque) + dim.quantile_de_puissance(puissance)
+    effectif = (z / ecart) ** 2 * 2 * taux * (1 - taux)
+    return int(-(-(effectif / par_partie) // 1))
+
+
+# ---------------------------------------------------------------------------------
 # M4 -- B1 a B7
 # ---------------------------------------------------------------------------------
 
@@ -538,8 +632,11 @@ __all__ = [
     "ResultatGreedy",
     "ResultatSiege",
     "ResultatVariance",
+    "borne_exacte_d_un_taux_nul",
     "campagne_a",
     "campagne_b",
+    "ecart_de_taux_detectable",
+    "parties_pour_separer_un_taux",
     "ecart_detectable",
     "main",
     "mesurer_b6",
