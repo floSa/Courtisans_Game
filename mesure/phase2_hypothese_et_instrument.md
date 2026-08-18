@@ -878,3 +878,48 @@ le §1 du protocole qu'il faut corriger, pas la mesure.
 Le §3 du protocole présente en outre « 20 cartes ou 40 cartes » comme un arbitrage à trancher
 en phase 1 : il n'en est pas un, la variante à 20 cartes étant refusée à la construction par
 le plancher `tours ≥ 3` du §8 des règles. Signalé par la phase 1, non encore corrigé.
+
+---
+
+## 11. Trois enseignements de méthode, à remonter au journal
+
+Écrits ici, avant la mesure, parce qu'ils sont nés d'une faute commise **sur ce document** et
+corrigée avant qu'une seule partie soit jouée. Ils valent pour toutes les phases suivantes.
+
+### 11.1 Un seuil de puissance se publie sur son premier `n` STABLE
+
+« Le plus petit `n` dont la puissance dépasse 80 % » est une **coïncidence d'arrondi sur la
+valeur critique entière**. La puissance exacte d'un test de proportion n'est pas monotone en
+`n` : elle avance en dents de scie, parce que `c` saute d'une unité. MESURÉ, contre un siège à
+38 % : elle franchit 80 % à `n = 1 501`, retombe à 79,12 % à 1 502, et ne cesse de redescendre
+qu'à partir de **1 531** — douze creux après le franchissement. Contre un siège à 35 %,
+quarante-cinq creux, le dernier à +90.
+
+**Un `n` publié doit tenir pour lui-même et pour tout ce qui le suit.** Le premier `n` stable
+est donc la bonne réponse, et publier le franchissement à côté est mieux encore : ça rend la
+dent de scie visible au lieu de la cacher.
+
+**Cette distinction n'est nulle part dans le protocole**, et tout seuil de puissance des
+phases 3 à 6 y est exposé — en particulier le « décisif dès 300 parties si l'écart dépasse
+10 points » du §3, phase 3, qui n'a été calculé par aucune formule nommée.
+
+### 11.2 Un contrôle croisé vaut mieux que deux chiffres
+
+La valeur critique exacte à `n = 10 002` vaut `K ≥ 3 474`, soit **34,73 %**, qui recoupe au
+compte près le seuil normal Bonferroni de **34,72 %** du §2.3. Rien ne le vérifiait avant. Ce
+genre de contrôle établit que **deux paragraphes décrivent le même test** — ce qu'aucune
+vérification des deux chiffres pris séparément ne peut montrer. À faire systématiquement quand
+deux sections d'un même document produisent un nombre qui devrait coïncider.
+
+### 11.3 « Un chiffre porte son échantillon » s'applique aussi à une formule
+
+L'enseignement de la phase 1 était écrit pour des seeds, une politique et un grain. Il vaut à
+l'identique pour une **formule** : mes 1 456 parties n'étaient pas un nombre faux, c'était un
+nombre **sous-spécifié** — rien en lui ne disait quel écart-type entrait au terme de
+puissance, et deux implémentations honnêtes divergeaient de 19 parties sans que rien ne le
+signale.
+
+La parade n'est pas la vigilance, c'est le type : `Variance` est un enum, et
+`parties_pour_puissance_proportion` **ne peut pas être appelée sans nommer** l'écart-type
+retenu. Rendre obligatoire ce qui manquait ferme la classe entière de fautes, au lieu du seul
+cas trouvé.
