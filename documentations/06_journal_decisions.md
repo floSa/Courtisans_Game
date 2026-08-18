@@ -16,6 +16,140 @@ Impact plan : phases invalidées ou modifiées
 
 ---
 
+## [2026-08-18] Phase 1 — L'instance d'entraînement, et audit croisé de sa mesure
+
+**Hypothèse.** *Écrite et commitée avant toute mesure, `mesure/hypothese_et_instrument.md`.*
+L'instance `entrainement-3j` — 4 familles, 5 rôles, 2 exemplaires, 3 joueurs, 40 cartes,
+4 tours — conserve la substance du jeu : sous jeu uniformément aléatoire, sur 1 000 parties,
+les trois joueurs jouent le même nombre de tours (H1), la distribution des scores n'est pas
+dégénérée (H2), et au moins un retournement survient dans au moins 33,3 % des parties (H3).
+
+**Instrument.** 1 000 parties, donne `Engine.reset(seed)` seeds 0–999, politique uniforme sur
+`legal_actions()` avec `Random(1_000_000 + seed)`. Seuil H3 : `p ≥ 1/3`, intervalle exact de
+Clopper-Pearson à 99 %, bande d'indécision [0,295 ; 0,372] fixée d'avance. La mesure tranche
+dès N = 30 si `p̂ ≥ 0,80`. Le protocole ne définissant pas « retournement », quatre définitions
+ont été pré-inscrites ; le go/no-go porte sur **R2, perte d'acquis** — `∃t : s_{t−1} ≠
+Indifférente et s_t ≠ s_{t−1}` — parce que l'encadré du §2.2 des règles tranche déjà que le
+seuil qui compte est l'Indifférence et non l'Obscurité.
+
+**Résultat.** Hypothèse **vérifiée sur les trois énoncés.** H1 : 1 000/1 000, vecteur de poses
+`(4, 4, 4)`. H2 : 10/10 critères, écart-type 4,4 par siège, 25 à 26 valeurs de score
+distinctes, mode à 9 %, trois ex æquo dans 1,5 % des parties. H3 : **96,00 % (960/1 000),
+IC99 [94,12 % ; 97,42 %]**, soit 2,88 fois le seuil — borne basse à 94,12 %. 2,075 familles
+retournées par partie sur 4. Une partie se joue en 1,6 ms, 19,2 décisions. 82,53 % des
+7 206 nœuds de ciblage offrent au moins une cible, donc un refus qui est un choix et non un
+constat.
+
+**Audit.** Deux tours, par une conversation distincte qui a réimplémenté le calcul de statut,
+le compteur de retournements, l'intervalle de confiance et la campagne depuis le texte des
+règles, sans réutiliser une ligne du constructeur, et écrit seize contrôles hostiles.
+Code de l'audit : `audit/` et `tests/audit/`, verdict détaillé dans
+`audit/verdict_phase_1.md`.
+
+*Tour 1 — livrable `3f5b75d`, verdict **REJETÉ**.*
+
+Ce que l'audit a **confirmé** : les trois critères de go/no-go, remesurés indépendamment —
+`(4, 4, 4)` dans 5 000 parties sur 5 000, retournements à 94,0–95,5 % selon le bloc de seeds,
+étendue de 1,5 point ; l'accord des deux calculs de statut sur **11 000 comparaisons,
+0 désaccord** ; l'exactitude de l'intervalle sur **820 couples (k, n, α), écart maximum
+2,5 × 10⁻¹²**, par quatre calculs indépendants ; l'estimation « ~8 cartes par domaine » qui
+fondait le seuil D2, mesurée à **6,99** ; et la **convergence de trois lectures indépendantes
+du §2.2** sur la définition R2, l'auditeur ayant écrit la sienne avant de lire celle du
+constructeur. Le constructeur ne surinterprète pas non plus son chiffre : sa pré-inscription
+écrit, avant la mesure, que l'aléatoire n'établit pas qu'un agent saura planifier un
+retournement.
+
+Ce que l'audit a **trouvé, et que le constructeur avait manqué** : l'affirmation « **0 sur
+1 000 retournements R2 invisibles des trois joueurs** » était **fausse**. Le calcul agrégeait
+les quatre familles en un booléen de partie avant de comparer les vues, puis les trois sièges
+par un `any` ; il comptait « une partie où la vérité a un R2 et où aucun siège n'en a sur
+aucune famille », conjonction quasi impossible entre deux grandeurs valant 96 % et ~93 %. Le
+même invisible, mêmes seeds, sous le décalage de politique du constructeur, **grain tour** :
+
+| Niveau d'agrégation | seeds 0–999 | seeds 1000–1999 |
+|---|---|---|
+| partie, familles confondues — *le chiffre publié* | 0 | 0 |
+| famille — invisibles / familles en R2 | 5 / 2 075 = **0,241 %** | 11 / 2 026 = **0,543 %** |
+| famille — invisibles / emplacements famille × partie | 5 / 4 000 = 0,125 % | 11 / 4 000 = 0,275 % |
+| événement — invisibles / pertes d'acquis | 79 / 2 665 = **2,96 %** | 56 / 2 531 = 2,21 % |
+| événement — parties touchées | 74 / 1 000 = **7,40 %** | 56 / 1 000 = 5,60 % |
+
+**Le dénominateur retenu au niveau famille est 2 075, les familles qui ont effectivement perdu
+un acquis** : la question posée est « parmi les retournements qui ont eu lieu, lesquels
+n'étaient visibles de personne ». Rapporter les mêmes 5 aux 4 000 emplacements famille × partie
+répond à une autre question — quelle part du plateau porte un retournement invisible — et
+divise le taux par deux. Les deux lectures sont justes ; les deux sont écrites ci-dessus
+précisément parce qu'un taux sans son dénominateur n'est pas auditable.
+
+Cinq témoins nommés au premier bloc : seeds 308, 453, 496, 539, 933. Le cas se construit à la
+main en quatre poses — deux Espions de même famille posés par deux joueurs différents — et
+touche **une partie sur treize à dix-huit** (74/1 000 = 1 sur 13,5 ; 56/1 000 = 1 sur 17,9 ;
+au grain fin, 75 et 57 pour 1 000, soit 1 sur 13,3 et 1 sur 17,5). **Son propre test le
+démontrait déjà** : `tests/mesure/test_parties_construites.py` assertait exactement ce cas, sa
+docstring écrivant « un retournement que personne ne pouvait planifier ». Le test et le rapport
+se contredisaient dans le même livrable.
+
+Cinq défauts mineurs par ailleurs : une assertion tautologique, l'instance définie trois fois,
+quatre littéraux en dur dans les décompositions du rapport, un seuil D2 franchi dès 12 parties
+donc sans pouvoir discriminant, et un intervalle qui ne validait pas `n > 0`.
+
+*Tour 2 — correction `d7398bd`, verdict **ACCEPTÉ SOUS RÉSERVE**.*
+
+Les six défauts sont corrigés. Le comptage de l'invisible ne compare plus que des grandeurs
+non agrégées et publie les deux niveaux avec leurs dénominateurs ; **l'implémentation
+indépendante de l'auditeur rend exactement le même nombre au même grain** — 81 événements
+invisibles sur 2 735 dans 75 parties au grain fin, contre 79 sur 2 665 dans 74 parties au
+grain tour, celui que le rapport publie. Deux défauts sont corrigés mieux que demandé : le
+pouvoir discriminant est mesuré pour les **quatre** critères, et non le seul D2 relevé par
+l'audit — D1 et D3 sont satisfaits dès 3 parties, D4 dès 1 —, et le §5.3 de la pré-inscription
+porte un erratum qui **conserve** la phrase fausse plutôt que de l'effacer. L'auditeur a
+re-vérifié la correction en y ré-introduisant la faute exacte : un test rouge, sur une partie
+construite à la main. Les trois chiffres du go/no-go sont inchangés. 648 tests verts chez le
+constructeur, les 16 contrôles hostiles de l'auditeur verts contre le code corrigé.
+
+Deux réserves : rien ne relie la définition unique de l'instance dans `mesure/instance.py` à
+la description indépendante de `tests/outils.py` — l'indépendance de l'oracle est justifiée,
+l'absence de garde-fou contre la dérive ne l'est pas ; et la section 6 du rapport ne répète pas
+le grain sur ses deux blocs de comptage, si bien qu'un lecteur reconstruisant 2 078 familles au
+grain fin au lieu de 2 075 au grain tour ne peut pas savoir laquelle des deux lectures est la
+sienne.
+
+**Décision.** **Go.** La phase 1 est close. `entrainement-3j` est l'instance des phases 2 et 3.
+
+**Impact plan.** La phase 2 s'ouvre sans modification. Une mesure s'ajoute à sa liste : la
+fréquence des retournements qu'**aucun** siège ne voit est un **plafond de ce que B1 peut
+mesurer**. Une ligne de base d'agent qui ne planifie jamais un retournement doit être lue en
+retranchant les ~7 % de parties portant une perte d'acquis qu'aucune politique, aussi bonne
+soit-elle, ne pouvait voir venir.
+
+**Défauts du protocole, à corriger dans [05_protocole_experimental.md](05_protocole_experimental.md).**
+Trois termes du go/no-go de la phase 1 ne sont définis nulle part, et les trois sont chiffrés :
+« retournement », « distribution non dégénérée », et « situations où refuser de tuer est
+possible » — dont la lecture littérale est **vide**, refuser étant toujours légal (§4.1,
+arbitrage R2), si bien que la fréquence vaudrait 100 % par construction. Les définitions
+proposées par le constructeur ont tenu deux tours d'audit et doivent remonter dans le document.
+Le §3 présente en outre « 20 cartes ou 40 cartes » comme un arbitrage à trancher en phase 1 :
+il n'en est pas un, la variante à 20 cartes étant refusée à la construction par le plancher
+`tours ≥ 3` du §8 des règles.
+
+**Trois enseignements de méthode.**
+
+- **Un taux dont le sujet grammatical n'est pas l'unité comptée doit publier son
+  dénominateur.** L'erreur de ce tour n'est ni un calcul faux ni un DÉDUIT présenté comme un
+  MESURÉ : c'est un chiffre juste, reproductible au bit près, dont la phrase parlait de
+  retournements quand le calcul parlait de parties. Aucun contrôle existant ne cherchait cette
+  faute-là.
+- **Un zéro absolu doit être confronté à un cas construit à la main avant d'être écrit.**
+  Celui-ci était contredit par un test du même livrable.
+- **Un chiffre doit porter son échantillon — grain et dénominateur compris.** L'auditeur a
+  commis deux fois la faute qu'il reprochait : d'abord en juxtaposant deux comptes justes,
+  70 et 81 événements sur les mêmes seeds, sans dire que le décalage de politique différait —
+  cause racine, une valeur en dur invisible dans les chiffres qu'elle produisait, devenue un
+  paramètre nommé ; ensuite en écrivant « 5 familles sur 4 000 » sans dire que « 5 sur 2 075 »
+  existait et disait autre chose. Les deux corrections sont dans cette entrée.
+
+---
+
 ## [2026-08-17] Phase 0 — Audit croisé du moteur conforme
 
 **Hypothèse.** Le moteur construit par la conversation de l'action 3 implémente les règles de

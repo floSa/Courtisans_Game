@@ -13,15 +13,34 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Phase 0 CLOSE le 17/08, audit croisé compris ; la réserve est levée le 17/08.** 596 tests verts, 8 critères d'acceptation atteints, 19 mutations sur 19 détectées, couverture 643/643. Verdict de l'auditeur : **ACCEPTÉ SOUS RÉSERVE** — la réserve unique portait sur le libellé des cartes cachées, corrigée depuis ; **le nouveau verdict revient à l'auditeur, pas au constructeur** |
-| Prochaine action | **Phase 1 — l'instance d'entraînement.** Coller [prompts/06_phase1_construction.md](prompts/06_phase1_construction.md) dans une conversation neuve |
+| Étape en cours | **Phase 1 CLOSE le 18/08, audit croisé compris.** L'instance `entrainement-3j` — 4 familles, 5 rôles, 2 exemplaires, 3 joueurs, 40 cartes, **4 tours** — est validée. Les trois go/no-go : 1 000/1 000 parties à `(4, 4, 4)` tours, 10/10 critères de non-dégénérescence, retournement R2 dans **96,00 % (960/1 000), IC99 [94,12 % ; 97,42 %]** contre un seuil de 33,3 %. 648 tests verts. Verdict de l'auditeur : **REJETÉ** au premier tour — un chiffre annoncé « 0 sur 1 000 » qui ne mesurait pas sa propre phrase — puis **ACCEPTÉ SOUS RÉSERVE** après correction |
+| Prochaine action | **Phase 2 — mesurer le jeu avant d'y jouer**, sur `entrainement-3j` : avantage de siège sur 10 000 parties appariées (seuil < 38 %), variance du score, winrate du greedy contre l'aléatoire, et ligne de base des comportements B1–B7. Écrire les prompts de construction et d'audit sur le modèle des quatre premiers |
+| Réserves de la phase 1 | Deux, mineures, à traiter quand on rouvrira `mesure/` : **(1)** rien ne relie la définition unique de l'instance dans `mesure/instance.py` à la description indépendante de `tests/outils.py` — une dérive resterait muette ; **(2)** la section 6 du rapport ne répète pas le **grain** sur ses deux blocs de comptage, si bien qu'un lecteur qui reconstruit 2 078 familles au grain fin au lieu de 2 075 au grain tour ne peut pas savoir laquelle des deux lectures est la sienne |
+| À corriger dans le protocole | [05_protocole_experimental.md](documentations/05_protocole_experimental.md) ne définit ni « retournement », ni « distribution non dégénérée », ni « situations où refuser de tuer est possible » — les trois sont chiffrés dans le go/no-go de la phase 1, et la troisième a une lecture littérale **vide** (refuser est toujours légal). Les définitions du constructeur ont tenu deux tours d'audit : leur place est dans le document |
 | À trancher avant | ~~Le libellé des cartes cachées~~ — **tranché le 17/08** : un dos n'est jamais nommé, il est situé dans sa zone et numéroté par son rang. Voir `rules.rang_public_dans_zone` |
 | Bloquant | **Rien.** Deux reports assumés, écrits dans le README : canonicalisation et encodage par cible. |
 
-**L'audit croisé a servi.** Il a rejeté une première fois — six défauts — puis, après
-correction, en a trouvé deux de plus, dont un qui bloquait `deep_cfr` et le calcul
-d'exploitabilité. Neuf défauts au total, tous corrigés, chacun tenu par un test **et** par une
-mutation. Détail au [journal](documentations/06_journal_decisions.md), entrée du 17/08.
+**L'audit croisé a servi, deux phases de suite.** En phase 0 il a rejeté une première fois —
+six défauts — puis, après correction, en a trouvé deux de plus, dont un qui bloquait
+`deep_cfr` et le calcul d'exploitabilité. Neuf défauts au total, tous corrigés, chacun tenu
+par un test **et** par une mutation. Détail au
+[journal](documentations/06_journal_decisions.md), entrée du 17/08.
+
+En phase 1 il a trouvé une faute d'un genre nouveau, sur des **chiffres** et non sur du code :
+un nombre juste, reproductible au bit près, dont la phrase ne décrivait pas le calcul. Le
+rapport annonçait « 0 sur 1 000 retournements invisibles des trois joueurs » ; le calcul
+agrégeait les quatre familles avant de comparer les vues, et le cas survient en réalité dans
+**une partie sur treize à dix-huit**. Le propre test du constructeur le démontrait déjà, dans
+le même livrable. L'auditeur avait réimplémenté toute la mesure depuis le texte des règles et
+écrit seize contrôles hostiles ; il a commis deux fois la même faute que celle qu'il
+reprochait, et l'a inscrite à son nom. Détail au
+[journal](documentations/06_journal_decisions.md), entrée du 18/08, et verdict complet dans
+`audit/verdict_phase_1.md`.
+
+> **La leçon transférable aux phases 2 et 3, où tout sera chiffré :** un taux dont le sujet
+> grammatical n'est pas l'unité comptée doit publier son dénominateur, et tout chiffre doit
+> porter son échantillon — seeds, politique, grain. Un zéro absolu se confronte à un cas
+> construit à la main avant d'être écrit.
 
 Le dépôt est poussé sur la branche `moteur-conforme` de
 [floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique
