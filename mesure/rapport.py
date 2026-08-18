@@ -20,13 +20,14 @@ import random
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
-from math import exp, factorial, lgamma, log, log1p
+from math import factorial
 from statistics import mean, median, pstdev
 from time import perf_counter
 
 from courtisans.cards import Position
 from courtisans.config import CARTES_PAR_TOUR
 from courtisans.engine import Engine
+from mesure.binomiale import intervalle_clopper_pearson
 from mesure.instance import ENTRAINEMENT_3J
 from mesure.partie import (
     Grain,
@@ -65,69 +66,6 @@ SEUIL_PART_MODALE = 0.50
 SEUIL_PART_TRIPLE_EX_AEQUO = 0.50
 
 DEFINITIONS = ("r0", "r1", "r2", "r3")
-
-
-# ---------------------------------------------------------------------------------
-# Intervalle de confiance exact -- Clopper-Pearson
-# ---------------------------------------------------------------------------------
-
-
-def _log_binomiale(n: int, k: int, p: float) -> float:
-    """Log de `C(n, k) p^k (1-p)^(n-k)`, en passant par lgamma pour ne pas deborder."""
-    return (
-        lgamma(n + 1)
-        - lgamma(k + 1)
-        - lgamma(n - k + 1)
-        + k * log(p)
-        + (n - k) * log1p(-p)
-    )
-
-
-def _queue_superieure(k: int, n: int, p: float) -> float:
-    """`P(X >= k)` pour `X ~ Binomiale(n, p)`."""
-    if p <= 0.0:
-        return 1.0 if k == 0 else 0.0
-    if p >= 1.0:
-        return 1.0
-    return sum(exp(_log_binomiale(n, i, p)) for i in range(k, n + 1))
-
-
-def intervalle_clopper_pearson(k: int, n: int, alpha: float = 0.01) -> tuple[float, float]:
-    """L'intervalle exact de Clopper-Pearson, a `1 - alpha`.
-
-    Exact au sens ou il ne suppose pas la normalite : a 1 000 parties l'approximation
-    normale serait suffisante, mais elle ne le serait plus sur les sous-populations.
-    """
-    if n <= 0:
-        raise ValueError(
-            f"une proportion sur {n} parties n'existe pas : il en faut au moins une"
-        )
-    if not 0 <= k <= n:
-        raise ValueError(f"{k} succes sur {n} parties : impossible")
-    # Borne basse : le `p` tel que `P(X >= k) = alpha/2`.
-    # Borne haute : le `p` tel que `P(X <= k) = alpha/2`, ecrit `P(X >= k+1) = 1 - alpha/2`
-    # pour que les deux fonctions soient croissantes en `p` et se cherchent pareil. Ecrire
-    # la seconde sous la forme `1 - P(X >= k+1) - alpha/2` la rendrait decroissante, et la
-    # bissection rendrait la mauvaise borne sans rien signaler.
-    basse = 0.0 if k == 0 else _bissection(lambda p: _queue_superieure(k, n, p) - alpha / 2)
-    haute = (
-        1.0
-        if k == n
-        else _bissection(lambda p: _queue_superieure(k + 1, n, p) - (1.0 - alpha / 2))
-    )
-    return basse, haute
-
-
-def _bissection(fonction, iterations: int = 200) -> float:
-    """Le zero d'une fonction **croissante** sur [0, 1]."""
-    basse, haute = 0.0, 1.0
-    for _ in range(iterations):
-        milieu = (basse + haute) / 2
-        if fonction(milieu) < 0:
-            basse = milieu
-        else:
-            haute = milieu
-    return basse
 
 
 # ---------------------------------------------------------------------------------

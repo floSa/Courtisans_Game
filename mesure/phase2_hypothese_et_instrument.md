@@ -187,24 +187,57 @@ conditionne aucune décision de la phase 3. M1 reste à établir parce que c'est
 
 ### 2.4 À quel nombre de parties la mesure devient décisive
 
-Calcul de puissance, bilatéral, risque global 1 % avec Bonferroni sur 3 sièges (`z = 2,9352`),
-puissance 80 % (`z = 0,8416`), `σ = 47,14 pt` par partie :
+**Une taille d'échantillon n'a pas de valeur unique : elle dépend de la formule.** Ce point
+a été trouvé par un désaccord entre deux implémentations — 19 parties sur 1 456 — et il est
+écrit ici parce qu'un `n` publié sans sa formule n'est pas reconstructible. Les trois calculs
+sont donc rendus, avec leurs paramètres, par `python -m mesure.dimensionnement`.
 
-| Écart vrai à établir | N pour 80 % de puissance |
-|---|---:|
-| `4,67 pt` — un siège à 38 %, l'effet du seuil du protocole | **1 456 parties** |
-| `1,67 pt` — un siège à 35 % | **11 412 parties** |
+Paramètres communs : risque global bilatéral 1 %, Bonferroni sur 3 sièges — donc
+`0,00166667` par queue —, `z_risque = 2,935199`, `z_puissance = 0,841621`,
+`p₀ = 1/3`, `√(p₀q₀) = 0,471405`.
 
-Lecture : **l'effet que le seuil du protocole désigne est établi dès 1 456 parties**, donc
-10 002 parties sont sept fois plus que ce seuil-là ne demande — et c'est précisément ce
-surplus que le seuil de 38 % gaspille. À l'inverse, **10 002 parties ne suffisent pas tout à
-fait** à un effet de 1,67 pt : la puissance y vaut **72,6 %**. Un siège à 35 % sera donc
-détecté environ trois fois sur quatre, et le compte rendu écrira cette puissance à côté du
-résultat plutôt que de conclure « aucun avantage détecté » comme si l'absence de détection
-valait absence d'effet.
+| Méthode | Écart-type au terme de puissance | siège à 38 % | siège à 35 % |
+|---|---|---:|---:|
+| normale, σ **sous H₀** aux deux termes | `√(p₀q₀)` | 1 456 | 11 412 |
+| normale, σ **sous H₁** au terme de puissance | `√(p₁q₁)` | 1 475 | 11 472 |
+| exact binomial, premier franchissement | aucune | 1 501 | 11 539 |
+| **exact binomial, stable — la référence** | aucune | **1 531** | **11 629** |
 
-Ces trois nombres sont des calculs iid ; ils sont recalculés sur `Var_boot` dans le compte
-rendu.
+`√(p₁q₁)` vaut `0,485386` à 38 % et `0,476970` à 35 % : les deux dépassent `√(p₀q₀)`, parce
+que 0,38 et 0,35 sont plus proches de 0,5 que ne l'est 1/3. **La forme à σ sous H₀
+sous-estime donc `n`**, et c'est elle que j'avais employée sans la nommer. Les deux formes se
+lisent dans la littérature ; celle sous H₁ est la forme des manuels pour un test de
+proportion, le terme de puissance décrivant la loi sous l'alternative.
+
+**L'exact départage, et il est plus grand que les deux.** Le test réel porte sur un compte
+entier : on rejette si `K ≥ c`, où `c` est le plus petit entier dont la queue supérieure sous
+`p₀` ne dépasse pas le risque. Aucun `c` n'égale le risque nominal, donc la queue atteinte
+est strictement en dessous : le test est **conservateur**, et il coûte plus de parties que la
+normale ne l'annonce. À `n = 10 002` la valeur critique vaut **`K ≥ 3 474`**, soit 34,73 % —
+qui recoupe le seuil normal de 34,72 % du §2.3 au compte près, et c'est le contrôle croisé
+qui lie les deux paragraphes : ils décrivent le même test.
+
+**La puissance exacte n'est pas monotone en `n`.** Elle avance en dents de scie, parce que
+`c` saute d'une unité. À 38 % elle franchit 80 % dès `n = 1 501`, puis **redescend** en
+dessous à 1 502, 1 503, 1 505… jusqu'à 1 530 ; à 35 %, la dent de scie court sur 90 unités,
+de 11 539 à 11 628. **Le chiffre publié est donc le plus petit `n` à partir duquel la
+puissance ne redescend plus** — 1 531 et 11 629 —, parce qu'un `n` publié doit tenir pour
+lui-même *et* pour tout ce qui le suit. Le premier franchissement est publié à côté pour que
+la dent de scie soit visible plutôt que cachée.
+
+**Lecture.** L'effet que le seuil du protocole désigne — un siège à 38 % — est établi dès
+**1 531 parties**, donc 10 002 parties en sont plus de six fois le nécessaire, et c'est ce
+surplus que le seuil de 38 % gaspille : MESURÉ, la puissance exacte contre un siège à 38 % à
+`n = 10 002` vaut **100,0 %**. Le seuil est mal placé non parce que l'échantillon est petit,
+mais parce qu'il ne signale que ce qui est déjà hors de doute. À l'inverse, **aucun des trois
+calculs n'est atteint par 10 002 parties pour un effet de 1,67 pt** : la puissance exacte
+contre un siège à 35 % y vaut **71,5 %** — la normale annonçait 72,6 %, elle est
+anti-conservatrice ici aussi. Un siège à 35 % sera donc détecté un peu moins de trois fois
+sur quatre, et le compte rendu écrira cette puissance à côté du résultat plutôt que de
+conclure « aucun avantage détecté » comme si l'absence de détection valait absence d'effet.
+
+Ces chiffres supposent des parties indépendantes ; ils sont recalculés sur `Var_boot`
+(§1.3) dans le compte rendu.
 
 ---
 
@@ -800,6 +833,7 @@ rendu n'aura d'autre origine.
 | Composition 2-greedys | `random.Random(5_000_000 + 3 × seed + siège_aléatoire)` |
 | Bootstrap | `B = 10 000`, `random.Random(2_500_000)`, rééchantillonnage **par donne** |
 | Calculs de plan du §2.4 | `python -m mesure.dimensionnement`, écrit à l'étape 1 |
+| Loi binomiale exacte | `mesure/binomiale.py`, extrait de `rapport.py` — deux implémentations et un contrôle qui exige leur accord à 1e-12 |
 
 Les plages de seeds de politique sont disjointes par construction :
 `2_000_000 … 2_010_001` pour la campagne A principale, `2_060_000 … 2_070_001` pour son
@@ -824,9 +858,23 @@ résultats.
 Je proposerai un traitement des deux, **annoncé comme tel dans une section distincte du compte
 rendu**, sans qu'aucun chiffre de la phase 2 n'en dépende.
 
-**Trous du protocole, à corriger par l'auteur seul** (§05, et je ne modifie aucun document de
-`documentations/` sans accord) : « retournement », « distribution non dégénérée » et
-« situations où refuser de tuer est possible » ne sont définis nulle part alors que les trois
-sont chiffrés dans un go/no-go. La phase 2 en ajoute un quatrième : **« parties appariées »**,
-dont le §1.1 ci-dessus montre qu'il est **vide** quand les politiques comparées sont
-identiques. Proposition, pas écriture.
+**Trous du protocole, à remonter au journal — cinq, à corriger par l'auteur seul** (je ne
+modifie aucun document de `documentations/` sans accord ; ce sont des propositions, pas des
+écritures).
+
+| # | Trou dans `05_protocole_experimental.md` | Statut |
+|---|---|---|
+| 1 | « **retournement** » n'est défini nulle part, et le go/no-go de la phase 1 le chiffre | phase 1 ; définition R2 pré-inscrite, deux tours d'audit |
+| 2 | « **distribution non dégénérée** » idem | phase 1 ; quatre critères D1–D4 pré-inscrits |
+| 3 | « **situations où refuser de tuer est possible** » idem, et sa lecture littérale est **vide** — refuser est toujours légal, donc la fréquence vaut 100 % par construction | phase 1 ; dénominateur corrigé, repris ici en §6.4 |
+| 4 | « **parties appariées** » n'est défini nulle part, et il est **vide** quand les politiques comparées sont identiques | phase 2, §1.1 ci-dessus |
+| 5 | « l'appariement **divise par cinq à dix** le nombre de parties nécessaires » (§1) implique `ρ ∈ [0,8 ; 0,9]` et **n'est appuyé par aucune mesure du dépôt** | phase 2, §3.2 ci-dessus |
+
+**Le cinquième est le seul qui soit un chiffre**, et c'est ce qui le distingue des quatre
+autres : les quatre premiers sont des termes non définis, celui-ci est une affirmation
+quantitative publiée sans mesure. M2 la vérifie — et si `ρ` tombe loin de `[0,8 ; 0,9]`, c'est
+le §1 du protocole qu'il faut corriger, pas la mesure.
+
+Le §3 du protocole présente en outre « 20 cartes ou 40 cartes » comme un arbitrage à trancher
+en phase 1 : il n'en est pas un, la variante à 20 cartes étant refusée à la construction par
+le plancher `tours ≥ 3` du §8 des règles. Signalé par la phase 1, non encore corrigé.
