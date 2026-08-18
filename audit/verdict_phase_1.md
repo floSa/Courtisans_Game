@@ -1,14 +1,22 @@
-# Audit — phase 1, mesure de l'instance `entrainement-3j` — VERDICT : REJETÉ
+# Audit — phase 1, mesure de l'instance `entrainement-3j`
+
+| Tour | Livrable | Verdict |
+|---|---|---|
+| Audit initial | `3f5b75d` | **REJETÉ** — 1 défaut bloquant, 5 mineurs |
+| Re-vérification | `d7398bd` | **ACCEPTÉ SOUS RÉSERVE** — 6 défauts sur 6 corrigés, 2 réserves mineures |
 
 Format : §3 de [08_modele_compte_rendu.md](../documentations/08_modele_compte_rendu.md).
 Méthode : [07_protocole_audit_croise.md](../documentations/07_protocole_audit_croise.md).
-Auditée : branche `claude/courtisans-phase-1-measure-3900b7`, base `e3bdd42`, cinq commits
-`6ff78a6 f0cbb6e 309a33d ba65ae6 3f5b75d`. Périmètre vérifié : `mesure/` et `tests/mesure/`
-seuls, 12 fichiers, +2 160 lignes, aucune suppression.
+Auditée : branche `claude/courtisans-phase-1-measure-3900b7`, base `e3bdd42`. Périmètre
+vérifié : `mesure/` et `tests/mesure/` seuls, aux deux tours.
 
-Un seul motif de rejet : **une affirmation fausse dans le compte rendu**, au sens de 07 §3.
-Les trois critères de go/no-go sont satisfaits et revérifiés par l'auditeur — l'instance est
-bonne, c'est un chiffre qui ne l'est pas.
+Le corps de ce document est l'audit initial, **conservé tel quel** : c'est lui qui a produit
+la liste de défauts, et l'effacer effacerait la trace de ce qui a été trouvé. La
+re-vérification est à la fin.
+
+Un seul motif de rejet au premier tour : **une affirmation fausse dans le compte rendu**, au
+sens de 07 §3. Les trois critères de go/no-go étaient satisfaits dès ce tour-là et revérifiés
+par l'auditeur — l'instance était bonne, c'est un chiffre qui ne l'était pas.
 
 ---
 
@@ -185,3 +193,75 @@ documents ne sont modifiés. `mesure/` et `tests/mesure/` appartiennent au const
 ont été importés dans le worktree pour rejouer sa suite, jamais ajoutés à cet arbre — les
 contrôles hostiles sont autonomes, et le seul test qui a besoin de son code s'ignore
 proprement en son absence.
+
+---
+
+# Re-vérification — `d7398bd` — VERDICT : ACCEPTÉ SOUS RÉSERVE
+
+Étape 6 du cycle de 07 §4 : **uniquement les défauts listés**. Aucun front nouveau n'est
+ouvert, et les deux observations hors liste sont étiquetées comme telles.
+
+A1 sur la correction : **52/52** tests de mesure, **648/648** sur toute la suite — conforme à
+son annonce. Mes **16** contrôles hostiles restent verts contre son code corrigé.
+
+## Les six défauts
+
+| # | Gravité initiale | État | Preuve de la re-vérification |
+|---|---|---|---|
+| 1 | bloquant | **corrigé** | `compter_invisible` (`mesure/partie.py`) ne compare plus que des grandeurs non agrégées, et publie les deux niveaux avec leurs dénominateurs. **Mon compteur, écrit indépendamment, tombe exactement d'accord au même grain** : 81 événements invisibles sur 2 735, dans 75 parties (seeds 0–999, grain fin) et 61 sur 2 601 dans 57 parties (seeds 1000–1999). Ses chiffres publiés — 79/2 665 dans 74 parties, et 56/2 531 dans 56 — sont au grain **tour**, son grain de référence déclaré. **Il n'y a donc aucun désaccord** : deux implémentations indépendantes rendent le même nombre au même grain. La phrase fausse a disparu du rapport, et la section porte désormais l'explication du défaut |
+| 2 | mineur | **corrigé** | La tautologie est remplacée par une donnée écrite à la main : `replace(..., cibles_par_noeud=(0, 1, 5, 0))` puis `assert noeuds_avec_cible == 2`. L'attendu ne réutilise plus la formule testée |
+| 3 | mineur | **corrigé, avec réserve** | Ses deux définitions deviennent une seule, `mesure/instance.py::ENTRAINEMENT_3J`, importée par le rapport et par ses tests. La troisième, `tests/outils.py`, est conservée **volontairement** et l'argument est écrit : un oracle qui recalcule l'arithmétique des règles sans importer le moteur ne doit pas être l'objet qu'il vérifie. L'argument est juste. **Réserve** : rien ne compare les deux jeux de paramètres, donc une dérive resterait muette — une assertion d'égalité des quatre valeurs préserverait l'indépendance de l'oracle tout en fermant ce trou |
+| 4 | mineur | **corrigé** | Les quatre littéraux sont lus dans `CARTES_PAR_TOUR`, `factorial(CARTES_PAR_TOUR)` et `len(Position)`. Plus aucun `3`, `6` ou `2` en dur dans les décompositions |
+| 5 | mineur | **corrigé, et étendu** | Le rapport mesure et affiche le pouvoir discriminant des quatre critères. Il va plus loin que mon constat : D2 est satisfait dès 12 parties, **mais D1 et D3 dès 3, et D4 dès 1**. Les quatre sont annotés « discrimine peu ». Mon constat portait sur D2 seul ; il l'a généralisé contre lui-même |
+| 6 | mineur | **corrigé** | `intervalle_clopper_pearson` refuse `n <= 0` avec un message explicite. Vérifié : les deux implémentations lèvent maintenant sur `(0, 0)`, et concordent toujours sur `960/1000` |
+
+Le §5.3 de la pré-inscription porte un **erratum** qui conserve la phrase fausse plutôt que
+de la remplacer, en expliquant pourquoi elle l'était : « personne d'autre que le poseur »
+supposait un témoin unique par Espion, ce que deux poseurs distincts sur une même famille
+démentent. C'est la bonne façon de traiter une phrase qui a orienté un compteur.
+
+## Contrôle hostile de la correction elle-même
+
+Une correction qui n'est pas sous test peut se défaire au commit suivant. J'ai donc
+ré-introduit **la faute exacte** dans `compter_invisible` — le comptage réagrège les familles
+avant de comparer les vues — et rejoué sa suite.
+
+MESURÉ : **1 test rouge**,
+`tests/mesure/test_parties_construites.py::test_le_comptage_invisible_sur_la_partie_1_construite_a_la_main`,
+sur une partie construite à la main, avec le bon message (`familles_invisibles: 0 != 1`).
+Fichier restauré, empreinte inchangée. La correction est tenue par un test, pas seulement
+appliquée.
+
+## Les trois chiffres du go/no-go, inchangés
+
+MESURÉ sur `d7398bd` : 1 000/1 000 parties à `(4, 4, 4)` tours ; 10/10 critères de
+non-dégénérescence ; R2 grain tour vue vraie **96,00 % (960/1 000), IC99
+[94,12 % ; 97,42 %]**. La correction ne touchait pas le go/no-go, et elle ne l'a pas touché.
+
+## Réserves
+
+1. **Défaut 3, résiduel** : rien ne relie `mesure/instance.py::ENTRAINEMENT_3J` à
+   `tests/outils.py::ENTRAINEMENT_3J`. L'indépendance de l'oracle est justifiée ; l'absence
+   de garde-fou contre la dérive ne l'est pas.
+2. **Hors liste, signalé sans être compté comme défaut** : dans la section 6 du rapport, le
+   grain est nommé une fois, sur le bloc « Rappel non comparable », et n'est répété ni sur
+   `NIVEAU FAMILLE` ni sur `NIVEAU EVENEMENT`. Un lecteur qui reconstruit 2 078 familles au
+   grain fin au lieu de 2 075 au grain tour ne peut pas savoir laquelle des deux lectures est
+   la sienne. C'est exactement la faute que j'ai commise dans mon propre rapport et corrigée
+   au commit `14e5123` : **un chiffre doit porter son échantillon, grain compris.**
+
+Les trois défauts du **document** `05_protocole_experimental.md` — P1, P2, P3 ci-dessus —
+restent entiers. Ils ne relèvent pas du constructeur et ne gagent pas ce verdict, mais ils
+doivent être portés au journal : les définitions qu'il a dû proposer pour mesurer quoi que ce
+soit ont tenu deux tours d'audit, et leur place est dans le protocole.
+
+## Justification du verdict de re-vérification
+
+Les six défauts sont corrigés, dont le bloquant, et deux le sont mieux que demandé : le
+défaut 5 est étendu aux quatre critères contre son propre intérêt, et le défaut 1 est mis
+sous test par une partie construite à la main — ce que j'ai vérifié en ré-introduisant la
+faute. Le chiffre qui portait le rejet est désormais publié aux deux niveaux d'agrégation, et
+mon implémentation indépendante rend le même nombre au même grain. Il ne reste que deux
+points mineurs, dont un que le constructeur a explicitement argumenté. **ACCEPTÉ SOUS
+RÉSERVE**, réserves reportées au journal ; la phase 1 est close et la phase 2 s'ouvre sur
+`entrainement-3j`.
