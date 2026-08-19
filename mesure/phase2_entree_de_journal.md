@@ -2,12 +2,16 @@
 
 **Ceci est une PROPOSITION.** Je ne modifie pas `documentations/`. L'entrée ci-dessous est au
 format du §4 de [08_modele_compte_rendu.md](../documentations/08_modele_compte_rendu.md) et
-attend deux choses avant d'être reportée dans
-[06_journal_decisions.md](../documentations/06_journal_decisions.md) : le verdict de l'audit
-croisé, qui seul clôt la phase, et la décision de l'humain, qui n'est pas la mienne.
+attend une chose avant d'être reportée dans
+[06_journal_decisions.md](../documentations/06_journal_decisions.md) : la décision de l'humain, qui
+n'est pas la mienne.
 
-Le champ **Audit** est donc rempli de mon **auto-audit de constructeur** (étape 4) et reste
-ouvert : ce que l'auditeur trouvera que je n'ai pas vu s'écrit là, et pas ailleurs.
+**L'audit croisé a rendu son verdict — REJETÉ — et ses quatre défauts sont corrigés.** Le champ
+**Audit** porte donc le verdict réel, ce que l'audit a trouvé que je n'avais pas vu, et ce qu'il a
+confirmé. Détail des corrections et de leurs tests dans
+[phase2_corrections_audit.md](phase2_corrections_audit.md). Le champ reste ouvert sur un point :
+l'audit doit re-vérifier cette liste, et la population à trois greedys qui lui est ajoutée comme
+cinquième point.
 
 ---
 
@@ -34,7 +38,7 @@ défini, et « ce que ces mesures n'établiront pas ». Un greedy écrit pour la
 pas dans le dépôt —, aveugle à `vue_privilegiee()` **par construction** (il ne reçoit jamais de
 `State`) puis **par test**. Trois campagnes de 10 002 parties sur seeds cités, sièges permutés
 inconditionnellement, bootstrap **par donne** à 10 000 rééchantillons. Dimensionnement par
-calcul **binomial exact**, contrôlé à l'unité contre `scipy.stats`. 878 tests, `ruff` propre.
+calcul **binomial exact**, contrôlé à l'unité contre `scipy.stats`. **894 tests**, `ruff` propre.
 
 - reproduire : `UV_LINK_MODE=copy uv run python -m mesure.phase2`
 - rejouer les tests : `UV_LINK_MODE=copy uv run pytest -q`
@@ -87,11 +91,131 @@ concurrentes annoncées d'avance sont chiffrées ; onze des douze sens annoncés
   qu'un agent portant ce taux **au triple**, et **aucun agent ne peut en être séparé par le
   bas** — même un agent à 0 % n'est qu'à 0,15 point, soit la moitié du détectable.
 
-**Audit.** **VERDICT EN ATTENTE** — l'audit croisé n'a pas eu lieu ; ce qui suit est l'auto-audit
-du constructeur (étape 4), et ce champ reste ouvert pour ce que l'auditeur trouvera que je n'ai
-pas vu.
+**Audit.** **VERDICT : REJETÉ.** Trois défauts trouvés par l'auditeur, recalculés indépendamment
+par l'humain et tenus tous les trois ; un quatrième, mineur, et un **cinquième, majeur**, trouvés
+par l'humain — ce dernier dans la table que j'avais ajoutée pour corriger le premier. Les cinq sont
+corrigés, chacun avec le test qui le tient.
 
-Quatre défauts trouvés par moi, tous corrigés :
+**Ce que l'audit a trouvé et que je n'avais pas vu.**
+
+- **A1, bloquant — deux grains soustraits dans la table que la phase 3 citera.** Les cinq lignes
+  `-par-partie` du §6 soustrayaient un greedy sur **un** siège d'un hasard sur **trois** : le signe
+  s'inversait, **+11,82 pt** au même grain contre **−23,97 pt** en mélangeant les deux, et la ligne
+  recevait quand même un « parties pour l'établir : 102 ». Mon §5 portait l'avertissement ; mon §6,
+  titré *M4 pour la phase 3*, ne contenait ni « grain » ni « comparable ». **C'était la deuxième
+  fois au même endroit** — une réserve du tour 2 de la phase 1 portait déjà sur cette section. Son
+  compteur indépendant chiffre le mécanisme : le seul changement de grain fait passer B1 de
+  **46,78 %** à **84,00 %** sur 600 parties, soit **37,22 points d'artefact**, et le fait que
+  84,00 % soit légèrement sous les 84,93 % qu'on attendrait de trois sièges indépendants est la
+  signature de sièges corrélés dans une même partie. Corrigé par une **levée** —
+  `comportements.ecart_de_taux` refuse deux grains différents — et non par une cellule corrigée :
+  une cellule se re-remplit.
+- **A2, majeur — la clause du seuil de B1 n'était tenue par aucun test.** La clause 3 dit
+  « Indifférente **ou** en Obscurité », et l'auditeur est arrivé à la même lecture du §2.2
+  **indépendamment de moi**. Mais il a réintroduit la faute du tour 1 de la phase 1 — restreindre à
+  l'Obscurité — et obtenu **913 tests verts, zéro rouge**. La régression aurait coûté **9,27
+  points** de taux publié quand l'écart détectable de la phase 3 est de **7,64 points** : plus
+  grande que ce que la phase suivante peut mesurer, et silencieuse. Corrigé par une partie
+  construite à la main finissant **exactement Indifférente** ; la faute réinjectée fait tomber
+  **exactement un test**, celui-là.
+- **A3, majeur — le greedy ne fait pas ce que disait sa spécification.** Sa pose est évaluée avec
+  ses Assassins résolus conjointement, ses ciblages se décident un nœud à la fois, et `Perception`
+  ne porte pas les Assassins en attente. L'incohérence est **structurelle** : l'action de pose de
+  l'adaptateur est atomique, donc le bloc est choisi d'un coup pendant que le ciblage se décide
+  après, sans mémoire de ce qu'il contenait. Corrigé dans la **description**, pas dans le code — un
+  correctif referait un autre agent et invaliderait M3 et M4 entiers.
+- **A4, mineur, trouvé par l'humain — deux compteurs aveugles par le bas, pas un.**
+  `B7-gaspillage-vraie` l'est aussi : **0,35 %** d'écart détectable contre **0,2050 %** de taux.
+  Corrigé par un critère **calculé** sur chaque ligne du §6, pas par une phrase.
+
+**Un point sur lequel j'ai eu raison contre l'humain, et il l'a acté.** Son « plancher global » sur
+A3 était trop large. Pour **M3**, plus myope que sa spécification veut dire plus faible, donc
+`+0,7978` et `86,52 %` sont bien un **plancher**. Pour **M4**, non : `B4-strict`, `B4-départage` et
+`B4-contre-nature` sont jugés **par `evaluer_actions`**, l'évaluation myope elle-même. Le zéro de
+`B4-contre-nature` ne dit pas que le greedy n'a jamais commis de meurtre contre-productif ; il dit
+qu'il n'a jamais **contredit sa propre évaluation**. **Trois compteurs, pas un.**
+
+**Une garde qui confondait une mesure avec une phase.** `campagne_b` refusait `nb_greedys=3` en
+disant « la mesure n'a plus d'objet » : vrai de **M3** — trois politiques identiques rendent un
+tiers de part de victoire par **symétrie** — et faux de **M4**. Scindée en deux gardes, un test par
+branche.
+
+**Ce que l'audit a établi et qui ne bouge plus.** Un audit qui confirme est un résultat.
+
+- Rapport régénéré : **395 lignes sur 395 identiques**, tous les chiffres se reconstruisent.
+- **Trois concordances obtenues sans mon code** : `σ(gain)` **0,6671** contre **0,6652** ; refus B4
+  **23,81 %**, IC 99 % [22,53 ; 25,12], qui contient mon **23,65 %** ; contraste apparié de siège
+  **+0,181** contre **+0,189**.
+- **Le résultat le plus important est confirmé** : avantage de siège négligeable sous jeu
+  aléatoire, **massif** sous jeu greedy.
+- **La preuve d'aveuglement est jugée plus forte que la sienne** — statique, dynamique avec
+  `vue_privilegiee` piégée, différentielle, chacune assortie d'un test vérifiant que le piège mord.
+  Cinq contrôles à lui, dont un balayage de 60 parties permutant l'identité de chaque dos à chaque
+  nœud : **rien trouvé**. Le greedy ne triche pas.
+- **La lecture de la clause 3 confirmée indépendamment** : deux lectures séparées du même texte
+  convergent. C'est le meilleur résultat de cet audit, et il vaut plus que le chiffre.
+
+**A5, majeur, trouvé par l'humain DANS la table ajoutée pour corriger A1 — six budgets gonflés
+d'un facteur trois.** La colonne « parties pour l'établir » de la troisième population divisait le
+dénominateur par partie par le nombre de sièges. Un compteur `-par-partie` rend **une** observation
+de Bernoulli par partie — « au moins un des trois sièges » est un seul booléen, l'agrégation étant
+dans son **numérateur** — donc son dénominateur par partie vaut **1,0** et pas 1/3. Le texte que le
+générateur imprimait énonçait la faute mot pour mot.
+
+| Ligne | Publié | Juste |
+|---|---:|---:|
+| `B1-collectif-par-partie` | 3 885 | **1 295** |
+| `B1-motif-par-partie` | 895 | **299** |
+| `B1-tentative-par-partie` | 715 | **239** |
+| `B1-strict-par-partie` | 31 199 | **10 400** |
+| `B1-savoir-commun-par-partie` | 838 | **280** |
+| **`B1-collectif`** (grain du couple) | **2 234** | **745** |
+
+**La sixième ligne n'était pas dans la liste de l'audit.** `B1-collectif` est au grain du couple
+`(partie, siège)` : son dénominateur par partie **est** 3,0 — trois sièges mesurés — et le
+générateur passait 1,0. Même cause racine, valeur juste différente.
+
+**C'est la quatrième fois dans ce projet qu'un nombre juste porte une phrase décrivant autre
+chose**, et cette fois dans la table ajoutée pour corriger la troisième. Ce n'est pas un échec de
+la correction de A1 : la parade lève, les cellules refusent de se remplir. C'est que **toute table
+neuve est une première livraison** — ce que j'avais écrit moi-même de cette table, et qui rend la
+trouvaille normale.
+
+La parade, exigée par l'humain et de la même forme que celle du grain : **une seule fonction**,
+`phase2.budget_d_un_compteur`, appelée par les **trois** tables qui traduisent un écart en budget —
+le §6, le §5 bis, et le paragraphe sur B7 qui déduisait aussi son propre dénominateur. Elle reçoit
+le **nombre de parties**, calculé du plan (`donnes_b × joueurs`) et jamais déduit d'un compteur. Et
+`observations_par_partie` **lève** si un compteur `-par-partie` a un dénominateur différent du
+nombre de parties : l'invariant est asserté, pas supposé.
+
+**Contrôle de non-régression de la centralisation** : sur les 19 lignes du §6 que le diff expose,
+le couple (dénominateur par partie, parties requises) est **inchangé sur les 19**. Les trois lignes
+que l'humain avait reconstruites — 418, 72, 320 163 — sont épinglées par un test.
+
+**Un désaccord de valeur reste ouvert sur A3, et c'est à l'humain de le fermer.** J'ai reproduit le
+`7,33 %` de l'auditeur avec mon propre compteur, sur les 200 premières donnes de la campagne B puis
+sur la campagne entière. Deux conclusions séparées :
+
+- **Le dénominateur est le même chez les deux implémentations, et ce résultat est solide.** La
+  question admettait deux lectures — parmi les nœuds à Assassin en attente, ou parmi tous les nœuds
+  de ciblage. La seconde mesure **0,72 %**, IC 99 % [0,58 ; 0,87], ce qui **exclut** 7,33 % d'un
+  facteur **8,4**. Les deux implémentations comptent donc sur les nœuds à Assassin en attente. Ce
+  résultat tenait déjà à 246 nœuds et ne dépend pas de la valeur.
+- **Les valeurs, elles, ne se recouvrent pas.** Ma mesure sur la campagne entière donne **4,23 %**
+  (172/4063), IC 99 % **[3,46 ; 5,11]**, et **7,33 % en sort**. Ce n'est ni un défaut de l'audit ni
+  un défaut de mon compteur : c'est un désaccord entre deux implémentations qui comptent la même
+  chose sur des échantillons différents. **L'échantillon de l'auditeur ne m'est pas connu** — sans
+  son numérateur et son dénominateur la question n'est pas tranchable, ce qui est le contrôle
+  numéro 2 de son propre audit appliqué à son chiffre. Aucune moyenne, aucune préférence, aucune
+  explication inventée.
+
+**La réserve 2 est fermée par la population à trois greedys.** `B1-collectif` mesuré sur trois
+greedys vaut **71,78 %** (21538/30006) contre **70,07 %** avec un greedy et deux hasards, pour un
+hasard à **67,18 %** : l'écart à établir passe de **+2,89** à **+4,60** points, et le nombre de
+parties nécessaires de **5 868** à **745**. La ligne de base collective que la phase 3 doit
+utiliser est celle-là, et non celle de la composition de référence.
+
+**Ce que mon propre auto-audit avait trouvé (étape 4), et qui reste au dossier :**
 
 1. **B1 comparait un agrégat de 3 sièges à un agent sur 1 siège.** B1 est le seul des sept dont
    le dénominateur naturel est la partie, donc agréger les sièges par un « au moins un » gonfle
@@ -140,32 +264,52 @@ Une direction annoncée d'avance et **infirmée** par la mesure :
     la part des Assassins au banquet est bornée par la mécanique du coup, autour d'un tiers.
     C'est le seul des douze sens annoncés que la mesure contredise.
 
-**Décision.** **PROPOSÉE : go**, sous quatre réserves. La décision n'est pas la mienne et
-n'appartient pas au constructeur.
+**Décision.** **PROPOSÉE : go**, sous **trois** réserves — la deuxième est fermée —, **et après
+re-vérification par l'audit des quatre corrections et de la population à trois greedys**. La décision n'est pas la mienne et
+n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cette re-vérification.
 
 - Le terrain est mesuré : la phase 3 dispose d'un adversaire de référence chiffré, d'un
   dimensionnement, et de dix-huit compteurs dont **on sait lesquels peuvent tester quoi**.
 - **Réserve 1** — `_poids_de_bascule_disponible` est une **proposition**, jamais démontrée
   minimale, donc `B7-gaspillage` est un **plancher** et non le gaspillage.
-- **Réserve 2** — `B1-collectif` chez le greedy mélange sa propre bascule et celles de deux
-  adversaires **aléatoires** : il n'est **pas comparable** à une phase 3 aux adversaires
-  entraînés.
+- **Réserve 2 — FERMÉE.** `B1-collectif` chez le greedy de référence mélangeait sa propre bascule
+  et celles de deux adversaires **aléatoires**. La population à trois greedys, autorisée après
+  l'audit, donne la ligne de base collective utilisable : **71,78 %** contre **67,18 %** pour le
+  hasard, **+4,60 pt**, **745** parties pour l'établir. Périmètre publié : `B1-collectif`, sa
+  variante, et les lignes `-par-partie` — six lignes, et pas une de plus.
 - **Réserve 3** — `FENETRE_STABILITE = 200` est une proposition, appuyée empiriquement sur deux
   valeurs de `p₁` seulement.
-- **Réserve 4 — la durée machine dérive, et une troisième passe montre où.** Sur les **mêmes
-  seeds**, trois passes successives ont donné **1 013 s**, **1 692 s**, puis **1 961 s** au total.
-  La troisième ajoute deux compteurs, donc son total n'est pas comparable — mais les **durées par
-  campagne** portent du code inchangé, et elles montent de **+13,7 % à +16,1 %**,
-  **uniformément sur les cinq campagnes** : 210,9 → 244,8 ; 216,4 → 247,3 ; 261,0 → 301,5 ;
-  307,3 → 351,1 ; 261,6 → 297,5. **Un ralentissement multiplicatif uniforme sur cinq campagnes
-  indépendantes est la signature d'une cause machine, pas d'un chemin de code.** Les deux suspects
-  à écarter avant la phase 3 restent le bridage thermique et la synchronisation OneDrive du dépôt.
-  Et je corrige ma propre formulation : le total **n'est pas** indécomposable — le tableau des
-  durées décompose la phase de jeu. Ce qui reste non décomposé est le hors-campagne, **434,8 s**
-  puis **519,0 s**, où se mélangent bootstrap, compteurs et rédaction. C'est là que le checkpoint
-  annoncé dans ma pré-inscription manque, et nulle part ailleurs.
+- **Réserve 4 — la durée machine ne dérive pas, elle VARIE d'un facteur 2,6, et une quatrième
+  passe l'établit.** J'avais écrit « ralentissement uniforme, donc cause machine ». La direction
+  était fausse et la conclusion trop faible. Sur du **code inchangé et les mêmes seeds**, quatre
+  passes donnent :
 
-**Impact plan.** Cinq trous du protocole, trois enseignements de méthode, un point d'API.
+  | Campagne | passe 1 | passe 2 | passe 3 | passe 4 | passe 5 | max / min |
+  |---|---:|---:|---:|---:|---:|---:|
+  | A | 210,9 s | **244,8 s** | 94,2 s | 108,8 s | **83,5 s** | **2,93** |
+  | A contrôle | 216,4 s | **247,3 s** | 91,7 s | 94,2 s | **82,3 s** | **3,00** |
+  | B | 261,0 s | **301,5 s** | 112,7 s | 112,0 s | **101,1 s** | **2,98** |
+  | B, 2 greedys | 307,3 s | **351,1 s** | 134,1 s | 132,0 s | **118,1 s** | **2,97** |
+  | B, départage déterministe | 261,6 s | **297,5 s** | 113,1 s | 111,5 s | **100,8 s** | **2,95** |
+
+  Non monotone, et un rapport **max/min de 2,93 à 3,00 sur les cinq campagnes**. Les passes 3, 4 et
+  5 portent un code **identique sur la phase de jeu** et s'étalent encore de **−26 % à +16 %**. Le
+  total est passé de 1 013 s à 1 961 s puis à **808 s**.
+
+  **Ce que ça établit, et c'est plus que ce que je disais** : le temps mural mesuré sur cette
+  machine n'est **pas un instrument**. Il ne mesure pas le coût du code, il mesure l'état de la
+  machine au moment où on l'exécute. Les deux suspects restent le bridage thermique et la
+  synchronisation OneDrive du dépôt, mais l'important n'est plus de les départager : c'est que
+  **la phase 3 ne peut pas planifier un budget de calcul sur un chronométrage unique**. Toute durée
+  citée doit l'être sur au moins trois passes, avec son étendue.
+
+  Et je corrige à nouveau ma formulation : le total **n'est pas** indécomposable — le tableau des
+  durées décompose la phase de jeu. Ce qui reste non décomposé est le hors-campagne, où se mélangent
+  bootstrap, compteurs et rédaction. C'est là que le checkpoint annoncé dans ma pré-inscription
+  manque, et nulle part ailleurs.
+
+**Impact plan.** Cinq trous du protocole, **six** enseignements de méthode, une question ouverte
+nommée pour la phase 3, les motifs de mutation à inscrire, et un point d'API.
 
 - **`05_protocole_experimental.md` — trois termes non définis.** « retournement »,
   « distribution non dégénérée » et « situations où refuser de tuer est possible ». Le dernier est
@@ -188,11 +332,67 @@ n'appartient pas au constructeur.
   taille d'échantillon de proportion **ne se calcule pas sans nommer l'écart-type retenu** ;
   l'enum `Variance` rend l'omission impossible. (c) Tout compteur de comportement se teste sur
   **au moins deux compositions de sièges**, avec l'inclusion ou la monotonie attendue **assertée**
-  — c'est ce qui manquait aux défauts 1, 2 et 3.
+  — c'est ce qui manquait aux défauts 1, 2 et 3. **(d) Un critère de périmètre doit se décider sur
+  le TEXTE d'une définition, sans mesurer.** Un critère de degré — « ici les adversaires produisent
+  le numérateur, là ils ne font que façonner le plateau » — dérive toujours vers l'extérieur au bord
+  d'un périmètre : le lecteur suivant ajoute un élément de plus avec une raison aussi bonne, et rien
+  ne l'arrête. Le critère retenu pour la troisième population est textuel — *la définition nomme-t-
+  elle un autre joueur ?* — et il s'arrête où le texte s'arrête. **(f) Toute quantité qui traduit un
+  résultat en budget doit être produite par UNE fonction, et le nombre de parties doit lui être
+  passé depuis le plan, jamais déduit d'un compteur.** Trois tables déduisaient leur dénominateur
+  par partie sur place ; l'une s'est trompée d'un facteur trois. Déduire le nombre de parties de
+  `B1-motif` marchait **par coïncidence** — son grain est le couple et la composition de référence
+  ne mesure qu'un siège — et cessait de marcher dès qu'une population mesurait trois sièges. Une
+  coïncidence qui tient est une bombe à retardement, pas une simplification. **(e) Un libellé de
+  grain doit porter ce qui rend deux grains différents.** Deux colonnes portaient exactement le même libellé
+  en agrégeant l'une un siège et l'autre trois : une parade comparant les libellés n'aurait rien
+  levé, et la mention « non comparable » serait restée de la prose. Le libellé porte désormais le
+  **compte** des sièges, et c'est lui qui rend la levée possible.
 - **Point d'API du moteur.** `vue_du_joueur` est devenue publique dans `courtisans/infoset.py`
   (`a198df8`) : c'est l'API par laquelle un agent obtient sa vue sans jamais toucher un `State`.
   Périmètre **renommage seul**, sur autorisation explicite ; **19 mutations sur 19** toujours
   détectées après.
+- **QUESTION OUVERTE POUR LA PHASE 3 — `B4-tout-dos` et `B5-renfort` bougeront pour une raison
+  qui n'est pas l'habileté de l'agent.** Ces deux compteurs ne sont **pas** dans le périmètre de la
+  troisième population, et le critère de périmètre est clair : leur définition ne nomme aucun autre
+  joueur. Mais leurs deux taux dépendent de ce que **font les adversaires**, et pas au sens où tout
+  le plateau en dépend :
+
+  - `B4-tout-dos` compte les nœuds de ciblage dont **toutes** les cibles sont des dos. Un dos est
+    un Espion posé par quelqu'un d'autre : la **population de dos** sur le plateau est produite par
+    les adversaires.
+  - `B5-renfort` exige au dénominateur « au moins un dos au banquet » **et** une famille à
+    `|d| = 1` : sa population de nœuds dépend à la fois des dos adverses et de la **distribution
+    des familles favorables**, elle-même façonnée par leurs poses.
+
+  **Conséquence à écrire avant que quelqu'un s'y trompe** : quand la phase 3 mesurera ces deux
+  compteurs sur **trois agents entraînés**, leurs taux bougeront par rapport aux **3,89 %** et
+  **20,41 %** publiés ici, pour une raison qui n'est **pas** l'habileté de son agent. Un lecteur
+  qui comparerait son agent à ces deux chiffres sans le savoir attribuerait à son agent un écart
+  **produit par ses adversaires**. Ce que la phase 3 doit faire : soit mesurer ces deux compteurs
+  sur une population de même composition que la sienne, soit ne pas les comparer du tout.
+
+  **Ce que j'avais proposé, et pourquoi c'était refusé.** Je voulais les ajouter au périmètre au
+  motif que les adversaires y produisent le numérateur, là où ailleurs ils ne façonnent que le
+  plateau. C'est un critère de **degré**, et il a été rejeté pour cette raison — voir l'enseignement
+  de méthode (d) ci-dessous.
+
+- **`outillage/mutation.py` ne cible que `courtisans/`** — ses dix-neuf motifs portent sur
+  `infoset`, `engine`, `cards`, `rules`, `openspiel_adapter` et `config`. Ni `mesure/` ni `agents/`
+  ne portent de mutation, alors que `agents/greedy.py` devient la ligne de base de toutes les
+  phases suivantes. Relevé par l'humain, porté au prompt de la phase 3, **rien à faire ici**.
+  Quatre motifs évidents à inscrire, chacun avec le test qui doit l'attraper :
+
+  | Motif | Test qui doit tomber |
+  |---|---|
+  | `max` → `min` dans `_argmax` de `greedy` | tous les cas de position où le coup est déterminé |
+  | départage `alea.choice` → premier indice | `M3(G-naïf)` cesserait de différer de M3 ; à couvrir |
+  | `_meilleur_apres_assassins` → `evaluer` seul, sans résolution des Assassins | les cas G-combiné |
+  | prise en compte des Assassins **en attente** au ciblage | `test_le_ciblage_ignore_les_assassins_en_attente_et_c_est_caracterise` |
+
+  Le quatrième est le seul qui soit déjà tenu : il l'est **par construction** depuis la correction
+  du défaut A3, et c'était le but — un « correctif » du comportement myope casse un test nommé.
+
 - **Deux réserves de la phase 1 restent ouvertes**, annoncées hors phase 2 et non traitées ici.
 - **Rien de tout ceci ne se transporte à `complet-3j`** — 6 familles, 3 exemplaires, 10 tours —
   ni par un facteur ni par une extrapolation. Et **la phase 2 ne valide pas le moteur** : elle le

@@ -63,6 +63,16 @@ class Decision:
             (paragraphe 3.2).
         destinataire: en POSE, le proprietaire du domaine adverse vise.
         cibles: en CIBLAGE, les cibles **redigees** : un dos y porte `carte=None`.
+        assassins_en_attente: en CIBLAGE, les Assassins du meme bloc qui se resoudront
+            **apres** celui-ci, dans l'ordre du paragraphe 3.2. Vide ailleurs.
+
+            **Le decideur ne les recoit pas** : `Perception` ne porte que l'Assassin en cours
+            (`assassin`), et c'est ce qui rend son ciblage myope. La trace, elle, est un
+            enregistrement en vue de dieu -- elle porte deja `posees` -- et c'est
+            `mesure/coherence_greedy.py` qui s'en sert pour **mesurer** cette myopie. Reprise
+            de `State.assassins_en_attente()`, sans son premier element qui est l'Assassin
+            courant : la reconstruire depuis les blocs de pose serait une hypothese de plus a
+            verifier.
         tuee: en CIBLAGE, la carte tuee, ou `None` si refus.
         valeurs: l'ecart evalue de chaque action legale, par `greedy.evaluer_actions`.
     """
@@ -80,6 +90,7 @@ class Decision:
     cartes_posees: tuple[CartePosee, ...] = ()
     destinataire: int | None = None
     cibles: tuple[CibleVue, ...] = ()
+    assassins_en_attente: tuple[CartePosee, ...] = ()
     tuee: CartePosee | None = None
     valeurs: dict[int, int] = field(default_factory=dict)
 
@@ -207,6 +218,12 @@ def tracer(
         if etat.phase() is Phase.POSE:
             tours_par_joueur[joueur] += 1
 
+        # Releve **avant** le coup, comme la vue et la verite : apres, la file a deja avance.
+        en_attente = (
+            etat.assassins_en_attente()[1:]
+            if etat.phase() is Phase.CIBLAGE
+            else ()
+        )
         action = politiques[joueur](etat)
         valeurs = evaluer_actions(perception)
         cibles = perception.cibles
@@ -239,6 +256,7 @@ def tracer(
                 cartes_posees=posees_du_coup,
                 destinataire=destinataire,
                 cibles=cibles,
+                assassins_en_attente=en_attente,
                 tuee=tuee,
                 valeurs=valeurs,
             )

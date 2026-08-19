@@ -115,6 +115,7 @@ def ciblage(
     connues: Sequence[CartePosee] = (),
     posees: Sequence[CartePosee] | None = None,
     tours_restants: tuple[int, ...] | None = None,
+    assassins_en_attente: Sequence[CartePosee] = (),
 ) -> Decision:
     """Un nœud de CIBLAGE ecrit a la main.
 
@@ -123,6 +124,10 @@ def ciblage(
     calculer rend l'attendu de B4 verifiable sans faire tourner le greedy.
 
     Les actions `0 .. nb_cibles - 1` tuent, l'action `nb_cibles` refuse (controle C15).
+
+    `assassins_en_attente` sont les Assassins du meme bloc qui se resoudront **apres** celui-ci.
+    Le decideur ne les voit pas -- c'est ce qui rend son ciblage myope --, et
+    `mesure/coherence_greedy.py` s'en sert pour mesurer cette myopie.
     """
     from agents.perception import CibleVue
 
@@ -153,6 +158,7 @@ def ciblage(
         mortes=(),
         tours_restants=tours_restants or (CONFIG.tours,) * CONFIG.joueurs,
         cibles=tuple(cibles),
+        assassins_en_attente=tuple(assassins_en_attente),
         tuee=tuee,
         valeurs=dict(valeurs),
     )

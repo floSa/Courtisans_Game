@@ -8,6 +8,12 @@ mesure**, une définition opérationnelle et — pour chacune — une ou plusieu
 Ce document met les deux côte à côte : la définition retenue, sa concurrente, le **chiffre** de
 chacune, et le verdict sur le sens annoncé d'avance.
 
+**L'audit croisé a rendu REJETÉ, et ce document a été corrigé en conséquence.** Les quatre
+défauts, leurs corrections et les tests qui les tiennent sont dans
+[phase2_corrections_audit.md](phase2_corrections_audit.md). Trois d'entre eux touchent ce qui est
+écrit ici : le grain des lignes `-par-partie` (§1), la lecture des trois compteurs de B4 (§4), et
+le nombre de compteurs aveugles par le bas (§7).
+
 **Ce qui est autoritatif.** Les comptes viennent de [resultats/phase2.md](resultats/phase2.md),
 généré par `UV_LINK_MODE=copy uv run python -m mesure.phase2`. Ce document ne recalcule rien : il
 recopie des couples `numérateur/dénominateur` et en tire des écarts. En cas de divergence, le
@@ -89,6 +95,15 @@ l'influence de `f` ; au décompte `f` est **Indifférente ou en Obscurité dans 
   elle ne mesure **plus une intention**. Une bascule par un adversaire suffit. Elle majore
   `B1-motif` par construction, et cette inclusion est **vérifiée** dans le rapport, pas déduite —
   elle est tombée une fois.
+
+  **Et c'est le seul compteur dont la ligne de base de référence n'était pas utilisable.** Son
+  numérateur peut être produit **entièrement par les adversaires** : mesuré avec un greedy contre
+  deux politiques uniformes, il mélange la bascule du greedy et celles de deux hasards. La phase 3
+  fera jouer les trois sièges par des agents entraînés, donc c'est la population à **trois greedys**
+  qui donne sa ligne de base : **71,78 %** (21538/30006) contre **67,18 %** pour le hasard, soit
+  **+4,60 pt** et **745** parties pour l'établir — là où la composition de référence donnait
+  +2,89 pt et 5 868 parties. Le critère du périmètre est textuel : `B1-collectif` est le seul dont
+  la **définition nomme un autre joueur**.
 - **`B1-savoir-commun`** n'a **aucune inclusion** avec la retenue, dans aucun des deux sens :
   retirer un dos du plateau peut faire **monter comme descendre** l'influence perçue d'une
   famille. Les deux cas sont construits à la main dans
@@ -113,12 +128,29 @@ siège mesuré porte le motif » donne, **sur les mêmes parties** :
 | Grain | Greedy (1 siège) | Hasard (3 sièges) |
 |---|---|---|
 | couples (partie, siège) — retenu | 47,93 % (4794/10002) | **36,11 %** (10836/30006) |
-| parties, « au moins un siège » | 47,93 % (4794/10002) | **71,90 %** (7191/10002) |
+| parties, « au moins un des N sièges » | 47,93 % (4794/10002) | **71,90 %** (7191/10002) |
 
 Comparer 47,93 % à 71,90 % faisait conclure « **le greedy montre le motif moins que le hasard** »,
 soit **l'inverse de la vérité**. Le numérateur monte avec le nombre de sièges agrégés, le
 dénominateur non. C'est mot pour mot la faute de la phase 1 : un chiffre juste dont la phrase et le
 calcul n'ont pas le même sujet grammatical.
+
+**Et c'était encore un défaut au moment de l'audit croisé, dans une autre table.** Le §5 du rapport
+portait l'avertissement ; le §6 — celui qui est titré *M4 pour la phase 3* — soustrayait quand même
+les deux colonnes et publiait un « parties pour l'établir » pour l'écart de signe inversé. Trois
+choses ont changé, et la première est celle qui compte :
+
+1. **le libellé de grain porte le nombre de sièges** — `parties (au moins un des 1 sièges mesurés)`
+   contre `parties (au moins un des 3 sièges mesurés)`. Les deux colonnes portaient jusque-là
+   **exactement le même libellé**, donc comparer les libellés n'aurait rien détecté ;
+2. **`comportements.ecart_de_taux` lève** quand les grains diffèrent, et `cumuler` aussi. Une
+   cellule corrigée se re-remplit ; une levée, non ;
+3. le §6 écrit **`non comparable : grains différents`**, jamais un tiret.
+
+**La comparaison par partie existe désormais, mais pas dans cette colonne.** La population à
+**trois greedys** agrège trois sièges des deux côtés : le grain coïncide et la soustraction est
+licite. Elle est au §5 bis du rapport. La colonne du greedy de référence, elle, ne sera jamais
+comparable au hasard à ce grain, et c'est écrit à sa place.
 
 **Et B1 n'est pas homogène par siège** — MESURÉ sur 500 donnes × 6 réplicats, politique uniforme :
 **37,93 / 36,80 / 33,50 %**, 4,4 points d'étendue, parce que le siège 0 pose en premier et laisse
@@ -291,6 +323,20 @@ d'un zéro est sa **borne haute exacte de Clopper-Pearson** : à 1 000 parties, 
 **1,10 %** (`B4-contre-nature`) ou **0,34 %** (`B4-meurtre-coûteux`) est **séparable** du greedy ;
 en dessous, il ne l'est pas.
 
+**Trois de ces compteurs sont jugés par l'évaluation myope du greedy lui-même, et cela change ce
+qu'ils disent.** Défaut majeur relevé par l'audit croisé, et il ne porte pas sur les chiffres mais
+sur leur lecture. `B4-strict`, `B4-départage` et `B4-contre-nature` se définissent par rapport à
+`greedy.evaluer_actions`, qui **ne regarde pas les Assassins du même bloc encore en attente** — la
+pose du greedy est évaluée conjointement, ses ciblages non. Conséquence, mot pour mot :
+
+> Le zéro de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de meurtre
+> contre-productif. Il dit qu'il n'a jamais **contredit sa propre évaluation**.
+
+Deux énoncés différents, et **seul le second est vrai**. Les dénominateurs de `B4-strict` et
+`B4-départage` sortent du même argmax, donc la même lecture s'applique aux trois. Pour un agent de
+la phase 3 ce même zéro cesse d'être tautologique — son argmax n'est pas celui de l'étalon — et
+redevient un diagnostic. Le §4 bis du rapport chiffre l'incohérence et son intervalle.
+
 **Sur quelle évaluation « coûterait » est jugé** : sur `agents.greedy.evaluer_actions`, y compris
 pour l'agent de la phase 3, dont la fonction de valeur propre ne servira **pas** d'étalon. Le prix
 est écrit d'avance : un agent qui refuse par anticipation d'un retournement — donc pour une bonne
@@ -415,6 +461,15 @@ Et l'asymétrie est totale : l'écart détectable, **0,30 %**, vaut **le double 
 un agent portant ce taux **au triple** — 0,45 % — serait séparable du greedy ; **aucun agent ne peut
 en être séparé par le bas**, pas même un agent à 0 %, qui n'est qu'à 0,15 point, soit la moitié du
 détectable. Un compteur dont un côté entier est hors d'atteinte ne teste rien de ce côté-là.
+
+**Et ils sont deux, pas un.** C'est le quatrième défaut, relevé par l'humain sur son propre
+contrôle : `B7-gaspillage-vraie` est aveugle par le bas de la même façon — **0,35 %** d'écart
+détectable contre **0,2050 %** de taux mesuré. Aucun agent ne sera jugé sur la vue de dieu, donc
+cela ne change aucune conclusion, mais écrire le cas comme isolé était faux.
+
+La correction n'est pas une phrase : le §6 du rapport **calcule** le critère sur chaque ligne et
+liste les compteurs marqués. Une prose se corrige une fois ; un critère n'oublie pas la ligne
+suivante.
 
 C'est un fait de **l'instance** — sur 4 tours, une famille devient rarement hors d'atteinte avant
 la fin — et non un défaut du compteur. `B7-occasions` existe précisément pour que ce quasi-zéro ne

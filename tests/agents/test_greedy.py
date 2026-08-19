@@ -309,3 +309,117 @@ def test_choisir_refuse_une_action_hors_des_legales():
 
     with pytest.raises(ValueError, match="aucune action legale"):
         choisir(boiteuse, random.Random(0))
+
+
+# ---------------------------------------------------------------------------------
+# Le ciblage se decide SANS les Assassins en attente -- caracterise, pas corrige
+# ---------------------------------------------------------------------------------
+
+
+def _position_a_assassin_en_attente():
+    """Une position ou l'argmax myope et l'argmax coherent **ne coincident pas**.
+
+    Le joueur 0 vient de poser un bloc de trois cartes contenant **deux Assassins** : l'un au
+    banquet en Estime -- celui qui se resout maintenant --, l'autre dans le domaine du joueur 1,
+    qui se resoudra apres (ordre du paragraphe 3.2 : banquet, domaine propre, domaine adverse).
+
+    Le plateau, et le decompte de tete :
+
+      - `Assassin f3` au banquet en Estime, pose par 0 : c'est **A1**, celui du nœud courant.
+        Il porte `d(f3) = +1`, donc **f3 en Lumiere**.
+      - `Assassin f3` (ex. 1) dans le domaine du joueur 1, pose par 0 : c'est **A2**, en
+        attente. Le **proprietaire** encaisse, donc il vaut `+1` au joueur 1.
+      - `Neutre f1` au banquet en Estime : `d(f1) = +1`, donc **f1 en Lumiere**. C'est la
+        **seule cible** de A1 -- un Assassin ne cible que sa zone, Gardes exclus, lui-meme
+        exclu.
+      - `Noble f1` dans le domaine du joueur **0** : `+2` au joueur 0.
+      - `Noble f1` (ex. 1) dans le domaine du joueur **1** : `+2` au joueur 1. C'est la seule
+        cible de A2.
+
+    Scores : joueur 0 = `+2`, joueur 1 = `+2 + 1 = +3`. Ecart evalue = `2 - 3 = -1`.
+    """
+    a1 = au_banquet(3, Role.ASSASSIN, Position.ESTIME, poseur=0)
+    a2 = au_domaine(3, Role.ASSASSIN, proprietaire=1, poseur=0, exemplaire=1)
+    cible = au_banquet(1, Role.NEUTRE, Position.ESTIME, poseur=1)
+    plateau = (
+        a1,
+        a2,
+        cible,
+        au_domaine(1, Role.NOBLE, proprietaire=0, poseur=0),
+        au_domaine(1, Role.NOBLE, proprietaire=1, poseur=1, exemplaire=1),
+    )
+    perception = perception_de_ciblage(plateau, assassin=a1, cibles_connues=(cible,))
+    return perception, a2
+
+
+def test_le_ciblage_ignore_les_assassins_en_attente_et_c_est_caracterise():
+    """**Le greedy ne fait pas ce que sa specification disait, et ce test fixe ce qu'il fait.**
+
+    Sa pose est evaluee avec ses Assassins resolus **conjointement** (`_meilleur_apres_assassins`,
+    l'arbitrage G-combine). Ses ciblages, eux, se decident **un nœud a la fois**, et
+    `Perception` ne porte pas les Assassins en attente : la politique ne PEUT donc pas regarder
+    plus loin. L'incoherence est **structurelle**, pas un accident de code -- l'action de pose de
+    l'adaptateur est atomique (un identifiant encode le bloc de trois cartes entier), donc le
+    bloc est choisi d'un coup pendant que le ciblage se decide apres, sans memoire de ce que le
+    bloc contenait.
+
+    Sur cette position, les deux evaluations, calculees de tete :
+
+      - **myope** -- tuer le `Neutre f1` du banquet fait passer `d(f1)` de `+1` a `0`, donc f1
+        d'Estime a Indifferente : le joueur 0 perd ses `+2` et le joueur 1 aussi. Ecart `0 - 1 =
+        -1`. Refuser laisse `2 - 3 = -1`. **Les deux actions sont a egalite, a `-1`.**
+      - **coherente** -- apres un refus, A2 tue le `Noble f1` du joueur 1 : le joueur 0 garde
+        `+2`, le joueur 1 tombe a `+1`, ecart **`+1`**. Apres le meurtre, f1 est Indifferente,
+        donc le `Noble f1` du joueur 1 ne vaut plus rien et A2 n'a plus rien a gagner : ecart
+        **`-1`**. **Refuser est strictement meilleur de 2 points.**
+
+    Le departage uniforme du greedy tire donc **le meurtre une fois sur deux**, et ce meurtre est
+    coherentement domine. Ce test est la pour qu'un « correctif » futur casse quelque chose de
+    bruyant : la ligne de base de toutes les phases suivantes est celle de cet agent-la, myope
+    au ciblage, et non celle d'un agent coherent.
+    """
+    from agents import greedy
+
+    perception, en_attente = _position_a_assassin_en_attente()
+    tuer, refuser = 0, 1
+
+    myope = greedy.evaluer_actions(perception)
+    assert myope == {tuer: -1, refuser: -1}
+
+    coherente = greedy.evaluer_ciblages_coherents(
+        connues=perception.connues,
+        cibles=perception.cibles,
+        actions_legales=perception.actions_legales,
+        en_attente=(en_attente,),
+        moi=perception.moi,
+        config=perception.config,
+    )
+    assert coherente == {tuer: -1, refuser: 1}
+
+    # La politique suit l'argmax MYOPE : les deux actions y sont a egalite, donc le tirage
+    # uniforme sort le meurtre coherentement domine environ une fois sur deux.
+    tires = {greedy.choisir(perception, random.Random(graine)) for graine in range(50)}
+    assert tires == {tuer, refuser}
+    # Et la variante deterministe le prend systematiquement -- le plus petit indice est le
+    # meurtre. C'est la forme la plus nette du defaut.
+    assert greedy.choisir_par_plus_petit_indice(perception) == tuer
+
+
+def test_sans_assassin_en_attente_les_deux_evaluations_coincident():
+    """La seule difference entre les deux evaluations vient des Assassins **en attente**.
+
+    Sans eux, `evaluer_ciblages_coherents` doit rendre exactement `evaluer_actions`. Sinon
+    l'ecart mesure par le diagnostic melangerait l'incoherence avec une divergence de calcul,
+    et le `7,33 %` ne voudrait plus rien dire.
+    """
+    from agents import greedy
+
+    perception, _ = _position_a_assassin_en_attente()
+    assert greedy.evaluer_ciblages_coherents(
+        connues=perception.connues,
+        cibles=perception.cibles,
+        actions_legales=perception.actions_legales,
+        en_attente=(),
+        moi=perception.moi,
+        config=perception.config,
+    ) == greedy.evaluer_actions(perception)
