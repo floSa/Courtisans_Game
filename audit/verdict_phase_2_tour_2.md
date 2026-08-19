@@ -153,19 +153,41 @@ instance `entrainement-3j`, donnes 0 à 3 399, départage `Random(777)` partagé
 uniformes `Random(3000000 + 3 × donne + siège)`, dénominateur « nœud de ciblage où au moins un
 Assassin reste en attente », argmax myope contre argmax cohérent comparés comme **ensembles** :
 
-| Population | Numérateur / dénominateur | Taux | IC 99 % exact |
-|---|---:|---:|---|
-| trois greedys | 287 / 4 145 | **6,92 %** | [5,95 ; 8,00] |
-| un greedy, deux uniformes | 204 / 4 145 | **4,92 %** | [4,10 ; 5,85] |
+| Population | Numérateur / dénominateur | Taux | IC 99 % exact | Sièges-parties mesurés | Parties jouées |
+|---|---:|---:|---|---:|---:|
+| trois greedys | 287 / 4 145 | **6,92 %** | [5,95 ; 8,00] | 10 200 | 3 400 |
+| un greedy, deux uniformes | 204 / 4 145 | **4,92 %** | [4,10 ; 5,85] | 10 200 | 10 200 |
+
+**L'unité de l'échantillon est le siège-partie mesuré, pas la partie jouée**, et les deux
+diffèrent d'un facteur trois entre les deux protocoles : à trois greedys une seule partie par
+donne suffit et ses trois sièges sont mesurés, à un greedy la donne est rejouée trois fois avec
+un siège mesuré à chaque fois. Les deux colonnes de droite le montrent, et c'est l'égalité des
+**10 200 sièges-parties** — non celle des parties jouées — qui rend les deux taux comparables.
+
+**Le dénominateur 4 145 est bien le même pour les deux, et c'est structurel.** Chaque joueur
+joue ses trois cartes à chaque tour (§3.2) et recomplète sa main depuis une pioche fixée par la
+donne (§3.3) : la main d'un siège à un tour donné est donc déterminée par la **seule donne**, et
+avec elle le nombre d'Assassins qu'il pose. MESURÉ sur 40 donnes et trois compositions —
+trois greedys, un greedy contre deux uniformes, trois uniformes — le vecteur des Assassins en
+main est **identique dans les trois cas**. Sur les mêmes donnes les deux populations offrent
+donc exactement les mêmes nœuds ; seul le contenu du plateau y diffère. Ce n'est pas un report
+recopié d'une population à l'autre, et c'est désormais tenu par un test plutôt que supposé.
 
 Mon 7,33 % tombe dans le premier intervalle, son 4,23 % dans le second, et les deux ne se
-recouvrent pas. **Le dénominateur était bien le même ; la population ne l'était pas.** Son
-échantillon fait 4 063 nœuds sur 10 002 parties de campagne B, le mien 4 145 sur 10 200 — soit
-0,406 contre 0,407 nœud par partie, ce qui achève d'établir que la définition est identique.
+recouvrent pas. Son échantillon fait 4 063 nœuds sur 10 002 sièges-parties de campagne B, le
+mien 4 145 sur 10 200 — soit **0,4062 contre 0,4064 nœud par siège-partie mesuré**, ce qui
+achève d'établir que la définition du dénominateur est identique à la sienne.
 
 Les deux nombres sont justes. **C'est le mien qui était mal étiqueté** : j'ai publié un taux
 sans nommer sa population, la faute exacte que je reprochais ailleurs. Le point est clos et il
 m'appartient.
+
+**Réserve 3, sur mon propre harnais, relevée après le verdict.** Mon champ s'appelait `parties`
+et comptait des itérations — 3 400 et 10 200 —, si bien que ma phrase « 0,406 contre 0,407 nœud
+par partie » nommait une unité qui n'était pas celle du calcul, et juxtaposait de surcroît mon
+chiffre et le sien comme s'ils venaient du même protocole. Aucune conclusion ne change : les
+deux taux, leurs bornes et leur non-recouvrement sont inchangés. Mais c'est le critère de cette
+phase entière appliqué à ma propre table, et il fallait qu'il y passe aussi.
 
 ## Réserves — aucune ne change une conclusion
 

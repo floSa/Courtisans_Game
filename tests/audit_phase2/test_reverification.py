@@ -424,3 +424,85 @@ def test_mon_7_33_pourcent_et_le_sien_mesurent_deux_populations():
     assert not (un[0] <= 0.0733 <= un[1]), "les deux populations doivent bien differer"
     sien = clopper_pearson(172, 4063, 0.01)  # 4,23 % de 4 063, arrondi au plus proche
     assert sien[0] <= un[1] and un[0] <= sien[1], "les deux intervalles doivent se recouvrir"
+
+
+def test_la_main_d_un_siege_ne_depend_pas_de_la_politique():
+    """Ce qui autorise mes deux populations a partager un denominateur.
+
+    Chaque joueur joue ses **trois** cartes a chaque tour (paragraphe 3.2) et recomplete sa
+    main depuis une pioche fixee par la donne (paragraphe 3.3). La main d'un siege a un tour
+    donne est donc determinee par la seule donne. Avec elle, le nombre d'Assassins qu'il pose,
+    donc le nombre de nœuds de ciblage a Assassin en attente.
+
+    **C'est pourquoi `287/4145` et `204/4145` portent le meme denominateur** : ce n'est pas une
+    coincidence ni une erreur de report, c'est une propriete des regles. Si elle tombait, mes
+    deux taux ne se compareraient plus a nombre de nœuds egal, et il faudrait publier deux
+    denominateurs.
+    """
+    from agents.greedy import choisir
+    from agents.perception import percevoir
+    from audit.phase2.greedy import Aleatoire
+    from courtisans.cards import Role
+    from courtisans.engine import Engine, Phase
+
+    class Greedy:
+        """Sa politique, graine fixee."""
+
+        def __init__(self, graine: int) -> None:
+            self.alea = random.Random(graine)
+
+        def action(self, etat) -> int:
+            """L'action de son greedy."""
+            return choisir(percevoir(etat, etat.current_player()), self.alea)
+
+    def assassins_par_tour(seed: int, table) -> list[int]:
+        """Les Assassins en main de chaque siege, tour par tour, dans l'ordre de jeu."""
+        etat = Engine(CONFIG).reset(seed)
+        comptes = []
+        while not etat.is_terminal():
+            if etat.phase() is Phase.POSE:
+                main = etat.vue_privilegiee().mains[etat.current_player()]
+                comptes.append(sum(1 for c in main if c.role is Role.ASSASSIN))
+            etat.apply(table[etat.current_player()].action(etat))
+        return comptes
+
+    for seed in range(40):
+        trois_greedys = assassins_par_tour(seed, [Greedy(1)] * CONFIG.joueurs)
+        un_greedy = assassins_par_tour(
+            seed,
+            [
+                Greedy(2) if s == 0 else Aleatoire(random.Random(100 + s))
+                for s in range(CONFIG.joueurs)
+            ],
+        )
+        aleatoires = assassins_par_tour(
+            seed, [Aleatoire(random.Random(200 + s)) for s in range(CONFIG.joueurs)]
+        )
+        assert trois_greedys == un_greedy == aleatoires, (
+            f"seed {seed} : la main depend de la politique, mes deux populations ne "
+            f"partagent alors plus leur denominateur"
+        )
+        assert len(trois_greedys) == CONFIG.joueurs * CONFIG.tours
+
+
+def test_mes_deux_populations_comptent_le_meme_nombre_de_sieges_parties():
+    """L'unite qui porte le taux est le siege-partie mesure, pas la partie jouee.
+
+    A trois greedys, `donnes` parties et trois sieges mesures chacune ; a un greedy,
+    `3 x donnes` parties et un siege mesure chacune. Les **parties jouees** diffèrent d'un
+    facteur trois, les **sieges-parties mesures** sont egaux -- et c'est le second qui rend
+    les deux taux comparables.
+    """
+    from audit.phase2.coherence_horizon import mesurer
+
+    donnes = 25
+    trois = mesurer("trois-greedys", donnes)
+    un = mesurer("un-greedy-deux-hasards", donnes)
+    assert trois.iterations == donnes
+    assert un.iterations == donnes * CONFIG.joueurs
+    assert trois.sieges_parties == un.sieges_parties == donnes * CONFIG.joueurs
+    assert trois.tours == un.tours == donnes * CONFIG.joueurs * CONFIG.tours
+    assert trois.noeuds_avec_attente == un.noeuds_avec_attente
+    for comptage in (trois, un):
+        assert "sieges-parties mesures" in comptage.texte()
+        assert "parties jouees" in comptage.texte()

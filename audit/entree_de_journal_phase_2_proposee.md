@@ -118,9 +118,21 @@ qu'elle ne se lit qu'en juxtaposant deux nombres.
 **Le seul point resté ouvert au tour 1 est clos, et il appartenait à l'auditeur.** Son 7,33 %
 et le 4,23 % du constructeur mesurent la même chose sur **deux populations différentes** :
 trois greedys donne 287/4 145 = 6,92 % IC 99 % [5,95 ; 8,00], un greedy contre deux uniformes
-donne 204/4 145 = 4,92 % IC 99 % [4,10 ; 5,85], et 0,406 contre 0,407 nœud par partie établit
-que la définition est identique. Les deux nombres étaient justes ; celui de l'auditeur était
-publié sans nommer sa population — la faute qu'il reprochait ailleurs.
+donne 204/4 145 = 4,92 % IC 99 % [4,10 ; 5,85], et 0,4064 contre 0,4062 nœud par **siège-partie
+mesuré** établit que la définition du dénominateur est identique. Les deux populations comptent
+10 200 sièges-parties pour 3 400 et 10 200 parties jouées : c'est l'égalité des sièges-parties,
+non celle des parties, qui rend les deux taux comparables. Et leur dénominateur commun de
+4 145 nœuds est **structurel** — chaque joueur vide sa main à chaque tour et la recomplète
+depuis une pioche fixée par la donne, donc la main d'un siège, et le nombre d'Assassins qu'il
+pose, ne dépendent pas de la politique ; MESURÉ identique sur 40 donnes et trois compositions.
+Les deux nombres étaient justes ; celui de l'auditeur était publié sans nommer sa population —
+la faute qu'il reprochait ailleurs.
+
+Une **troisième réserve** a été relevée après le verdict, dans le harnais de l'auditeur
+lui-même : son compteur s'appelait `parties` et comptait des itérations, si bien que sa phrase
+« nœud par partie » nommait une unité qui n'était pas celle du calcul. Aucun taux, aucune borne
+et aucune conclusion ne changent. Corrigée, et tenue par deux tests — l'un sur l'égalité des
+sièges-parties, l'autre sur l'indépendance de la main à la politique.
 
 **Décision. Go.** La phase 2 est close. Les quatre lignes de base sont établies et citables par
 les phases suivantes, à trois conditions écrites dans le rapport lui-même : B1 et B3 mesurent

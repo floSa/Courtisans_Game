@@ -17,6 +17,24 @@ nommer son echantillon -- la faute que je reprochais par ailleurs. Son chiffre a
 ici est que **le denominateur est le meme et la population ne l'est pas** : j'avais mesure
 trois greedys, sa campagne B fait jouer un greedy contre deux uniformes. Les deux nombres
 seraient alors tous les deux justes, et le mien mal etiquete.
+
+Les deux unites, et pourquoi le denominateur est partage
+--------------------------------------------------------
+**`iterations` n'est pas l'echantillon.** A trois greedys, une seule partie par donne suffit
+et ses **trois** sieges sont mesures ; a un greedy, la donne est rejouee **trois fois**, un
+siege mesure a chaque fois. Les deux protocoles font donc `3 x donnes` **sieges-parties
+mesures** pour un nombre de parties jouees qui differe d'un facteur trois. C'est
+`sieges_parties` qui porte le taux, et c'est lui qui rend les deux populations comparables.
+
+**Le denominateur est identique entre les deux populations, et ce n'est pas une coincidence.**
+Chaque joueur joue ses trois cartes a chaque tour (paragraphe 3.2 des regles) et recomplete sa
+main a trois depuis une pioche fixee par la donne (paragraphe 3.3). La main d'un siege a un
+tour donne est donc **entierement determinee par la donne**, sans aucune dependance a la
+politique -- et avec elle le nombre d'Assassins qu'il pose, donc le nombre de nœuds de ciblage
+a Assassin en attente. Sur les memes donnes, les deux populations offrent exactement les memes
+nœuds ; seul le **contenu** du plateau y differe, parce que les adversaires n'y jouent pas
+pareil. C'est ce qui fait de la comparaison des deux taux une comparaison propre, et c'est
+verifie par `tests/audit_phase2/test_reverification.py` plutot que suppose.
 """
 
 from __future__ import annotations
@@ -42,26 +60,39 @@ GRAINE_DEPARTAGE = 777
 
 @dataclass
 class Comptage:
-    """Les nœuds examines et ceux ou les deux argmax divergent."""
+    """Les nœuds examines et ceux ou les deux argmax divergent.
+
+    Attributes:
+        iterations: le nombre de **parties jouees**. Ce n'est pas l'echantillon : a trois
+            greedys une seule partie par donne suffit et ses trois sieges sont mesures, tandis
+            qu'a un greedy la donne est rejouee trois fois, un siege mesure a chaque fois.
+            Publier ce nombre comme s'il portait le taux ferait croire a deux echantillons de
+            tailles differentes.
+        sieges_parties: le couple `(partie, siege mesure)`, **l'unite qui rend les deux
+            populations comparables**. Les deux en comptent exactement autant.
+        tours: les tours de pose des sieges mesures.
+        noeuds_avec_attente: le denominateur du taux.
+    """
 
     population: str
-    parties: int
+    iterations: int
+    sieges_parties: int
     tours: int
     noeuds_avec_attente: int
     desaccords: int
 
     def texte(self) -> str:
-        """Le taux, son numerateur, son denominateur et son IC 99 %."""
+        """Le taux, son numerateur, son denominateur, son unite et son IC 99 %."""
         if self.noeuds_avec_attente == 0:
             return f"{self.population} : aucun nœud a Assassin en attente, taux sans objet"
-        bas, haut = clopper_pearson(
-            self.desaccords, self.noeuds_avec_attente, 0.01
-        )
+        bas, haut = clopper_pearson(self.desaccords, self.noeuds_avec_attente, 0.01)
         taux = 100 * self.desaccords / self.noeuds_avec_attente
+        par_siege_partie = self.noeuds_avec_attente / self.sieges_parties
         return (
             f"{self.population} : {self.desaccords} / {self.noeuds_avec_attente} nœuds a "
             f"Assassin en attente = {taux:.2f} %, IC99 [{100 * bas:.2f} ; {100 * haut:.2f}] "
-            f"-- {self.parties} parties, {self.tours} tours"
+            f"-- {self.sieges_parties} sieges-parties mesures ({self.iterations} parties "
+            f"jouees), {self.tours} tours, {par_siege_partie:.4f} nœud par siege-partie"
         )
 
 
@@ -109,7 +140,7 @@ def mesurer(population: str, parties: int) -> Comptage:
     """
     engine = Engine(CONFIG)
     alea = random.Random(GRAINE_DEPARTAGE)
-    resultat = Comptage(population, 0, 0, 0, 0)
+    resultat = Comptage(population, 0, 0, 0, 0, 0)
 
     class SonGreedy:
         """Sa politique, graine partagee, pour que la trajectoire soit reproductible."""
@@ -133,7 +164,8 @@ def mesurer(population: str, parties: int) -> Comptage:
                 table[siege_greedy] = greedy
                 mesures = {siege_greedy}
             etat = engine.reset(donne)
-            resultat.parties += 1
+            resultat.iterations += 1
+            resultat.sieges_parties += len(mesures)
             while not etat.is_terminal():
                 joueur = etat.current_player()
                 if etat.phase() is Phase.POSE:
@@ -159,6 +191,7 @@ def main() -> int:
     print(f"graine de departage du greedy Random({GRAINE_DEPARTAGE}), partagee")
     print(f"adversaires uniformes Random({DECALAGE_B} + 3 x donne + siege)")
     print("denominateur : nœud de ciblage ou au moins un Assassin reste en attente")
+    print("unite de l'echantillon : le siege-partie MESURE, pas la partie jouee")
     print()
     for population in ("trois-greedys", "un-greedy-deux-hasards"):
         print(mesurer(population, parties).texte())
