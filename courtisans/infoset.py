@@ -13,7 +13,7 @@ configuration, donc la taille du tenseur est constante.
 
 Ce qu'un joueur sait, et rien de plus
 --------------------------------------
-Tout part de `_vue_du_joueur` : les cartes dont il connait l'identite -- les faces
+Tout part de `vue_du_joueur` : les cartes dont il connait l'identite -- les faces
 visibles, plus ses propres Espions -- et les dos adverses, dont il ne connait que la
 position et le poseur. **Aucune autre fonction de ce module ne touche au plateau reel.**
 
@@ -81,8 +81,19 @@ class VueDuJoueur:
     dos_adverses: tuple[CartePosee, ...]
 
 
-def _vue_du_joueur(etat: State, joueur: int) -> VueDuJoueur:
-    """Separe les cartes posees selon ce que `joueur` en sait."""
+def vue_du_joueur(etat: State, joueur: int) -> VueDuJoueur:
+    """Separe les cartes posees selon ce que `joueur` en sait.
+
+    **Publique, et c'est delibere.** `VueDuJoueur` l'etait deja ; son producteur etant seul
+    prive, la paire etait incoherente. C'est la vue dont **tout agent** a besoin : celui de la
+    phase 2 comme celui de la phase 3. La garder privee obligerait chaque agent a importer un
+    nom prive, et l'API publique du moteur pour un agent n'existerait jamais.
+
+    C'est le predicat du paragraphe 4.2 des regles, et rien de plus : une carte face cachee
+    posee par quelqu'un d'autre est un dos, tout le reste est connu. `chaine` et `tenseur` ne
+    consomment que cette partition -- verifie par `tests/infoset/test_vue_du_joueur.py`, qui
+    permute l'identite des dos et exige que les deux sorties ne bougent pas.
+    """
     vue = etat.vue_privilegiee()
     connues = []
     dos = []
@@ -125,7 +136,7 @@ def _blocs(etat: State, joueur: int) -> tuple[Bloc, ...]:
     """
     config = etat.config
     vue = etat.vue_privilegiee()
-    su = _vue_du_joueur(etat, joueur)
+    su = vue_du_joueur(etat, joueur)
     familles = range(config.familles)
     roles = config.roles
     roles_visibles = _roles_visibles(config)
@@ -273,7 +284,7 @@ def _compter(
 
     `caches=True` ne selectionne que les cartes face cachee. Applique a `connues`, cela
     suffit a designer **mes** Espions : une carte cachee posee par quelqu'un d'autre n'y
-    figure pas, par construction de `_vue_du_joueur`. Un filtre sur le poseur serait donc
+    figure pas, par construction de `vue_du_joueur`. Un filtre sur le poseur serait donc
     une branche morte.
     """
     total = 0
