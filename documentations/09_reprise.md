@@ -77,7 +77,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 | `claude/courtisans-action-labels-leak-582d90` | `ade169e` | branche du pilote, au même commit |
 | `claude/courtisans-phase-1-measure-3900b7` | `d7398bd` | mesure de la phase 1 |
 | `claude/courtisans-measurement-audit-9bf2f1` | `c64cd9e` | audit de la phase 1 |
-| `claude/courtisans-phase-2-baseline-559e17` | `72630a1` | **phase 2, constructeur** |
+| `claude/courtisans-phase-2-baseline-559e17` | `db0816b` | **phase 2, constructeur** |
 | `claude/courtisans-phase2-baseline-c5159e` | `7ab95ae` | **phase 2, auditeur** — verdict + 36 contrôles hostiles |
 
 `origin/main` et `origin/cfr-pivot` sont l'ancien projet RL, hors sujet.
@@ -90,9 +90,12 @@ phase 2 : `git merge-base --is-ancestor 68a5c16 HEAD` doit réussir.
 
 ## 5. Ce qui est en attente, précisément
 
-### Conversation 4 — deux corrections attendent un feu vert
+### Conversation 4 — terminée, elle attend le verdict
 
-Aucune ne touche au rapport ; les deux vont dans la proposition d'entrée de journal.
+Les deux corrections ont eu le feu vert et sont livrées dans `db0816b`. **Elles ne touchent
+que deux documents** : le rapport `mesure/resultats/phase2.md`, `courtisans/` et
+`documentations/` sont inchangés depuis `72630a1` — vérifié. L'état que l'auditeur
+re-vérifie reste donc valide. C'était :
 
 1. **La clause du −26 %.** Il avait écrit que les passes 3 à 5 s'étalent « de −26 % à +16 % »
    sur les cinq campagnes. Le −26 % venait d'une **sixième** campagne que sa propre phrase
