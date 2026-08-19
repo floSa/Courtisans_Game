@@ -731,6 +731,39 @@ def verifier_b4(comptes: dict[str, Compte]) -> None:
 # ---------------------------------------------------------------------------------
 
 
+def verifier_inclusion_b1(comptes: dict[str, Compte]) -> None:
+    """`B1-collectif` majore `B1-motif` -- **verifie sur chaque population, jamais deduit**.
+
+    Le don vient du siege mesure, la bascule de n'importe quel siege : le second compteur ne peut
+    donc pas depasser le premier. **Une inclusion qui tombe designe un compteur faux**, et
+    celle-ci est tombee une fois -- `B1-collectif` n'agregeait que les sieges mesures, donc il
+    valait exactement `B1-motif` des qu'on mesurait un agent seul, muet precisement dans le cas ou
+    il sert.
+
+    Ecrit comme une **levee** et non comme une phrase du rapport, pour la meme raison que
+    `verifier_b4` : le rapport imprimait l'inclusion sur deux populations sur trois, et l'audit a
+    du verifier la troisieme a la main.
+
+    Les deux grains sont controles quand ils sont presents. `-par-partie` compris : l'inclusion
+    tient a tous les grains, puisqu'elle tient nœud par nœud.
+
+    Raises:
+        ValueError: si l'inclusion tombe sur l'un des grains presents.
+    """
+    for suffixe in ("", "-par-partie"):
+        collectif, motif = comptes.get(f"B1-collectif{suffixe}"), comptes.get(f"B1-motif{suffixe}")
+        if collectif is None or motif is None:
+            continue
+        if collectif.succes < motif.succes:
+            raise ValueError(
+                f"inclusion tombee sur le grain « {collectif.grain} » : "
+                f"B1-collectif{suffixe} = {collectif.succes} < B1-motif{suffixe} = "
+                f"{motif.succes}. Le don vient du siege mesure et la bascule de n'importe quel "
+                f"siege, donc le second ne peut pas depasser le premier : l'un des deux "
+                f"compteurs est faux."
+            )
+
+
 def b5(
     traces: Sequence[TracePartie], config: GameConfig, sieges: Sequence[int] | None = None
 ) -> dict[str, Compte]:

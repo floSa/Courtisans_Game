@@ -429,9 +429,13 @@ def section_coherence(lignes: list[str], comptes: dict[str, comp.Compte]) -> Non
         "le gain moyen et la part de victoire de la section 4 sont un **plancher** du greedy, pas "
         "une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de "
         "la phase 3 plus bas, jamais plus haut.",
-        "- **M4 : aucun sens determine.** Trois compteurs de B4 sont juges **par cette meme "
-        "evaluation myope** -- voir la section 5. Leur zero ou leur partage ne se lit pas comme "
-        "un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence interne**.",
+        "- **M4 : aucun sens determine.** **Quatre** compteurs de B4 sont juges **par cette meme "
+        "evaluation myope** -- `B4-strict`, `B4-departage`, `B4-contre-nature` et "
+        "**`B4-meurtre-couteux`**, voir la section 5. Leur zero ou leur partage ne se lit pas "
+        "comme un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence "
+        "interne**. Les **deux zeros absolus** sont dans ce lot : ni l'un ni l'autre ne dit que "
+        "le greedy n'a jamais mal joue, seulement qu'il n'a jamais contredit sa propre "
+        "evaluation.",
         "",
         "**Ce comportement est tenu par un test** (`tests/agents/test_greedy.py`), sur une "
         "position construite a la main ou l'argmax myope est a egalite et l'argmax coherent "
@@ -589,9 +593,20 @@ def section_m4(
     b6_hasard: dict[str, float | None],
     b6_concurrente_greedy: dict[str, float | None],
     b6_concurrente_hasard: dict[str, float | None],
+    trois: dict[str, comp.Compte] | None = None,
 ) -> None:
-    """M4 : les sept comportements, deux lignes de base, definitions concurrentes comprises."""
+    """M4 : les sept comportements, deux lignes de base, definitions concurrentes comprises.
+
+    `trois` est la population a trois greedys, quand elle a ete jouee : l'inclusion
+    `B1-collectif >= B1-motif` doit etre verifiee sur **elle aussi**, et c'est celle qui existe
+    pour `B1-collectif`.
+    """
     lignes.append(_titre("5. M4 -- B1 a B7, ligne de base du greedy ET du hasard"))
+    populations = [("greedy", greedy), ("hasard", hasard)]
+    if trois is not None:
+        populations.append(("3 greedys", trois))
+    for _, source in populations:
+        comp.verifier_inclusion_b1(source)
     lignes += [
         "**Deux points de comparaison, pas un.** « Le greedy fait B4 dans X % des cas » n'est "
         "pas interpretable sans savoir ce que le hasard donne. La colonne « hasard » vient de la "
@@ -660,15 +675,22 @@ def section_m4(
         f"l'heuristique : elle refuse avec probabilite `1/(k+1)`. C'est la part de `B4-brut` "
         "qui ne mesure pas un comportement, et elle se lit a cet endroit.",
         "",
-        "**Ces trois compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela "
-        "change ce qu'ils disent.** `B4-strict`, `B4-departage` et `B4-contre-nature` se "
-        "definissent par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins "
-        "du meme bloc encore en attente** (voir la section « le greedy et sa specification » "
-        "ci-dessus). Consequence a lire mot pour mot : le zero de `B4-contre-nature` **ne dit "
-        "pas** que le greedy n'a jamais commis de meurtre contre-productif ; il dit qu'il n'a "
-        "jamais **contredit sa propre evaluation**. Deux enonces differents, et seul le second "
-        "est vrai. Les denominateurs de `B4-strict` et `B4-departage` sortent du meme argmax, "
-        "donc la meme lecture s'applique aux trois.",
+        "**QUATRE de ces compteurs sont juges par l'evaluation myope du greedy lui-meme, et "
+        "cela change ce qu'ils disent.** `B4-strict`, `B4-departage`, `B4-contre-nature` et "
+        "**`B4-meurtre-couteux`** se definissent tous les quatre par rapport a "
+        "`greedy.evaluer_actions`, qui **ne regarde pas les Assassins du meme bloc encore en "
+        "attente** (voir la section « le greedy et sa specification » ci-dessus). Consequence a "
+        "lire mot pour mot :",
+        "",
+        "> Le zero de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de "
+        "refus contre-productif, et le zero de `B4-meurtre-couteux` **ne dit pas** qu'il n'a "
+        "jamais commis de meurtre contre-productif. Les deux disent qu'il n'a jamais "
+        "**contredit sa propre evaluation**.",
+        "",
+        "Deux enonces differents a chaque fois, et seul le second est vrai. **Les deux zeros "
+        "absolus de la section 6 sont tous les deux dans ce lot**, donc aucun des deux ne se lit "
+        "comme un resultat sur le jeu du greedy. `B4-strict` et `B4-departage` ont leur "
+        "**denominateur** issu du meme argmax, donc la meme lecture s'applique aux quatre.",
         "",
         "Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax n'est "
         "pas celui de l'etalon, donc `B4-contre-nature` devient un vrai diagnostic -- et un "
@@ -678,13 +700,21 @@ def section_m4(
         "### Une inclusion, verifiee et non deduite",
         "",
         "`B1-collectif` majore `B1-motif` **par construction** : le don vient du siege mesure, "
-        "la bascule de n'importe quel siege. L'inclusion est verifiee sur les deux colonnes -- "
-        f"greedy {greedy['B1-collectif'].succes} >= {greedy['B1-motif'].succes}, hasard "
-        f"{hasard['B1-collectif'].succes} >= {hasard['B1-motif'].succes}. **Une inclusion qui "
-        "tombe designerait un compteur faux**, et celle-ci est tombee une fois : "
-        "`B1-collectif` n'agregeait que les sieges mesures, donc il valait exactement "
+        "la bascule de n'importe quel siege. L'inclusion est verifiee sur **les trois "
+        "populations** -- "
+        + ", ".join(
+            f"{intitule} {source['B1-collectif'].succes} >= {source['B1-motif'].succes}"
+            for intitule, source in populations
+        )
+        + ". **Une inclusion qui tombe designerait un compteur faux**, et celle-ci est tombee "
+        "une fois : `B1-collectif` n'agregeait que les sieges mesures, donc il valait exactement "
         "`B1-motif` des qu'on mesurait un agent seul -- muet precisement dans le cas ou il "
         "sert, un don du greedy retourne par un adversaire.",
+        "",
+        "**La troisieme population manquait a ce controle**, et c'est justement celle qui existe "
+        "pour `B1-collectif` : l'audit a du la verifier a la main. `comportements.verifier_"
+        "inclusion_b1` **leve** desormais si l'inclusion tombe, et le rapport l'appelle sur les "
+        "trois. Personne n'a plus a la refaire a la main.",
         "",
         "### Deux choses que la mesure a corrigees dans ma propre lecture",
         "",
@@ -1055,6 +1085,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
         b6_hasard,
         b6_concurrente_greedy,
         b6_concurrente_hasard,
+        trois_greedys,
     )
     # **Le nombre de parties est passe depuis le haut**, calcule du plan et non deduit d'un
     # compteur : le deduire de `B1-motif` marchait par coincidence -- son grain est le couple et

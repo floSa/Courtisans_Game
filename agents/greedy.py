@@ -78,13 +78,15 @@ de la campagne B.
   `+0,7978` de gain moyen et `86,52 %` de part de victoire sont un **plancher** du greedy, pas
   une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de la
   phase 3 plus bas, jamais plus haut.
-- **M4 : aucun sens determine, et trois compteurs sont tautologiques.** `B4-strict`,
-  `B4-departage` et `B4-contre-nature` sont juges **par `evaluer_actions`**, c'est-a-dire par
-  l'evaluation myope elle-meme. Le zero de `B4-contre-nature` ne dit donc **pas** que le greedy
-  n'a jamais commis de meurtre contre-productif : il dit qu'il n'a jamais **contredit sa propre
-  evaluation**. Deux enonces differents, et seul le second est vrai. Les denominateurs de
-  `B4-strict` et `B4-departage` sortent du meme argmax, donc la meme lecture s'applique aux
-  trois.
+- **M4 : aucun sens determine, et QUATRE compteurs sont tautologiques.** `B4-strict`,
+  `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`** sont juges **par
+  `evaluer_actions`**, c'est-a-dire par l'evaluation myope elle-meme -- les quatre lisent
+  `decision.valeurs`. Le zero de `B4-contre-nature` ne dit donc **pas** que le greedy n'a jamais
+  commis de refus contre-productif, et le zero de `B4-meurtre-couteux` ne dit **pas** qu'il n'a
+  jamais commis de meurtre contre-productif : les deux disent qu'il n'a jamais **contredit sa
+  propre evaluation**. Deux enonces differents a chaque fois, et seul le second est vrai. **Les
+  deux zeros absolus sont tous les deux dans ce lot.** Les denominateurs de `B4-strict` et
+  `B4-departage` sortent du meme argmax, donc la meme lecture s'applique aux quatre.
 
 **Ce qui tient ce comportement** : `tests/agents/test_greedy.py`, sur une position construite a
 la main ou l'argmax myope est a egalite et l'argmax coherent strictement meilleur de 2 points. Un

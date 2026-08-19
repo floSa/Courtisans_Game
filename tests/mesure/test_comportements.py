@@ -383,6 +383,50 @@ def test_b1_collectif_majore_toujours_b1_motif():
         assert comptes["B1-collectif"].succes >= comptes["B1-motif"].succes
 
 
+def test_le_controle_d_inclusion_leve_et_laisse_passer():
+    """Les deux branches du controle, parce qu'un `raise` non couvert n'est pas un `raise` verifie.
+
+    Le rapport imprimait l'inclusion sur **deux** populations sur trois, et l'audit a du verifier
+    la troisieme -- celle qui existe justement pour `B1-collectif` -- a la main. Le controle est
+    donc devenu une **levee**, appelee sur les trois, comme `verifier_b4`.
+    """
+    bon = {
+        "B1-collectif": comp.Compte("B1-collectif", 3916, 10002, "couples", comp.VUE_MIXTE),
+        "B1-motif": comp.Compte("B1-motif", 2528, 10002, "couples", comp.VUE_MIXTE),
+    }
+    comp.verifier_inclusion_b1(bon)  # ne leve pas
+
+    casse = dict(bon)
+    casse["B1-collectif"] = comp.Compte("B1-collectif", 2527, 10002, "couples", comp.VUE_MIXTE)
+    with pytest.raises(ValueError, match="inclusion tombee"):
+        comp.verifier_inclusion_b1(casse)
+
+    # Le grain `-par-partie` est controle aussi, et son absence ne fait pas lever.
+    comp.verifier_inclusion_b1({"B1-collectif": bon["B1-collectif"]})
+    par_partie = {
+        "B1-collectif-par-partie": comp.Compte(
+            "B1-collectif-par-partie", 5, 10, "parties (au moins un des 3 sieges mesures)",
+            comp.VUE_MIXTE,
+        ),
+        "B1-motif-par-partie": comp.Compte(
+            "B1-motif-par-partie", 6, 10, "parties (au moins un des 3 sieges mesures)",
+            comp.VUE_MIXTE,
+        ),
+    }
+    with pytest.raises(ValueError, match="par-partie"):
+        comp.verifier_inclusion_b1(par_partie)
+
+
+def test_le_controle_d_inclusion_tient_sur_les_traces_construites():
+    """Le controle passe sur une trace reelle, aux deux compositions de sieges.
+
+    Sans ce cas, le controle pourrait lever sur des donnees valides sans que rien ne le dise.
+    """
+    une = _trace_b1()
+    for sieges in ([0], [0, 1, 2]):
+        comp.verifier_inclusion_b1(comp.motif_b1([une], CONFIG, sieges=sieges))
+
+
 def test_b1_collectif_compte_ce_que_b1_motif_refuse():
     """Deux joueurs differents : le motif existe, l'intention non. C'est l'ecart a publier.
 
