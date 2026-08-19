@@ -64,8 +64,8 @@ Le pilote **n'écrit pas le code des phases**. Il :
 | **1** | Pilote | active — c'est celle qu'on reprend |
 | **2** | Mesure de la phase 1 | close (elle a produit les 96 % de retournement) |
 | **3** | Audit de la phase 1 | clos (il a écrit REJETÉ) |
-| **4** | Mesure de la phase 2, constructeur | terminée — elle attend le verdict (voir §5) |
-| **5** | Audit de la phase 2 | **clos — ACCEPTÉ SOUS RÉSERVE au tour 2** |
+| **4** | Mesure de la phase 2, constructeur | **terminée** |
+| **5** | Audit de la phase 2 | **clos — ACCEPTÉ au tour 3** |
 
 ## 4. État du dépôt, vérifié le 19/08/2026
 
@@ -73,7 +73,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 
 | Branche | Tête | Contenu |
 |---|---|---|
-| `moteur-conforme` | `ade169e` | branche de travail : moteur, phases 0 et 1 closes, tous les prompts |
+| `moteur-conforme` | voir `git log` — la phase 2 y est fusionnée | branche de travail : moteur, phases 0 et 1 closes, tous les prompts |
 | `claude/courtisans-action-labels-leak-582d90` | `ade169e` | branche du pilote, au même commit |
 | `claude/courtisans-phase-1-measure-3900b7` | `d7398bd` | mesure de la phase 1 |
 | `claude/courtisans-measurement-audit-9bf2f1` | `c64cd9e` | audit de la phase 1 |
@@ -88,51 +88,33 @@ Le pilote **n'écrit pas le code des phases**. Il :
 `main`, où le paquet `courtisans/` n'existe pas. Le contrôle est dans les prompts depuis la
 phase 2 : `git merge-base --is-ancestor 68a5c16 HEAD` doit réussir.
 
-## 5. Ce qui est en attente, précisément
+## 5. La phase 2 est close, et ce qui reste ouvert
 
-### Conversation 4 — terminée, elle attend le verdict
+**VERDICT FINAL : ACCEPTÉ**, au troisième tour d'audit. L'entrée est au journal, à la date du
+19/08/2026 — **lis-la, tout y est**. Les deux branches sont fusionnées dans `moteur-conforme`.
 
-Les deux corrections ont eu le feu vert et sont livrées dans `db0816b`. **Elles ne touchent
-que deux documents** : le rapport `mesure/resultats/phase2.md`, `courtisans/` et
-`documentations/` sont inchangés depuis `72630a1` — vérifié. L'état que l'auditeur
-re-vérifie reste donc valide. C'était :
+Trois tours, 75 contrôles hostiles, cinq défauts trouvés dont un bloquant, 977 tests verts.
 
-1. **La clause du −26 %.** Il avait écrit que les passes 3 à 5 s'étalent « de −26 % à +16 % »
-   sur les cinq campagnes. Le −26 % venait d'une **sixième** campagne que sa propre phrase
-   excluait, et le +16 % était +15,5 % arrondi vers le haut. La phrase juste, qu'il propose :
-   *« Les passes 3, 4 et 5 portent un code identique sur la phase de jeu, et les changements
-   d'une passe à la suivante s'étalent de −23,3 % à +15,5 % sur les cinq campagnes. »*
-2. **L'enseignement (g)**, dont le texte est prêt : *reproduire un nombre ne le valide pas — il
-   faut reproduire son unité d'abord, et le nombre ensuite.* Voir §7.
+**La même faute est sortie cinq fois dans cette seule phase** : un chiffre exact sur une
+population que sa phrase ne nomme pas. Chez le constructeur, chez l'auditeur, chez le pilote, et
+la cinquième fois dans l'entrée de journal qui nommait la faute quatre fois. D'où la règle :
+**relire ce qui a été écrit en dernier, pas ce qui a été mesuré en premier.**
 
-### Conversation 5 — verdict rendu au tour 2 : ACCEPTÉ SOUS RÉSERVE
+**Quatre mineurs du tour 1 restent ouverts**, hors du périmètre re-vérifié, et ils sont à
+traiter au début de la phase 3 :
 
-Quatre défauts levés, les six budgets reconstruits à l'unité près en reconstruisant l'unité
-avant la valeur. **965 verts sur 966**, le seul rouge portant la réserve 1.
+1. le rapport généré est en cp1252 quand les quatre autres documents sont en UTF-8 ;
+2. **`vue_du_joueur`, rendue publique par cette phase, ne valide pas son argument** et rend une
+   vue n'appartenant à aucun siège — c'est la réouverture du défaut 2 de la phase 0 sur une
+   entrée neuve, et c'est le plus sérieux des quatre puisque tout agent en dépend ;
+3. deux des douze directions annoncées sont comptées comme tenues alors que la pré-inscription
+   les déclare nulles **par construction** ;
+4. une cellule « voir `B4-departage` » dans une table dont le texte dit qu'elle ne se lit qu'en
+   juxtaposant deux nombres.
 
-**Le désaccord sur le 7,33 % est clos, et il lui appartenait.** Les deux nombres étaient justes ;
-le sien était mal étiqueté. Il avait mesuré **trois greedys** (6,92 %, IC [5,95 ; 8,00], qui
-contient 7,33 %) là où la campagne B du constructeur fait jouer **un greedy contre deux
-uniformes** (4,92 %, IC [4,10 ; 5,85], qui contient son 4,23 %). Il avait publié un taux sans
-nommer sa population — la faute qu'il reprochait ailleurs.
-
-**Trois réserves ouvertes, toutes documentaires, aucune ne change un chiffre.**
-
-1. Le §4 bis du rapport écrit « **trois** compteurs de B4 » là où `b4` en décide **quatre** sur
-   `decision.valeurs`. L'omis est `B4-meurtre-couteux`, **l'un des deux zéros absolus** : un
-   lecteur de la phase 3 lirait son zéro comme un résultat sur le greedy alors qu'il est
-   tautologique comme les trois autres. Et aucun des quatre n'est nommé. **À corriger : c'est la
-   correction du défaut 3 laissée à moitié.**
-2. L'inclusion `B1-collectif >= B1-motif` est vérifiée sur les deux anciennes colonnes et pas
-   sur la nouvelle — celle qui existe pour `B1-collectif`. L'auditeur l'a vérifiée à la main
-   (3 916 >= 2 528, elle tient) mais personne ne la publie.
-3. **Trouvée par le pilote dans son harnais.** Son tableau publie `287/4145` et `204/4145` — le
-   **même** dénominateur pour deux populations différentes — alors que ses propres nœuds par
-   siège-partie valent 0,406 et 0,407, ce qui implique deux dénominateurs distincts, de l'ordre
-   de 4 141 et 4 151. Le couple publié n'est donc pas celui qui a servi. À échelle : ±10 sur le
-   dénominateur déplace les bornes de 0,01 pt, donc **aucune conclusion ne bouge**. Et son
-   `parties` compte des itérations, pas des parties : 3 400 pour trois greedys, 10 200 pour
-   l'autre, donc « nœud par partie » est en réalité par **siège-partie mesuré**.
+**Cinq trous du protocole expérimental** sont nommés dans l'entrée de journal et **ne sont pas
+corrigés** dans [05_protocole_experimental.md](05_protocole_experimental.md). C'est un travail de
+pilote, pas d'agent.
 
 ### Phase 3 — pas de prompt
 
