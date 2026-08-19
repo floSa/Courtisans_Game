@@ -65,7 +65,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 | **2** | Mesure de la phase 1 | close (elle a produit les 96 % de retournement) |
 | **3** | Audit de la phase 1 | clos (il a écrit REJETÉ) |
 | **4** | Mesure de la phase 2, constructeur | terminée — elle attend le verdict (voir §5) |
-| **5** | Audit de la phase 2 | en cours — re-vérification des sept points (§6) |
+| **5** | Audit de la phase 2 | **clos — ACCEPTÉ SOUS RÉSERVE au tour 2** |
 
 ## 4. État du dépôt, vérifié le 19/08/2026
 
@@ -78,7 +78,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 | `claude/courtisans-phase-1-measure-3900b7` | `d7398bd` | mesure de la phase 1 |
 | `claude/courtisans-measurement-audit-9bf2f1` | `c64cd9e` | audit de la phase 1 |
 | `claude/courtisans-phase-2-baseline-559e17` | `db0816b` | **phase 2, constructeur** |
-| `claude/courtisans-phase2-baseline-c5159e` | `7ab95ae` | **phase 2, auditeur** — verdict + 36 contrôles hostiles |
+| `claude/courtisans-phase2-baseline-c5159e` | `8c8c838` | **phase 2, auditeur** — les deux verdicts + 36 contrôles hostiles |
 
 `origin/main` et `origin/cfr-pivot` sont l'ancien projet RL, hors sujet.
 
@@ -105,21 +105,34 @@ re-vérifie reste donc valide. C'était :
 2. **L'enseignement (g)**, dont le texte est prêt : *reproduire un nombre ne le valide pas — il
    faut reproduire son unité d'abord, et le nombre ensuite.* Voir §7.
 
-### Conversation 5 — la re-vérification, et une question sans réponse
+### Conversation 5 — verdict rendu au tour 2 : ACCEPTÉ SOUS RÉSERVE
 
-Elle re-vérifie les sept points du §6. **Elle doit aussi commiter et pousser** : au moment de
-l'écriture, `audit/phase2/coherence_horizon.py` et `tests/audit_phase2/test_reverification.py`
-étaient non suivis dans son worktree.
+Quatre défauts levés, les six budgets reconstruits à l'unité près en reconstruisant l'unité
+avant la valeur. **965 verts sur 966**, le seul rouge portant la réserve 1.
 
-**Une question lui a été posée et n'a pas eu de réponse** : le numérateur, le dénominateur et
-l'échantillon de son `7,33 %` (défaut 3, incohérence du ciblage du greedy). Le constructeur
-mesure `4,23 %` (172/4063), IC 99 % exact **[3,46 ; 5,11]**, qui **ne recouvre pas** 7,33 %.
+**Le désaccord sur le 7,33 % est clos, et il lui appartenait.** Les deux nombres étaient justes ;
+le sien était mal étiqueté. Il avait mesuré **trois greedys** (6,92 %, IC [5,95 ; 8,00], qui
+contient 7,33 %) là où la campagne B du constructeur fait jouer **un greedy contre deux
+uniformes** (4,92 %, IC [4,10 ; 5,85], qui contient son 4,23 %). Il avait publié un taux sans
+nommer sa population — la faute qu'il reprochait ailleurs.
 
-Ce qui est établi et ne dépend pas de la valeur : les deux implémentations comptent sur le
-**même dénominateur** — les nœuds à Assassin en attente —, parce que la lecture concurrente
-« parmi tous les nœuds de ciblage » donne 0,72 % [0,58 ; 0,87] et exclut 7,33 % d'un facteur
-8,4. Le désaccord porte donc sur la **valeur**, pas sur l'unité, et il reste ouvert. **C'est le
-seul point de la phase 2 sans propriétaire.**
+**Trois réserves ouvertes, toutes documentaires, aucune ne change un chiffre.**
+
+1. Le §4 bis du rapport écrit « **trois** compteurs de B4 » là où `b4` en décide **quatre** sur
+   `decision.valeurs`. L'omis est `B4-meurtre-couteux`, **l'un des deux zéros absolus** : un
+   lecteur de la phase 3 lirait son zéro comme un résultat sur le greedy alors qu'il est
+   tautologique comme les trois autres. Et aucun des quatre n'est nommé. **À corriger : c'est la
+   correction du défaut 3 laissée à moitié.**
+2. L'inclusion `B1-collectif >= B1-motif` est vérifiée sur les deux anciennes colonnes et pas
+   sur la nouvelle — celle qui existe pour `B1-collectif`. L'auditeur l'a vérifiée à la main
+   (3 916 >= 2 528, elle tient) mais personne ne la publie.
+3. **Trouvée par le pilote dans son harnais.** Son tableau publie `287/4145` et `204/4145` — le
+   **même** dénominateur pour deux populations différentes — alors que ses propres nœuds par
+   siège-partie valent 0,406 et 0,407, ce qui implique deux dénominateurs distincts, de l'ordre
+   de 4 141 et 4 151. Le couple publié n'est donc pas celui qui a servi. À échelle : ±10 sur le
+   dénominateur déplace les bornes de 0,01 pt, donc **aucune conclusion ne bouge**. Et son
+   `parties` compte des itérations, pas des parties : 3 400 pour trois greedys, 10 200 pour
+   l'autre, donc « nœud par partie » est en réalité par **siège-partie mesuré**.
 
 ### Phase 3 — pas de prompt
 
