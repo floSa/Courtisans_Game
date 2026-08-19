@@ -1,0 +1,777 @@
+{
+ "instance": "entrainement-3j",
+ "n_m1": 10000,
+ "n_m3": 1000,
+ "m1_non_apparie": {
+  "parties": 10000,
+  "donnes": 10000,
+  "strictes": [
+   2856,
+   2813,
+   2907
+  ],
+  "partagees": [
+   3847,
+   3816,
+   3890
+  ],
+  "gains": [
+   -5.0,
+   -60.5,
+   65.5
+  ],
+  "egalites": 1424,
+  "nulle_stricte": 0.28586666666666666,
+  "ic_strictes": [
+   [
+    0.27676031327596107,
+    0.29456470403168744
+   ],
+   [
+    0.2725020550224776,
+    0.2902254739605722
+   ],
+   [
+    0.28181207885308623,
+    0.2997099598887276
+   ]
+  ],
+  "ic_partagees": [
+   [
+    0.37514903052967874,
+    0.39431816567561184
+   ],
+   [
+    0.3720645343328286,
+    0.3912044692625445
+   ],
+   [
+    0.3794282016754136,
+    0.3986364876028031
+   ]
+  ]
+ },
+ "duree_m1": 61.8,
+ "m1_apparie": {
+  "parties": 9996,
+  "donnes": 1666,
+  "strictes": [
+   2851,
+   2772,
+   2847
+  ],
+  "partagees": [
+   3899,
+   3857,
+   3907
+  ],
+  "gains": [
+   29.25,
+   -61.5,
+   32.25
+  ],
+  "egalites": 1526,
+  "nulle_stricte": 0.28244631185807656,
+  "ic_strictes": [
+   [
+    0.2763763400541984,
+    0.29417712422162134
+   ],
+   [
+    0.2685508449338211,
+    0.28620091528821523
+   ],
+   [
+    0.2759800318240221,
+    0.29377334614481
+   ]
+  ]
+ },
+ "duree_m1_apparie": 58.1,
+ "m2": {
+  "parties": 10000,
+  "variance_par_siege": [
+   19.85591775,
+   19.73269244,
+   19.81379744
+  ],
+  "variance_toutes_places": 19.80090679,
+  "variance_ecart": 13.362014062222222,
+  "variance_gain": 0.4449875,
+  "moyenne_par_siege": [
+   -0.0135,
+   -0.0266,
+   -0.0016
+  ],
+  "etendue": [
+   -15,
+   14
+  ],
+  "scores_distincts": 30
+ },
+ "duree_m2": 51.0,
+ "m3": {
+  "donnes": 1000,
+  "rotations": 3000,
+  "strictes": 2533,
+  "partagees": 2706,
+  "gain_moyen": 0.8079166666666666,
+  "par_siege": [
+   [
+    772,
+    849,
+    713.75
+   ],
+   [
+    845,
+    911,
+    815.25
+   ],
+   [
+    916,
+    946,
+    894.75
+   ]
+  ],
+  "ic_strictes": [
+   0.8308588131495283,
+   0.8571325275935617
+  ],
+  "ic_partagees": [
+   0.8907988718948656,
+   0.9124098527553208
+  ]
+ },
+ "duree_m3": 89.3,
+ "m4_greedy_x3": {
+  "B1": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 2127,
+   "n": 12000,
+   "taux": 0.17725,
+   "ic95": [
+    0.1704546548974039,
+    0.18420227174789572
+   ],
+   "texte": "B1 : 2127 / 12000 pose chez un adversaire = 17.73 %"
+  },
+  "B1.obscurite": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 1297,
+   "n": 12000,
+   "taux": 0.10808333333333334,
+   "ic95": [
+    0.10258202055744342,
+    0.11377555186146421
+   ],
+   "texte": "B1 : 1297 / 12000 pose chez un adversaire = 10.81 %"
+  },
+  "B1.cadeau": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 522,
+   "n": 12000,
+   "taux": 0.0435,
+   "ic95": [
+    0.03991987732834851,
+    0.047303619359788884
+   ],
+   "texte": "B1 : 522 / 12000 pose chez un adversaire = 4.35 %"
+  },
+  "B2.bascule": {
+   "nom": "B2.bascule",
+   "unite": "Assassin pose",
+   "k": 2168,
+   "n": 7206,
+   "taux": 0.30086039411601445,
+   "ic95": [
+    0.29028404050288303,
+    0.3115980715248189
+   ],
+   "texte": "B2.bascule : 2168 / 7206 Assassin pose = 30.09 %"
+  },
+  "B3": {
+   "nom": "B3",
+   "unite": "pose chez un adversaire",
+   "k": 5946,
+   "n": 12000,
+   "taux": 0.4955,
+   "ic95": [
+    0.48651472909820326,
+    0.5044874547548552
+   ],
+   "texte": "B3 : 5946 / 12000 pose chez un adversaire = 49.55 %"
+  },
+  "B3.siege": {
+   "nom": "B3",
+   "unite": "pose chez un adversaire",
+   "k": 5196,
+   "n": 12000,
+   "taux": 0.433,
+   "ic95": [
+    0.4241101972450161,
+    0.4419223197110219
+   ],
+   "texte": "B3 : 5196 / 12000 pose chez un adversaire = 43.30 %"
+  },
+  "B4": {
+   "nom": "B4",
+   "unite": "noeud de ciblage offrant au moins une cible",
+   "k": 380,
+   "n": 6072,
+   "taux": 0.06258234519104085,
+   "ic95": [
+    0.05661908598625731,
+    0.06896992929938955
+   ],
+   "texte": "B4 : 380 / 6072 noeud de ciblage offrant au moins une cible = 6.26 %"
+  },
+  "B4.litteral": {
+   "nom": "B4.litteral",
+   "unite": "noeud de ciblage",
+   "k": 1514,
+   "n": 7206,
+   "taux": 0.21010269220094366,
+   "ic95": [
+    0.20074609666116117,
+    0.21969438741635505
+   ],
+   "texte": "B4.litteral : 1514 / 7206 noeud de ciblage = 21.01 %"
+  },
+  "B4.defavorable": {
+   "nom": "B4.defavorable",
+   "unite": "noeud ou tout meurtre couterait au tueur",
+   "k": 317,
+   "n": 419,
+   "taux": 0.7565632458233891,
+   "ic95": [
+    0.7125490512317532,
+    0.7969114196099247
+   ],
+   "texte": "B4.defavorable : 317 / 419 noeud ou tout meurtre couterait au tueur = 75.66 %"
+  },
+  "B4.favorable": {
+   "nom": "B4.favorable",
+   "unite": "noeud ou un meurtre rapporterait au tueur",
+   "k": 3,
+   "n": 3872,
+   "taux": 0.0007747933884297521,
+   "ic95": [
+    0.0001598095330982247,
+    0.002262589319750291
+   ],
+   "texte": "B4.favorable : 3 / 3872 noeud ou un meurtre rapporterait au tueur = 0.08 %"
+  },
+  "B5": {
+   "nom": "B5",
+   "unite": "tour ou une famille est vue a |d| = 1 avec un dos adverse au banquet",
+   "k": 796,
+   "n": 5189,
+   "taux": 0.15340142609365967,
+   "ic95": [
+    0.1436967795401951,
+    0.16349762890664482
+   ],
+   "texte": "B5 : 796 / 5189 tour ou une famille est vue a |d| = 1 avec un dos adverse au banquet = 15.34 %"
+  },
+  "B7": {
+   "nom": "B7",
+   "unite": "pose au banquet",
+   "k": 12,
+   "n": 12000,
+   "taux": 0.001,
+   "ic95": [
+    0.0005168179636678926,
+    0.0017461465118463158
+   ],
+   "texte": "B7 : 12 / 12000 pose au banquet = 0.10 %"
+  },
+  "B7.occasions": {
+   "nom": "B7.occasions",
+   "unite": "pose au banquet",
+   "k": 266,
+   "n": 12000,
+   "taux": 0.022166666666666668,
+   "ic95": [
+    0.0196072612758,
+    0.024961337653306936
+   ],
+   "texte": "B7.occasions : 266 / 12000 pose au banquet = 2.22 %"
+  },
+  "B2.banquet_estime": {
+   "nom": "B2.banquet_estime",
+   "unite": "Assassin pose",
+   "k": 1944,
+   "n": 7206,
+   "taux": 0.2697751873438801,
+   "ic95": [
+    0.25955279010668375,
+    0.280184143800425
+   ],
+   "texte": "B2.banquet_estime : 1944 / 7206 Assassin pose = 26.98 %"
+  },
+  "B2.banquet_disgrace": {
+   "nom": "B2.banquet_disgrace",
+   "unite": "Assassin pose",
+   "k": 1098,
+   "n": 7206,
+   "taux": 0.1523730224812656,
+   "ic95": [
+    0.144147804219579,
+    0.16088051955652066
+   ],
+   "texte": "B2.banquet_disgrace : 1098 / 7206 Assassin pose = 15.24 %"
+  },
+  "B2.domaine_propre": {
+   "nom": "B2.domaine_propre",
+   "unite": "Assassin pose",
+   "k": 1722,
+   "n": 7206,
+   "taux": 0.23896752706078267,
+   "ic95": [
+    0.22915901388876725,
+    0.24898764019389652
+   ],
+   "texte": "B2.domaine_propre : 1722 / 7206 Assassin pose = 23.90 %"
+  },
+  "B2.domaine_adverse": {
+   "nom": "B2.domaine_adverse",
+   "unite": "Assassin pose",
+   "k": 2442,
+   "n": 7206,
+   "taux": 0.3388842631140716,
+   "ic95": [
+    0.3279532465517718,
+    0.3499457654953825
+   ],
+   "texte": "B2.domaine_adverse : 2442 / 7206 Assassin pose = 33.89 %"
+  }
+ },
+ "m4_greedy_seul_siege0": {
+  "B1": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 839,
+   "n": 4000,
+   "taux": 0.20975,
+   "ic95": [
+    0.19722369412357793,
+    0.2227016816807207
+   ],
+   "texte": "B1 : 839 / 4000 pose chez un adversaire = 20.98 %"
+  },
+  "B1.obscurite": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 668,
+   "n": 4000,
+   "taux": 0.167,
+   "ic95": [
+    0.1555629642266818,
+    0.17892563681902096
+   ],
+   "texte": "B1 : 668 / 4000 pose chez un adversaire = 16.70 %"
+  },
+  "B1.cadeau": {
+   "nom": "B1",
+   "unite": "pose chez un adversaire",
+   "k": 72,
+   "n": 4000,
+   "taux": 0.018,
+   "ic95": [
+    0.014109860684682184,
+    0.022614964875595056
+   ],
+   "texte": "B1 : 72 / 4000 pose chez un adversaire = 1.80 %"
+  },
+  "B2.bascule": {
+   "nom": "B2.bascule",
+   "unite": "Assassin pose",
+   "k": 562,
+   "n": 2369,
+   "taux": 0.23723089911355003,
+   "ic95": [
+    0.22022348851896761,
+    0.254890412202574
+   ],
+   "texte": "B2.bascule : 562 / 2369 Assassin pose = 23.72 %"
+  },
+  "B3": {
+   "nom": "B3",
+   "unite": "pose chez un adversaire",
+   "k": 1363,
+   "n": 4000,
+   "taux": 0.34075,
+   "ic95": [
+    0.3260578012168517,
+    0.35567516502246677
+   ],
+   "texte": "B3 : 1363 / 4000 pose chez un adversaire = 34.08 %"
+  },
+  "B3.siege": {
+   "nom": "B3",
+   "unite": "pose chez un adversaire",
+   "k": 1227,
+   "n": 4000,
+   "taux": 0.30675,
+   "ic95": [
+    0.2924796428429626,
+    0.3213031487524802
+   ],
+   "texte": "B3 : 1227 / 4000 pose chez un adversaire = 30.68 %"
+  },
+  "B4": {
+   "nom": "B4",
+   "unite": "noeud de ciblage offrant au moins une cible",
+   "k": 177,
+   "n": 1686,
+   "taux": 0.10498220640569395,
+   "ic95": [
+    0.09075122273011274,
+    0.12060427697710688
+   ],
+   "texte": "B4 : 177 / 1686 noeud de ciblage offrant au moins une cible = 10.50 %"
+  },
+  "B4.litteral": {
+   "nom": "B4.litteral",
+   "unite": "noeud de ciblage",
+   "k": 860,
+   "n": 2369,
+   "taux": 0.36302237230899115,
+   "ic95": [
+    0.3436267175369774,
+    0.382757335963797
+   ],
+   "texte": "B4.litteral : 860 / 2369 noeud de ciblage = 36.30 %"
+  },
+  "B4.defavorable": {
+   "nom": "B4.defavorable",
+   "unite": "noeud ou tout meurtre couterait au tueur",
+   "k": 157,
+   "n": 203,
+   "taux": 0.7733990147783252,
+   "ic95": [
+    0.7095633262852741,
+    0.8290669286527397
+   ],
+   "texte": "B4.defavorable : 157 / 203 noeud ou tout meurtre couterait au tueur = 77.34 %"
+  },
+  "B4.favorable": {
+   "nom": "B4.favorable",
+   "unite": "noeud ou un meurtre rapporterait au tueur",
+   "k": 0,
+   "n": 942,
+   "taux": 0.0,
+   "ic95": [
+    0.0,
+    0.003908350353034147
+   ],
+   "texte": "B4.favorable : 0 / 942 noeud ou un meurtre rapporterait au tueur = 0.00 %"
+  },
+  "B5": {
+   "nom": "B5",
+   "unite": "tour ou une famille est vue a |d| = 1 avec un dos adverse au banquet",
+   "k": 335,
+   "n": 1405,
+   "taux": 0.23843416370106763,
+   "ic95": [
+    0.21636223938793897,
+    0.26160524799174334
+   ],
+   "texte": "B5 : 335 / 1405 tour ou une famille est vue a |d| = 1 avec un dos adverse au banquet = 23.84 %"
+  },
+  "B7": {
+   "nom": "B7",
+   "unite": "pose au banquet",
+   "k": 2,
+   "n": 4000,
+   "taux": 0.0005,
+   "ic95": [
+    6.055805642153178e-05,
+    0.0018049927162650356
+   ],
+   "texte": "B7 : 2 / 4000 pose au banquet = 0.05 %"
+  },
+  "B7.occasions": {
+   "nom": "B7.occasions",
+   "unite": "pose au banquet",
+   "k": 17,
+   "n": 4000,
+   "taux": 0.00425,
+   "ic95": [
+    0.002477671491922728,
+    0.006795968659733517
+   ],
+   "texte": "B7.occasions : 17 / 4000 pose au banquet = 0.42 %"
+  },
+  "B2.banquet_estime": {
+   "nom": "B2.banquet_estime",
+   "unite": "Assassin pose",
+   "k": 765,
+   "n": 2369,
+   "taux": 0.32292106373997465,
+   "ic95": [
+    0.30410928333726206,
+    0.3421716637571506
+   ],
+   "texte": "B2.banquet_estime : 765 / 2369 Assassin pose = 32.29 %"
+  },
+  "B2.banquet_disgrace": {
+   "nom": "B2.banquet_disgrace",
+   "unite": "Assassin pose",
+   "k": 282,
+   "n": 2369,
+   "taux": 0.1190375685943436,
+   "ic95": [
+    0.10626328165541671,
+    0.13276196196593787
+   ],
+   "texte": "B2.banquet_disgrace : 282 / 2369 Assassin pose = 11.90 %"
+  },
+  "B2.domaine_propre": {
+   "nom": "B2.domaine_propre",
+   "unite": "Assassin pose",
+   "k": 558,
+   "n": 2369,
+   "taux": 0.23554242296327565,
+   "ic95": [
+    0.2185792584543289,
+    0.2531619058732032
+   ],
+   "texte": "B2.domaine_propre : 558 / 2369 Assassin pose = 23.55 %"
+  },
+  "B2.domaine_adverse": {
+   "nom": "B2.domaine_adverse",
+   "unite": "Assassin pose",
+   "k": 764,
+   "n": 2369,
+   "taux": 0.3224989447024061,
+   "ic95": [
+    0.30369412735582213,
+    0.3417436298963157
+   ],
+   "texte": "B2.domaine_adverse : 764 / 2369 Assassin pose = 32.25 %"
+  }
+ },
+ "duree_m4": 89.9,
+ "m4_b6": {
+  "distance_tv": 0.23033333333333333,
+  "n_premier_tour": 3000,
+  "n_dernier_tour": 3000,
+  "plancher_moyen": 0.04018,
+  "plancher_q95": 0.05999999999999998,
+  "profil_premier": {
+   "ESTIME/ASSASSIN": 697,
+   "ESTIME/NEUTRE": 340,
+   "ESTIME/GARDE": 623,
+   "DISGRACE/GARDE": 143,
+   "DISGRACE/NOBLE": 117,
+   "ESTIME/NOBLE": 266,
+   "ESTIME/ESPION": 465,
+   "DISGRACE/ASSASSIN": 135,
+   "DISGRACE/ESPION": 132,
+   "DISGRACE/NEUTRE": 82
+  },
+  "profil_dernier": {
+   "DISGRACE/ESPION": 213,
+   "DISGRACE/ASSASSIN": 372,
+   "ESTIME/GARDE": 467,
+   "ESTIME/NOBLE": 225,
+   "ESTIME/ASSASSIN": 373,
+   "ESTIME/ESPION": 361,
+   "DISGRACE/NOBLE": 260,
+   "ESTIME/NEUTRE": 274,
+   "DISGRACE/GARDE": 269,
+   "DISGRACE/NEUTRE": 186
+  }
+ },
+ "pouvoir_phase3": {
+  "B1": {
+   "taux": 0.17725,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.019190362482479822,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B1.obscurite": {
+   "taux": 0.10808333333333334,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.01546903252583183,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B1.cadeau": {
+   "taux": 0.0435,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.00995933725521857,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B2.bascule": {
+   "taux": 0.30086039411601445,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.029909342449177097,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  },
+  "B3": {
+   "taux": 0.4955,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.02556011429380093,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B3.siege": {
+   "taux": 0.433,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.025265234382288067,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B4": {
+   "taux": 0.06258234519104085,
+   "n_base": 6072,
+   "n_agent_phase3": 2024,
+   "ecart_detectable": 0.016515614577886566,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0018209090301182034,
+   "separable_de_zero": true
+  },
+  "B4.litteral": {
+   "taux": 0.21010269220094366,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.026372153391612998,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  },
+  "B4.defavorable": {
+   "taux": 0.7565632458233891,
+   "n_base": 419,
+   "n_agent_phase3": 140,
+   "ecart_detectable": 0.1239459320804345,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.026005029351292674,
+   "separable_de_zero": true
+  },
+  "B4.favorable": {
+   "taux": 0.0007747933884297521,
+   "n_base": 3872,
+   "n_agent_phase3": 1291,
+   "ecart_detectable": 0.0018942640546228706,
+   "aveugle_par_le_bas": true,
+   "borne_haute_agent_a_zero": 0.002853303022763147,
+   "separable_de_zero": false
+  },
+  "B5": {
+   "taux": 0.15340142609365967,
+   "n_base": 5189,
+   "n_agent_phase3": 1730,
+   "ecart_detectable": 0.027176721074168582,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.00213002852525107,
+   "separable_de_zero": true
+  },
+  "B7": {
+   "taux": 0.001,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.0012224480450255797,
+   "aveugle_par_le_bas": true,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": false
+  },
+  "B7.occasions": {
+   "taux": 0.022166666666666668,
+   "n_base": 12000,
+   "n_agent_phase3": 4000,
+   "ecart_detectable": 0.007038746573314431,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.0009217947494830558,
+   "separable_de_zero": true
+  },
+  "B2.banquet_estime": {
+   "taux": 0.2697751873438801,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.028880078423198372,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  },
+  "B2.banquet_disgrace": {
+   "taux": 0.1523730224812656,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.02310715392142211,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  },
+  "B2.domaine_propre": {
+   "taux": 0.23896752706078267,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.027679838511070986,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  },
+  "B2.domaine_adverse": {
+   "taux": 0.3388842631140716,
+   "n_base": 7206,
+   "n_agent_phase3": 2402,
+   "ecart_detectable": 0.030944721712132965,
+   "aveugle_par_le_bas": false,
+   "borne_haute_agent_a_zero": 0.001534574645794882,
+   "separable_de_zero": true
+  }
+ },
+ "exaequo": {
+  "pose": [
+   9671,
+   55296
+  ],
+  "ciblage": [
+   2176,
+   5040
+  ],
+  "pose_par_tour": {
+   "0": [
+    4238,
+    13788,
+    600
+   ],
+   "1": [
+    2061,
+    13800,
+    600
+   ],
+   "2": [
+    1658,
+    13848,
+    600
+   ],
+   "3": [
+    1714,
+    13860,
+    600
+   ]
+  }
+ }
+}
