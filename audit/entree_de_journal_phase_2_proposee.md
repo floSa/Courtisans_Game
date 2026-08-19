@@ -45,7 +45,7 @@ A contrôle : seeds 10000–11666. B : 1 greedy contre 2 aléatoires, 3 334 donn
 
 **Audit.** **Trois tours**, par une conversation distincte qui a réimplémenté depuis le texte
 des règles sa propre vue légale, son greedy, ses sept compteurs et son intervalle de confiance,
-sans réutiliser une ligne du constructeur, et écrit **105 contrôles hostiles et de
+sans réutiliser une ligne du constructeur, et écrit **75 contrôles hostiles et de
 re-vérification**. Code : `audit/phase2/` et `tests/audit_phase2/`. Verdicts dans
 `audit/verdict_phase_2.md`, `audit/verdict_phase_2_tour_2.md` et
 `audit/verdict_phase_2_tour_3.md`.
