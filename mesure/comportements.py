@@ -93,6 +93,70 @@ class Compte:
 
 
 # ---------------------------------------------------------------------------------
+# La parade de grain -- une correction avec ce qui l'empeche de se defaire
+# ---------------------------------------------------------------------------------
+
+
+class GrainsIncomparables(ValueError):
+    """Deux `Compte` qui ne comptent pas la meme chose n'ont ni ecart ni somme.
+
+    **Cette exception est une correction qui arrive avec ce qui l'empeche de se defaire.** La
+    table M4 du rapport soustrayait un greedy mesure sur UN siege d'un hasard mesure sur TROIS,
+    au grain `-par-partie` : le signe de l'ecart s'en inversait -- `+11,82` point au meme grain,
+    `-23,97` en melangeant les deux -- et la ligne recevait quand meme un « parties pour
+    l'etablir » qui la presentait comme un effet reel.
+
+    Corriger les cellules ne suffisait pas : **le meme defaut etait deja sorti au meme endroit**
+    au tour 2 de la phase 1. Une cellule corrigee se re-remplit ; une levee, non.
+    """
+
+
+def ecart_de_taux(premier: Compte, second: Compte) -> float | None:
+    """`premier.taux() - second.taux()`, **si les deux comptent la meme chose**.
+
+    Rend `None` -- et ne leve pas -- si l'un des deux n'a pas de taux : un denominateur vide est
+    un resultat, pas une incompatibilite de grain. Les deux cas ne se confondent pas.
+
+    Raises:
+        GrainsIncomparables: si les deux grains diffèrent. Le message nomme **les deux**, parce
+            que « non comparable » sans dire de quoi a quoi renvoie le lecteur au code.
+    """
+    if premier.grain != second.grain:
+        raise GrainsIncomparables(
+            f"« {premier.nom} » ne se soustrait pas : le premier compte des "
+            f"{premier.grain}, le second des {second.grain}. Ces deux grains ne comptent "
+            f"pas la meme chose, donc leur difference n'a pas de sens -- pas meme un signe."
+        )
+    if premier.taux() is None or second.taux() is None:
+        return None
+    return premier.taux() - second.taux()
+
+
+def cumuler(premier: Compte, second: Compte) -> Compte:
+    """La somme de deux comptes du **meme** grain. L'autre endroit ou deux grains se rencontrent.
+
+    `mesurer_comportements` additionne les comptes de chaque composition de sieges. Si deux
+    compositions n'agregeaient pas le meme nombre de sieges, l'addition melangerait des
+    numerateurs de sens differents en ne gardant qu'un libelle -- silencieusement.
+
+    Raises:
+        GrainsIncomparables: si les grains diffèrent.
+    """
+    if premier.grain != second.grain:
+        raise GrainsIncomparables(
+            f"« {premier.nom} » ne se cumule pas : {premier.grain} et {second.grain} ne "
+            f"comptent pas la meme chose, donc leur somme n'aurait pas de denominateur."
+        )
+    return Compte(
+        premier.nom,
+        premier.succes + second.succes,
+        premier.total + second.total,
+        premier.grain,
+        premier.vue,
+    )
+
+
+# ---------------------------------------------------------------------------------
 # Briques communes
 # ---------------------------------------------------------------------------------
 
@@ -358,11 +422,17 @@ def motif_b1(
         succes, total = par_siege[nom]
         resultats[nom] = Compte(nom, succes, total, "couples (partie, siege)", vue)
         succes, total = par_partie[nom]
+        # **Le libelle porte le compte des sieges, et ce n'est pas de la decoration.** « Au
+        # moins un siege mesure » ne veut pas dire la meme chose a 1 siege et a 3 : le
+        # numerateur monte avec le nombre agrege, le denominateur non. Les deux colonnes de la
+        # table M4 portaient exactement le meme libelle en agregeant l'une un siege et l'autre
+        # trois -- comparer les libelles n'aurait rien detecte. Il porte donc le compte, ce qui
+        # rend `ecart_de_taux` capable de refuser la soustraction.
         resultats[f"{nom}-par-partie"] = Compte(
             f"{nom}-par-partie",
             succes,
             total,
-            "parties (au moins un siege mesure)",
+            f"parties (au moins un des {len(retenus)} sieges mesures)",
             vue,
         )
     return resultats

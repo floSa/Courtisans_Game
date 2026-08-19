@@ -123,11 +123,59 @@ def test_la_campagne_b_a_deux_greedys_mesure_les_deux_sieges_non_aleatoires():
         assert list(groupe.sieges_mesures) == [(1, 2), (0, 2), (0, 1)]
 
 
-def test_la_campagne_b_refuse_une_composition_sans_objet():
-    """A 0 greedy il n'y a rien a mesurer ; a 3 il n'y a plus d'aleatoire."""
-    for nb in (0, 3, -1):
-        with pytest.raises(ValueError, match="1 ou 2 greedys"):
+def test_la_campagne_b_refuse_une_composition_impossible():
+    """A 0 greedy il n'y a rien a mesurer ; au-dela de 3 il n'y a pas assez de sieges.
+
+    **La garde a ete scindee.** Elle refusait aussi `nb_greedys=3` en disant « la mesure n'a plus
+    d'objet » : c'est vrai de **M3**, ou trois greedys identiques rendent un tiers de part de
+    victoire par symetrie, et faux de **M4**, ou les compteurs de comportement gardent tout leur
+    sens. La garde confondait une **mesure** avec une **phase**. Elle ne juge plus que la
+    composition ; c'est `mesurer_m3` qui refuse ce qui n'a pas d'objet pour lui.
+    """
+    for nb in (0, 4, -1):
+        with pytest.raises(ValueError, match="1 a 3 greedys"):
             phase2.campagne_b(1, nb_greedys=nb)
+
+
+def test_la_campagne_b_accepte_trois_greedys_pour_m4():
+    """L'autre branche de la garde scindee. Une garde qui ne laisse rien passer ne prouve rien.
+
+    A trois greedys il n'y a plus de siege a permuter : les trois parties d'une donne ne diffèrent
+    que par l'alea de **departage** du greedy, ce qui en fait trois replicats sur la meme pioche --
+    exactement la structure de la campagne A, et c'est ce qui rend leurs `-par-partie`
+    comparables.
+
+    Les **trois** sieges sont mesures, puisque les trois sont des greedys.
+    """
+    groupes = phase2.campagne_b(2, nb_greedys=3)
+    for groupe in groupes:
+        assert len(groupe.traces) == CONFIG.joueurs
+        assert list(groupe.sieges_mesures) == [(0, 1, 2)] * CONFIG.joueurs
+
+
+def test_m3_refuse_une_population_a_trois_greedys():
+    """M3 n'a pas d'objet a trois greedys, et c'est LUI qui doit le dire.
+
+    Trois politiques identiques rendent, **par symetrie**, un tiers de part de victoire et un gain
+    moyen nul : le chiffre existerait, il ne mesurerait rien. Le message doit dire pourquoi, pas
+    seulement refuser.
+    """
+    groupes = phase2.campagne_b(2, nb_greedys=3)
+    with pytest.raises(ValueError, match="symetrie"):
+        phase2.mesurer_m3(groupes, "trois greedys", random.Random(0), nb_greedys=3)
+
+
+def test_m3_accepte_les_deux_compositions_qui_ont_un_objet():
+    """L'autre branche : a 1 et a 2 greedys, M3 mesure et rend un resultat.
+
+    A 2 greedys la part de victoire mesuree reste sous celle de la composition de reference --
+    deux greedys se prennent des points l'un a l'autre --, mais elle a un **sens**, et c'est la
+    seule chose que la garde doit laisser passer.
+    """
+    for nb in (1, 2):
+        groupes = phase2.campagne_b(2, nb_greedys=nb)
+        resultat = phase2.mesurer_m3(groupes, f"{nb} greedy(s)", random.Random(0), nb_greedys=nb)
+        assert resultat.nb_parties > 0
 
 
 def test_les_plages_de_seeds_de_politique_sont_disjointes():
@@ -218,7 +266,7 @@ def test_m3_mesure_bien_le_siege_du_greedy_et_pas_un_autre():
     des parties chacune.
     """
     groupes = phase2.campagne_b(9)
-    resultat = phase2.mesurer_m3(groupes, "essai", random.Random(2))
+    resultat = phase2.mesurer_m3(groupes, "essai", random.Random(2), nb_greedys=1)
     assert resultat.nb_parties == 27
     assert len(resultat.par_siege) == CONFIG.joueurs
     assert all(valeur == valeur for valeur in resultat.par_siege)  # noqa: PLR0124 - non-NaN

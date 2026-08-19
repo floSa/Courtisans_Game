@@ -48,6 +48,7 @@ from mesure.bootstrap import (
     bootstrap_par_donne,
     correlation_intra_donne,
 )
+from mesure.coherence_greedy import mesurer_incoherence
 from mesure.instance import ENTRAINEMENT_3J
 from mesure.partie import politique_uniforme
 from mesure.trace import TracePartie, tracer
@@ -63,6 +64,10 @@ DECALAGE_BOOTSTRAP = 2_500_000
 DECALAGE_POLITIQUE_B = 3_000_000
 DECALAGE_DEPARTAGE_B = 3_500_000
 DECALAGE_POLITIQUE_2_GREEDYS = 5_000_000
+#: La composition a **trois** greedys, ajoutee apres l'audit croise. Elle ne sert qu'a M4, et
+#: seulement la ou la configuration a deux hasards rend la ligne de base inadaptee a ce que la
+#: phase 3 comparera -- `B1-collectif` et les lignes `-par-partie`.
+DECALAGE_POLITIQUE_3_GREEDYS = 6_000_000
 
 #: Rechantillons du bootstrap par donne.
 REPETITIONS_BOOTSTRAP = 10_000
@@ -129,21 +134,35 @@ def campagne_b(
     suivantes.
 
     Args:
-        nb_greedys: 1 pour la composition de reference, 2 pour celle rapportee a cote. A 2, la
-            variable permutee est le siege de l'**aleatoire**.
+        nb_greedys: 1 pour la composition de reference, 2 pour celle rapportee a cote, 3 pour la
+            population de M4 ajoutee apres l'audit croise. A 2, la variable permutee est le siege
+            de l'**aleatoire** ; a 3 il n'y a plus de siege a permuter, et les trois parties d'une
+            donne ne diffèrent que par l'alea de **departage** du greedy -- trois replicats sur la
+            meme pioche, exactement la structure de la campagne A.
         departage_deterministe: la variante de robustesse du departage, biaisee, rapportee sur
             M3 seulement.
 
     Raises:
-        ValueError: si `nb_greedys` n'est ni 1 ni 2. A 0 il n'y a pas de greedy a mesurer, a 3
-            il n'y a plus d'aleatoire et la mesure n'a plus d'objet.
+        ValueError: si `nb_greedys` n'est pas dans `1..3`. A 0 il n'y a pas de greedy a mesurer,
+            au-dela de 3 il n'y a pas assez de sieges.
+
+    **Cette garde a ete scindee, et c'etait un defaut a part entiere.** Elle refusait aussi
+    `nb_greedys=3` en disant « la mesure n'a plus d'objet » : vrai de **M3**, ou trois greedys
+    identiques rendent un tiers de part de victoire **par symetrie**, faux de **M4**, ou les
+    compteurs de comportement gardent tout leur sens. Elle **confondait une mesure avec une
+    phase**. Elle ne juge donc plus que la composition, et `mesurer_m3` refuse ce qui n'a pas
+    d'objet pour lui.
     """
-    if nb_greedys not in (1, 2):
+    if nb_greedys not in (1, 2, 3):
         raise ValueError(
-            f"la composition mesuree oppose 1 ou 2 greedys a des aleatoires, "
-            f"{nb_greedys} demande(s)"
+            f"la composition mesuree compte 1 a 3 greedys, {nb_greedys} demande(s) : "
+            f"a 0 il n'y a pas de greedy a mesurer, au-dela de 3 pas assez de sieges"
         )
-    decalage = DECALAGE_POLITIQUE_B if nb_greedys == 1 else DECALAGE_POLITIQUE_2_GREEDYS
+    decalage = {
+        1: DECALAGE_POLITIQUE_B,
+        2: DECALAGE_POLITIQUE_2_GREEDYS,
+        3: DECALAGE_POLITIQUE_3_GREEDYS,
+    }[nb_greedys]
     groupes: list[Groupe] = []
     for donne in range(depart, depart + donnes):
         traces = []
@@ -163,10 +182,16 @@ def campagne_b(
                 politiques = [hasard] * CONFIG.joueurs
                 politiques[variable] = greedy
                 sieges = (variable,)
-            else:
+            elif nb_greedys == 2:
                 politiques = [greedy] * CONFIG.joueurs
                 politiques[variable] = hasard
                 sieges = tuple(s for s in range(CONFIG.joueurs) if s != variable)
+            else:
+                # Trois greedys : plus rien a permuter. `variable` ne sert plus qu'a donner trois
+                # aleas de departage differents sur la meme pioche -- trois replicats, comme la
+                # campagne A. Les trois sieges sont mesures.
+                politiques = [greedy] * CONFIG.joueurs
+                sieges = tuple(range(CONFIG.joueurs))
             traces.append(
                 tracer(
                     Engine(CONFIG).reset(donne), politiques, seed=donne, replicat=variable
@@ -353,9 +378,27 @@ class ResultatGreedy:
 
 
 def mesurer_m3(
-    groupes: Sequence[Groupe], intitule: str, alea: random.Random
+    groupes: Sequence[Groupe], intitule: str, alea: random.Random, nb_greedys: int
 ) -> ResultatGreedy:
-    """Le gain moyen et la part de victoire des sieges mesures, apparies par donne."""
+    """Le gain moyen et la part de victoire des sieges mesures, apparies par donne.
+
+    `nb_greedys` est **obligatoire et sans defaut** : c'est la seule chose que `groupes` ne dit
+    pas, et l'oublier ferait calculer M3 sur une population ou il n'a pas d'objet sans que la
+    garde s'en apercoive -- exactement le mode de defaut silencieux que ce projet cherche a
+    fermer.
+
+    Raises:
+        ValueError: a `nb_greedys=3`. Trois politiques identiques rendent, **par symetrie**, un
+            tiers de part de victoire et un gain moyen nul : le chiffre existerait, il ne
+            mesurerait rien. C'est la moitie « M3 » de la garde qui etait melangee dans
+            `campagne_b`.
+    """
+    if nb_greedys == 3:
+        raise ValueError(
+            "M3 n'a pas d'objet a trois greedys : trois politiques identiques rendent un tiers "
+            "de part de victoire et un gain moyen nul **par symetrie**, donc le chiffre "
+            "existerait sans rien mesurer. Cette population ne sert qu'a M4."
+        )
 
     def moyenne_mesuree(trace: TracePartie, sieges: Sequence[int], valeurs) -> float:
         return fmean([valeurs(trace)[siege] for siege in sieges])
@@ -556,17 +599,10 @@ def mesurer_m4(groupes: Sequence[Groupe]) -> dict[str, comp.Compte]:
     for sieges, traces in par_sieges.items():
         partiel = comp.tous_les_comportements(traces, CONFIG, sieges=list(sieges))
         for nom, compte in partiel.items():
-            if nom in cumul:
-                ancien = cumul[nom]
-                cumul[nom] = comp.Compte(
-                    nom,
-                    ancien.succes + compte.succes,
-                    ancien.total + compte.total,
-                    compte.grain,
-                    compte.vue,
-                )
-            else:
-                cumul[nom] = compte
+            # `comp.cumuler` **leve** si deux compositions de sieges n'agregent pas le meme
+            # nombre de sieges : additionner leurs numerateurs en ne gardant qu'un libelle
+            # etait exactement la forme du defaut du paragraphe 6.
+            cumul[nom] = comp.cumuler(cumul[nom], compte) if nom in cumul else compte
     comp.verifier_b4(cumul)
     return cumul
 
@@ -602,6 +638,24 @@ def distributions_b6(
                 for categorie, compte in classes.items()
             }
     return distributions
+
+
+def mesurer_incoherence_du_greedy(groupes: Sequence[Groupe]) -> dict[str, comp.Compte]:
+    """L'incoherence du ciblage du greedy, agregee par composition de sieges mesures.
+
+    **Defaut majeur de l'audit croise, mesure et non corrige.** Voir
+    `mesure/coherence_greedy.py` pour ce qui est mesure et `agents/greedy.py` pour la
+    description corrigee de l'agent.
+
+    Calcule sur les traces **deja en memoire** : ce diagnostic ne rejoue aucune campagne.
+    """
+    cumul: dict[str, comp.Compte] = {}
+    for groupe in groupes:
+        for trace, sieges in zip(groupe.traces, groupe.sieges_mesures, strict=True):
+            partiel = mesurer_incoherence([trace], CONFIG, sieges=list(sieges))
+            for nom, compte in partiel.items():
+                cumul[nom] = comp.cumuler(cumul[nom], compte) if nom in cumul else compte
+    return cumul
 
 
 def mesurer_b6(groupes: Sequence[Groupe]) -> dict[str, float | None]:
@@ -672,6 +726,7 @@ __all__ = [
     "distributions_b6",
     "mesurer_b6",
     "mesurer_b6_concurrente",
+    "mesurer_incoherence_du_greedy",
     "mesurer_m1",
     "mesurer_m2",
     "mesurer_m3",

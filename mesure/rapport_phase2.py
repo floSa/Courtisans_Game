@@ -369,6 +369,208 @@ def section_m3(lignes: list[str], resultats: Sequence[phase2.ResultatGreedy]) ->
         ]
 
 
+def section_coherence(lignes: list[str], comptes: dict[str, comp.Compte]) -> None:
+    """Le greedy contre sa specification : combien de ciblages myopes, et dans quel sens.
+
+    **Defaut majeur releve par l'audit croise.** Corrige dans la description de l'agent, pas dans
+    son code : corriger le code referait un autre agent et invaliderait M3 et M4 entiers.
+    """
+    lignes.append(
+        _titre("4 bis. Le greedy et sa specification -- le ciblage est myope, et de combien")
+    )
+    lignes += [
+        "La **pose** du greedy est evaluee avec ses Assassins resolus **conjointement** "
+        "(arbitrage G-combine, paragraphe 5.3 de l'instrument). Ses **ciblages** se decident "
+        "**un nœud a la fois**, et `Perception` ne porte pas les Assassins encore en attente : "
+        "la politique **ne peut pas** regarder plus loin.",
+        "",
+        "**L'incoherence est structurelle, pas un accident de code.** L'action de pose de "
+        "l'adaptateur est **atomique** -- un identifiant encode le bloc de trois cartes entier, "
+        "fait etabli en phase 0 --, donc le bloc est choisi d'un coup sous une evaluation "
+        "conjointe pendant que le ciblage se decide apres, sans memoire de ce que le bloc "
+        "contenait.",
+        "",
+        "**Deux lectures, deux denominateurs**, et elles ne se soustraient pas l'une de l'autre. "
+        "Intervalles de **Clopper-Pearson exacts a 99 %** : sans eux, deux mesures independantes "
+        "du meme taux se liraient comme une contradiction la ou il n'y a que du bruit "
+        "d'echantillonnage.",
+        "",
+        "| Compteur | Taux | IC 99 % exact | Grain du denominateur |",
+        "|---|---:|---|---|",
+    ]
+    from mesure.coherence_greedy import intervalle_exact
+
+    for nom, compte in comptes.items():
+        borne = intervalle_exact(compte)
+        taux = "sans objet" if compte.taux() is None else _pct(compte.taux())
+        intervalle = (
+            "sans objet"
+            if borne.taux is None
+            else f"[{100 * borne.bas:.2f} % ; {100 * borne.haut:.2f} %]"
+        )
+        lignes.append(
+            f"| `{nom}` | {taux} ({compte.succes}/{compte.total}) | {intervalle} | "
+            f"{compte.grain} |"
+        )
+    differents = comptes["incoherence/argmax-differents"]
+    non_optimal = comptes["incoherence/myope-non-optimal"]
+    lignes += [
+        "",
+        "**Les deux numerateurs ne disent pas la meme chose.** « argmax differents » compte les "
+        "nœuds ou les deux ensembles d'argmax diffèrent ; « myope non optimal » compte ceux ou "
+        "l'argmax myope contient une action que l'argmax coherent **rejette** -- c'est la lecture "
+        "qui **coute**, puisque le departage uniforme du greedy peut alors tirer une action "
+        "coherentement dominee. Le premier majore le second par construction : "
+        f"{differents.succes} >= {non_optimal.succes}.",
+        "",
+        "**Le sens du biais, et il n'est pas le meme pour M3 et pour M4.**",
+        "",
+        "- **M3 : plancher.** Un agent plus myope que sa specification est plus **faible**, donc "
+        "le gain moyen et la part de victoire de la section 4 sont un **plancher** du greedy, pas "
+        "une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de "
+        "la phase 3 plus bas, jamais plus haut.",
+        "- **M4 : aucun sens determine.** Trois compteurs de B4 sont juges **par cette meme "
+        "evaluation myope** -- voir la section 5. Leur zero ou leur partage ne se lit pas comme "
+        "un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence interne**.",
+        "",
+        "**Ce comportement est tenu par un test** (`tests/agents/test_greedy.py`), sur une "
+        "position construite a la main ou l'argmax myope est a egalite et l'argmax coherent "
+        "strictement meilleur de 2 points. Un « correctif » futur casserait ce test bruyamment, "
+        "et c'est le but : la ligne de base de toutes les phases suivantes est celle de **cet** "
+        "agent.",
+    ]
+
+
+def section_troisieme_population(
+    lignes: list[str],
+    greedy: dict[str, comp.Compte],
+    hasard: dict[str, comp.Compte],
+    trois: dict[str, comp.Compte] | None,
+    budget: int = 1_000,
+) -> None:
+    """La population a trois greedys, publiee **uniquement** ou elle repare une ligne de base.
+
+    Perimetre arbitre : `B1-collectif`, sa variante, et les lignes `-par-partie`. Partout ailleurs
+    les chiffres restent ceux qui ont ete audites -- trente-quatre lignes fois trois populations
+    feraient cent-deux chiffres dont la plupart ne repondraient a rien, et chacun serait une
+    affirmation de plus a auditer.
+    """
+    lignes.append(_titre("5 bis. Trois greedys -- la ligne de base collective, et rien de plus"))
+    if trois is None:
+        lignes += ["", "Non mesuree (`--sans-variantes`).", ""]
+        return
+    lignes += [
+        "**Pourquoi cette population existe.** `B1-collectif` est le seul des compteurs dont le "
+        "**numerateur peut etre produit entierement par les adversaires** : son `t2` -- la "
+        "bascule -- peut etre l'action de n'importe qui. Mesure avec **un** greedy contre **deux "
+        "aleatoires**, il melange donc la bascule du greedy et celles de deux politiques "
+        "uniformes. Or la phase 3 fera jouer les trois sieges par des agents entraines : une "
+        "ligne de base collective mesuree contre deux hasards **n'est pas la ligne de base de ce "
+        "que la phase 3 comparera**. C'est le mode de defaut de ce projet -- une ligne de base "
+        "fausse ne se voit jamais, elle rend les progres incomparables, et personne ne sait "
+        "pourquoi.",
+        "",
+        "**Et elle repare une seconde chose, pour une raison differente.** Les lignes "
+        "`-par-partie` agregent « au moins un siege mesure » : a un siege et a trois, ce n'est "
+        "pas le meme grain, donc la colonne greedy de reference **ne se compare pas** a la "
+        "colonne hasard (paragraphe 6). A trois greedys, les deux colonnes agregent **trois** "
+        "sieges : le grain coincide et la comparaison existe. Deux reparations, deux raisons -- "
+        "**composition des adversaires** pour `B1-collectif`, **grain** pour les `-par-partie` --,"
+        " et il ne faut pas les confondre.",
+        "",
+        "**Plan.** `campagne_b(nb_greedys=3)`, memes donnes que la campagne B, decalage de "
+        f"graine `{phase2.DECALAGE_POLITIQUE_3_GREEDYS}`. Plus rien a permuter : les trois "
+        "parties d'une donne ne diffèrent que par l'alea de **departage** du greedy, donc trois "
+        "replicats sur la meme pioche -- exactement la structure de la campagne A. Les **trois** "
+        "sieges sont mesures. **M3 n'a pas d'objet ici** et `mesurer_m3` le refuse : trois "
+        "politiques identiques rendent un tiers de part de victoire par symetrie.",
+        "",
+        "| Compteur | 1 greedy, 2 hasards | 3 greedys | Hasard | Grain |",
+        "|---|---:|---:|---:|---|",
+    ]
+    perimetre = [
+        "B1-collectif",
+        "B1-collectif-par-partie",
+        "B1-motif-par-partie",
+        "B1-tentative-par-partie",
+        "B1-strict-par-partie",
+        "B1-savoir-commun-par-partie",
+    ]
+    for nom in perimetre:
+        un, trois_g, hz = greedy.get(nom), trois.get(nom), hasard.get(nom)
+        if un is None or trois_g is None or hz is None:
+            continue
+        lignes.append(
+            f"| `{nom}` | {_pct(un.taux())} ({un.succes}/{un.total}) | "
+            f"**{_pct(trois_g.taux())}** ({trois_g.succes}/{trois_g.total}) | "
+            f"{_pct(hz.taux())} ({hz.succes}/{hz.total}) | {trois_g.grain} |"
+        )
+    lignes += [
+        "",
+        "**Ce qui se compare, et ce qui ne se compare pas.** Les cellules ci-dessous sont "
+        "calculees par `comportements.ecart_de_taux`, qui **leve** quand les grains diffèrent : "
+        "la colonne « 1 greedy » des lignes `-par-partie` ne peut donc pas etre soustraite du "
+        "hasard, et la colonne « 3 greedys » peut l'etre.",
+        "",
+        "| Compteur | 3 greedys - hasard | Parties pour l'etablir | 1 greedy - hasard |",
+        "|---|---:|---:|---|",
+    ]
+    nb_reference = greedy["B1-motif"].total
+    for nom in perimetre:
+        un, trois_g, hz = greedy.get(nom), trois.get(nom), hasard.get(nom)
+        if un is None or trois_g is None or hz is None:
+            continue
+        try:
+            ecart_trois = comp.ecart_de_taux(trois_g, hz)
+        except comp.GrainsIncomparables:
+            ecart_trois = None
+        besoin = (
+            "sans objet"
+            if ecart_trois is None or ecart_trois == 0
+            else str(
+                phase2.parties_pour_separer_un_taux(
+                    trois_g.taux(), trois_g.total / (3 * nb_reference), abs(ecart_trois)
+                )
+            )
+        )
+        try:
+            comp.ecart_de_taux(un, hz)
+            ecart_un = "comparable, voir paragraphe 6"
+        except comp.GrainsIncomparables:
+            ecart_un = "**non comparable : grains differents**"
+        lignes.append(
+            f"| `{nom}` | "
+            f"{'sans objet' if ecart_trois is None else f'{100 * ecart_trois:+.2f} pt'} | "
+            f"{besoin} | {ecart_un} |"
+        )
+    lignes += [
+        "",
+        f"Le denominateur par partie de la colonne « 3 greedys » vaut "
+        f"`total / (3 x {nb_reference})` -- trois sieges mesures par partie, la ou la colonne de "
+        "reference n'en mesure qu'un.",
+        "",
+        "**Le critere du perimetre se decide sur le TEXTE de la definition, sans mesurer : la "
+        "definition nomme-t-elle un autre joueur ?** `B1-collectif` exige que `t1` et `t2` soient "
+        "de joueurs **differents** -- le mot est dans la definition. Aucun autre compteur ne "
+        "nomme personne.",
+        "",
+        "**Pourquoi ce critere-la et pas un critere de degre.** Un critere qui distingue « les "
+        "adversaires produisent le numerateur » de « les adversaires faconnent le plateau » est "
+        "un critere de **degre**, et un critere de degre au bord d'un perimetre derive toujours "
+        "vers l'exterieur : le lecteur suivant ajoutera un compteur de plus avec une raison aussi "
+        "bonne. Le plateau est faconne par les adversaires dans les **dix-sept** compteurs, donc "
+        "il n'y a pas d'arret apres deux. Un critere textuel, lui, s'arrete ou le texte s'arrete.",
+        "",
+        "**`B4-tout-dos` et `B5-renfort` ne sont donc PAS ajoutes** -- ni ici, ni ailleurs. Leur "
+        "dependance a la composition est reelle et n'est pas jetee : elle est portee a l'entree "
+        "de journal comme **question ouverte pour la phase 3**, parce qu'elle concerne la lecture "
+        "de leurs taux par un agent entraine, pas le perimetre de cette table.",
+        "",
+        "**Cette population n'a ete auditee par personne au moment ou elle est ecrite.** Elle est "
+        "a lire comme une premiere livraison, pas comme un appendice.",
+    ]
+
+
 def section_m4(
     lignes: list[str],
     greedy: dict[str, comp.Compte],
@@ -448,6 +650,21 @@ def section_m4(
         f"l'heuristique : elle refuse avec probabilite `1/(k+1)`. C'est la part de `B4-brut` "
         "qui ne mesure pas un comportement, et elle se lit a cet endroit.",
         "",
+        "**Ces trois compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela "
+        "change ce qu'ils disent.** `B4-strict`, `B4-departage` et `B4-contre-nature` se "
+        "definissent par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins "
+        "du meme bloc encore en attente** (voir la section « le greedy et sa specification » "
+        "ci-dessus). Consequence a lire mot pour mot : le zero de `B4-contre-nature` **ne dit "
+        "pas** que le greedy n'a jamais commis de meurtre contre-productif ; il dit qu'il n'a "
+        "jamais **contredit sa propre evaluation**. Deux enonces differents, et seul le second "
+        "est vrai. Les denominateurs de `B4-strict` et `B4-departage` sortent du meme argmax, "
+        "donc la meme lecture s'applique aux trois.",
+        "",
+        "Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax n'est "
+        "pas celui de l'etalon, donc `B4-contre-nature` devient un vrai diagnostic -- et un "
+        "refus par anticipation d'un retournement y comptera, ce qui se lit comme un signe de "
+        "planification et non comme un defaut.",
+        "",
         "### Une inclusion, verifiee et non deduite",
         "",
         "`B1-collectif` majore `B1-motif` **par construction** : le don vient du siege mesure, "
@@ -519,7 +736,12 @@ def section_pouvoir_discriminant(
     non-degenerescence de la phase 1, le seuil de 38 % de M1, et B7 ici. Cette section est ce
     qui doit l'empecher une quatrieme fois.
     """
-    lignes.append(_titre("6. Ce que chaque compteur peut separer -- M4 pour la phase 3"))
+    lignes.append(
+        _titre(
+            "6. Ce que chaque compteur peut separer -- M4 pour la phase 3, et ce qui n'est "
+            "pas comparable"
+        )
+    )
     budget = 1_000
     lignes += [
         f"La phase 3 se donne **{budget} parties appariees** (paragraphe 3 du protocole). Pour "
@@ -530,11 +752,26 @@ def section_pouvoir_discriminant(
         "Le `denominateur par partie` est ce qui decide : un compteur d'action en offre "
         "plusieurs par partie, un compteur d'occasion rare beaucoup moins d'une.",
         "",
+        "**Deux colonnes de cette table refusent de se remplir, et c'est un defaut corrige.** "
+        "L'ecart observe et les parties pour l'etablir soustraient la colonne greedy -- **un** "
+        "siege -- de la colonne hasard -- **trois** sieges. Au grain du couple "
+        "`(partie, siege)` c'est licite : l'unite comptee est la meme. Au grain `-par-partie`, "
+        "non : « au moins un des 1 sieges » et « au moins un des 3 sieges » ne comptent pas la "
+        "meme chose, et le signe de l'ecart s'en inversait -- `+11,82` point au meme grain, "
+        "`-23,97` en melangeant les deux. `comportements.ecart_de_taux` **leve** desormais dans "
+        "ce cas, et ces cellules portent « non comparable : grains differents ». Ce n'est pas un "
+        "tiret : un tiret se lit « pas encore mesure », et quelqu'un le remplirait.",
+        "",
+        "**Le meme defaut etait deja sorti au meme endroit** -- une reserve du tour 2 de la "
+        "phase 1 portait sur cette section. C'est pourquoi la correction est une **levee** et "
+        "non une cellule corrigee.",
+        "",
         "| Compteur | Greedy | Denom. / partie | Ecart detectable a "
         f"{budget} parties | Ecart greedy-hasard observe | Parties pour l'etablir |",
         "|---|---:|---:|---:|---:|---:|",
     ]
     nb_reference = greedy["B4-brut"].total and greedy["B1-motif"].total
+    aveugles: list[str] = []
     for nom, compte in greedy.items():
         if compte.total == 0 or compte.taux() is None:
             lignes.append(f"| `{nom}` | sans objet | 0 | sans objet | sans objet | sans objet |")
@@ -556,11 +793,13 @@ def section_pouvoir_discriminant(
             )
             continue
         autre = hasard.get(nom)
-        observe = (
-            None
-            if autre is None or autre.taux() is None
-            else compte.taux() - autre.taux()
-        )
+        incomparable = False
+        observe = None
+        if autre is not None:
+            try:
+                observe = comp.ecart_de_taux(compte, autre)
+            except comp.GrainsIncomparables:
+                incomparable = True
         besoin = (
             None
             if observe is None
@@ -568,12 +807,42 @@ def section_pouvoir_discriminant(
                 compte.taux(), par_partie, abs(observe)
             )
         )
+        # **Critere mecanique, et non une phrase a se rappeler d'ecrire.** Un compteur dont
+        # l'ecart detectable depasse son propre taux ne peut separer AUCUN agent par le bas,
+        # pas meme un agent a 0 : un cote entier de la comparaison est hors d'atteinte.
+        aveugle = detectable is not None and detectable > compte.taux()
+        if aveugle:
+            aveugles.append(nom)
+        cellule_ecart = (
+            "non comparable : grains differents"
+            if incomparable
+            else ("sans objet" if observe is None else f"{100 * observe:+.2f} pt")
+        )
+        cellule_besoin = (
+            "non comparable : grains differents"
+            if incomparable
+            else ("sans objet" if besoin is None else str(besoin))
+        )
         lignes.append(
             f"| `{nom}` | {_pct(compte.taux())} | {par_partie:.4f} | "
-            f"{'sans objet' if detectable is None else _pct(detectable)} | "
-            f"{'sans objet' if observe is None else f'{100 * observe:+.2f} pt'} | "
-            f"{'sans objet' if besoin is None else besoin} |"
+            f"{'sans objet' if detectable is None else _pct(detectable)}"
+            f"{' **(aveugle par le bas)**' if aveugle else ''} | "
+            f"{cellule_ecart} | {cellule_besoin} |"
         )
+
+    lignes += [
+        "",
+        "**Aveugle par le bas.** L'ecart detectable a "
+        f"{budget} parties depasse le taux mesure lui-meme : **aucun** agent ne peut etre "
+        "separe du greedy par le bas sur ce compteur, pas meme un agent a 0 %. Un compteur dont "
+        "un cote entier est hors d'atteinte ne teste rien de ce cote-la. Le critere est "
+        "**calcule** sur chaque ligne, pas ecrit a la main -- une prose se corrige une fois, un "
+        "critere n'oublie pas la ligne suivante.",
+        "",
+        "Compteurs marques : "
+        + (", ".join(f"`{nom}`" for nom in aveugles) if aveugles else "aucun")
+        + ".",
+    ]
 
     b7 = greedy["B7-gaspillage"]
     occ = greedy["B7-occasions"]
@@ -693,11 +962,15 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     groupes = phase2.campagne_b(donnes_b)
     durees.append(("B", perf_counter() - debut))
     resultats_m3 = [
-        phase2.mesurer_m3(groupes, "1 greedy contre 2 aleatoires (reference)", alea)
+        phase2.mesurer_m3(
+            groupes, "1 greedy contre 2 aleatoires (reference)", alea, nb_greedys=1
+        )
     ]
     greedy = phase2.mesurer_m4(groupes)
     b6_greedy = phase2.mesurer_b6(groupes)
     b6_concurrente_greedy = phase2.mesurer_b6_concurrente(groupes)
+    # Le diagnostic d'incoherence, sur les **memes** traces : il ne rejoue rien.
+    incoherence = phase2.mesurer_incoherence_du_greedy(groupes)
     del groupes
 
     # --- Les deux variantes rapportees a cote de M3 -----------------------------------
@@ -709,8 +982,23 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
             debut = perf_counter()
             groupes = phase2.campagne_b(donnes_b, **arguments)
             durees.append((f"B, {intitule}", perf_counter() - debut))
-            resultats_m3.append(phase2.mesurer_m3(groupes, intitule, alea))
+            resultats_m3.append(
+                phase2.mesurer_m3(
+                    groupes, intitule, alea, nb_greedys=arguments.get("nb_greedys", 1)
+                )
+            )
             del groupes
+
+    # --- Troisieme population : trois greedys, pour M4 SEULEMENT ----------------------
+    # Ajoutee apres l'audit croise. `mesurer_m3` la refuse par construction : trois politiques
+    # identiques rendent un tiers de part de victoire par symetrie.
+    trois_greedys = None
+    if avec_variantes:
+        debut = perf_counter()
+        groupes = phase2.campagne_b(donnes_b, nb_greedys=3)
+        durees.append(("B, 3 greedys (M4 seulement)", perf_counter() - debut))
+        trois_greedys = phase2.mesurer_m4(groupes)
+        del groupes
 
     section_m1(lignes, resultats_m1, f"seeds {phase2.DEPART_A}+")
     section_m1(
@@ -720,6 +1008,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
     )
     section_m2(lignes, resultat_m2)
     section_m3(lignes, resultats_m3)
+    section_coherence(lignes, incoherence)
     section_m4(
         lignes,
         greedy,
@@ -729,6 +1018,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
         b6_concurrente_greedy,
         b6_concurrente_hasard,
     )
+    section_troisieme_population(lignes, greedy, hasard, trois_greedys)
     section_pouvoir_discriminant(lignes, greedy, hasard)
     section_ce_que_ca_n_etablit_pas(lignes, greedy)
 

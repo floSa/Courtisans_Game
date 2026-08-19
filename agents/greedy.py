@@ -42,6 +42,56 @@ L'arbitrage du tour : G-combine
 Le risque de ce choix est unidirectionnel : un greedy plus fort place la barre de la phase 3
 plus haut. `M3(G-naif)` est rapporte sur les memes donnes pour que l'ecart soit un chiffre.
 
+Le ciblage se decide SANS les Assassins en attente -- et la specification le disait mal
+--------------------------------------------------------------------------------------
+**Defaut majeur releve par l'audit croise, corrige dans la description et non dans le code.**
+L'arbitrage G-combine ci-dessus decrit la **pose** : `_valeur_de_pose` resout conjointement tous
+les Assassins du bloc. Mais les **ciblages** se decident ensuite **un nœud a la fois**, et
+`Perception` ne porte pas les Assassins encore en attente (voir ses attributs : `assassin` est
+celui qui se resout, il n'y a pas de liste des suivants). La politique ne PEUT donc pas regarder
+plus loin que le nœud courant.
+
+**L'incoherence est structurelle, pas un accident de code.** L'action de pose de l'adaptateur est
+**atomique** -- un identifiant d'action encode le bloc de trois cartes entier, fait etabli en
+phase 0 --, donc le bloc est choisi d'un coup sous une evaluation conjointe, pendant que le
+ciblage se decide apres, nœud par nœud, sans memoire de ce que le bloc contenait.
+
+Combien. MESURE sur la campagne B entiere -- 10 002 parties, siege du greedy, intervalles de
+Clopper-Pearson **exacts** a 99 % bilateral. Le denominateur est ecrit a chaque ligne, parce que la
+question admet deux lectures et qu'un taux dont on ne sait pas de quoi il est la part n'est pas
+auditable :
+
+  - **4,23 %** (172/4063), IC [3,46 ; 5,11] -- des nœuds de ciblage ou **au moins un Assassin du
+    meme bloc reste en attente**, l'argmax myope et l'argmax coherent ne coincident pas ;
+  - **3,13 %** (127/4063), IC [2,47 ; 3,90] -- de ces memes nœuds, l'argmax myope contient une
+    action que l'argmax coherent **rejette**. C'est la part qui **coute** : le departage uniforme
+    peut y tirer une action coherentement dominee ;
+  - **0,72 %** (172/23991), IC [0,58 ; 0,87] -- de **tous** les nœuds de ciblage.
+
+Le module `mesure/coherence_greedy.py` rend ces trois chiffres, et
+`uv run python -m mesure.coherence_greedy --donnes 200` les recalcule en une minute sur le prefixe
+de la campagne B.
+
+**Le sens du biais, et il n'est pas le meme pour M3 et pour M4.**
+
+- **M3 : plancher.** Un agent plus myope que sa specification est plus **faible**, donc
+  `+0,7978` de gain moyen et `86,52 %` de part de victoire sont un **plancher** du greedy, pas
+  une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de la
+  phase 3 plus bas, jamais plus haut.
+- **M4 : aucun sens determine, et trois compteurs sont tautologiques.** `B4-strict`,
+  `B4-departage` et `B4-contre-nature` sont juges **par `evaluer_actions`**, c'est-a-dire par
+  l'evaluation myope elle-meme. Le zero de `B4-contre-nature` ne dit donc **pas** que le greedy
+  n'a jamais commis de meurtre contre-productif : il dit qu'il n'a jamais **contredit sa propre
+  evaluation**. Deux enonces differents, et seul le second est vrai. Les denominateurs de
+  `B4-strict` et `B4-departage` sortent du meme argmax, donc la meme lecture s'applique aux
+  trois.
+
+**Ce qui tient ce comportement** : `tests/agents/test_greedy.py`, sur une position construite a
+la main ou l'argmax myope est a egalite et l'argmax coherent strictement meilleur de 2 points. Un
+« correctif » futur casserait ce test bruyamment -- ce qui est le but : la ligne de base de toutes
+les phases suivantes est celle de **cet** agent, myope au ciblage, et corriger le code
+invaliderait M3 et M4 entiers.
+
 Le departage
 ------------
 `choisir` tire **uniformement** dans l'ensemble des argmax. Prendre le plus petit indice serait
@@ -57,7 +107,7 @@ from __future__ import annotations
 import random
 from collections.abc import Sequence
 
-from agents.perception import Perception
+from agents.perception import CibleVue, Perception
 from courtisans import rules
 from courtisans.cards import CartePosee, Zone
 from courtisans.config import GameConfig
@@ -152,21 +202,25 @@ def _valeur_de_pose(perception: Perception, action: int) -> int:
     return _meilleur_apres_assassins(plateau, assassins, moi=perception.moi, config=config)
 
 
-def _valeur_de_ciblage(perception: Perception, action: int) -> int:
-    """L'ecart apres avoir tue la cible d'indice `action`, ou apres avoir refuse.
+def _plateau_apres_ciblage(
+    connues: Sequence[CartePosee], cibles: Sequence[CibleVue], action: int
+) -> list[CartePosee]:
+    """Le plateau du decideur apres l'action de ciblage `action`, refus compris.
 
     **Tuer un dos ne change rien** : un dos vaut zero dans la vue du decideur, donc il n'est
-    pas dans `connues` et son retrait est sans effet. Cette action a donc exactement la
-    valeur du refus -- c'est ce qui impose a B4 de publier le refus strict et le refus par
+    pas dans `connues` et son retrait est sans effet. Cette action laisse donc exactement le
+    plateau du refus -- c'est ce qui impose a B4 de publier le refus strict et le refus par
     departage separement (paragraphe 6.4 du document d'instrument).
+
+    Ecrit une fois pour les deux evaluations, myope et coherente : les recopier ferait deux
+    endroits ou la designation d'une cible pourrait deriver.
     """
-    config = perception.config
-    plateau = list(perception.connues)
-    if action >= len(perception.cibles):
-        return evaluer(plateau, perception.moi, config)
-    cible = perception.cibles[action]
+    plateau = list(connues)
+    if action >= len(cibles):
+        return plateau
+    cible = cibles[action]
     if cible.carte is None:
-        return evaluer(plateau, perception.moi, config)
+        return plateau
     # Une cible se designe par sa carte **et sa zone**. La carte seule suffirait dans une
     # partie legale -- une `Carte` porte son exemplaire, donc elle est unique -- mais s'en
     # contenter faisait retirer la mauvaise carte sur un plateau de test mal construit, sans
@@ -176,7 +230,49 @@ def _valeur_de_ciblage(perception: Perception, action: int) -> int:
         for rang, posee in enumerate(plateau)
         if posee.carte == cible.carte and posee.zone == cible.zone
     )
-    return evaluer(_sans(plateau, indice), perception.moi, config)
+    return _sans(plateau, indice)
+
+
+def _valeur_de_ciblage(perception: Perception, action: int) -> int:
+    """L'ecart apres avoir tue la cible d'indice `action`, ou apres avoir refuse.
+
+    **Myope par construction** : elle ne regarde pas les Assassins du meme bloc encore en
+    attente, parce que `Perception` ne les porte pas. C'est le comportement de l'agent, decrit
+    en tete de module, et `evaluer_ciblages_coherents` existe pour le **mesurer**, pas pour le
+    remplacer.
+    """
+    plateau = _plateau_apres_ciblage(perception.connues, perception.cibles, action)
+    return evaluer(plateau, perception.moi, perception.config)
+
+
+def evaluer_ciblages_coherents(
+    connues: Sequence[CartePosee],
+    cibles: Sequence[CibleVue],
+    actions_legales: Sequence[int],
+    en_attente: Sequence[CartePosee],
+    moi: int,
+    config: GameConfig,
+) -> dict[int, int]:
+    """Ce que chaque ciblage vaudrait si les Assassins **en attente** etaient pris en compte.
+
+    **Ce n'est pas la politique, et l'agent ne l'appelle jamais.** C'est l'instrument qui mesure
+    l'ecart entre ce que le greedy fait et ce que sa specification laissait croire : la pose est
+    evaluee conjointement, le ciblage non. Voir la section correspondante en tete de module.
+
+    Prend ses arguments **explicitement** plutot qu'une `Perception` : une `Perception` ne porte
+    pas les Assassins en attente, et en fabriquer une qui pretende le contraire ferait mentir le
+    type sur lequel repose toute la preuve d'aveuglement.
+
+    `en_attente` vide rend exactement `evaluer_actions` sur les memes ciblages -- c'est teste,
+    parce que sans cette egalite l'ecart mesure melangerait l'incoherence avec une divergence de
+    calcul.
+    """
+    return {
+        action: _meilleur_apres_assassins(
+            _plateau_apres_ciblage(connues, cibles, action), en_attente, moi, config
+        )
+        for action in actions_legales
+    }
 
 
 def evaluer_actions(perception: Perception) -> dict[int, int]:

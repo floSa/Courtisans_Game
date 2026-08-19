@@ -59,6 +59,101 @@ def test_un_denominateur_nul_rend_none_et_non_zero():
 
 
 # ---------------------------------------------------------------------------------
+# La parade de grain : deux comptes de grains differents n'ont pas d'ecart
+# ---------------------------------------------------------------------------------
+
+
+def test_le_grain_par_partie_porte_le_nombre_de_sieges_agreges():
+    """« Au moins un siege mesure » ne veut pas dire la meme chose a 1 siege et a 3.
+
+    Le libelle seul ne suffit donc pas : deux colonnes de la table M4 portaient exactement le
+    meme grain -- `parties (au moins un siege mesure)` -- alors que l'une agregeait un siege et
+    l'autre trois. Comparer les libelles n'aurait rien detecte. Le libelle porte desormais le
+    **compte**, et c'est lui qui rend la difference visible dans le rapport comme dans le type.
+    """
+    une = _trace_b1()
+    un_siege = comp.motif_b1([une], CONFIG, sieges=[0])
+    trois = comp.motif_b1([une], CONFIG, sieges=[0, 1, 2])
+    assert un_siege["B1-motif-par-partie"].grain == "parties (au moins un des 1 sieges mesures)"
+    assert trois["B1-motif-par-partie"].grain == "parties (au moins un des 3 sieges mesures)"
+    # Le grain au couple ne depend PAS du nombre de sieges : son unite est le couple, pas la
+    # partie, donc agreger n'en change pas le sens -- seulement l'effectif.
+    assert un_siege["B1-motif"].grain == trois["B1-motif"].grain == "couples (partie, siege)"
+
+
+def test_un_ecart_entre_deux_grains_differents_leve():
+    """La faute du paragraphe 6, rendue impossible plutot que corrigee.
+
+    La colonne « ecart greedy-hasard » soustrayait un greedy mesure sur UN siege d'un hasard
+    mesure sur TROIS, au grain `-par-partie`. Le signe s'en inversait : +11,82 pt au meme grain,
+    -23,97 pt en melangeant les deux. Une cellule corrigee se re-remplit ; une levee, non.
+
+    C'est la deuxieme fois que ce defaut sort au meme endroit -- une reserve du tour 2 de la
+    phase 1 portait deja sur cette section.
+    """
+    greedy = comp.Compte(
+        "B1-motif-par-partie", 4794, 10002, "parties (au moins un des 1 sieges mesures)",
+        comp.VUE_MIXTE,
+    )
+    hasard = comp.Compte(
+        "B1-motif-par-partie", 7191, 10002, "parties (au moins un des 3 sieges mesures)",
+        comp.VUE_MIXTE,
+    )
+    with pytest.raises(comp.GrainsIncomparables) as leve:
+        comp.ecart_de_taux(greedy, hasard)
+    # Le message doit nommer les DEUX grains : « non comparable » sans dire de quoi a quoi
+    # renvoie le lecteur au code.
+    assert "1 sieges" in str(leve.value)
+    assert "3 sieges" in str(leve.value)
+
+
+def test_un_ecart_entre_deux_memes_grains_se_calcule():
+    """L'autre branche de la garde. Une garde qui ne laisse rien passer ne prouve rien.
+
+    Au grain du couple `(partie, siege)`, le greedy sur un siege et le hasard sur trois **se
+    comparent** : l'unite comptee est la meme, seuls les effectifs diffèrent. C'est la
+    comparaison publiee, et elle vaut +11,82 point.
+    """
+    greedy = comp.Compte("B1-motif", 4794, 10002, "couples (partie, siege)", comp.VUE_MIXTE)
+    hasard = comp.Compte("B1-motif", 10836, 30006, "couples (partie, siege)", comp.VUE_MIXTE)
+    assert comp.ecart_de_taux(greedy, hasard) == pytest.approx(0.1181764, abs=1e-7)
+    # 4794/10002 - 10836/30006 = +11,82 point, la valeur publiee au paragraphe 6.
+
+
+def test_un_ecart_sans_taux_rend_none_et_ne_leve_pas():
+    """Un denominateur vide n'est pas un grain incomparable. Les deux cas ne se confondent pas."""
+    vide = comp.Compte("essai", 0, 0, "parties (au moins un des 3 sieges mesures)", comp.VUE_VRAIE)
+    plein = comp.Compte("essai", 1, 4, "parties (au moins un des 3 sieges mesures)", comp.VUE_VRAIE)
+    assert comp.ecart_de_taux(vide, plein) is None
+    assert comp.ecart_de_taux(plein, vide) is None
+
+
+def test_le_cumul_refuse_deux_grains_differents():
+    """Le cumul par composition de sieges est l'autre endroit ou deux grains se rencontrent.
+
+    `mesurer_comportements` additionne les comptes de chaque composition de sieges. Si deux
+    compositions n'agregeaient pas le meme nombre de sieges, le cumul additionnerait des
+    numerateurs de sens differents en gardant un seul libelle -- silencieusement.
+    """
+    def par_partie(succes: int, sieges: int) -> comp.Compte:
+        return comp.Compte(
+            "B1-motif-par-partie",
+            succes,
+            10,
+            f"parties (au moins un des {sieges} sieges mesures)",
+            comp.VUE_MIXTE,
+        )
+
+    un, trois = par_partie(3, 1), par_partie(7, 3)
+    with pytest.raises(comp.GrainsIncomparables):
+        comp.cumuler(un, trois)
+    meme = par_partie(7, 1)
+    somme = comp.cumuler(un, meme)
+    assert (somme.succes, somme.total) == (10, 20)
+    assert somme.grain == un.grain
+
+
+# ---------------------------------------------------------------------------------
 # B1 -- le motif « nourrir puis basculer »
 # ---------------------------------------------------------------------------------
 
@@ -128,8 +223,84 @@ def test_b1_le_motif_est_compte_et_le_statut_final_est_bien_l_obscurite():
     # A un seul siege mesure, les deux grains coincident -- et c'est pourquoi la faute
     # d'agregation etait invisible sur le greedy de reference.
     assert comptes["B1-motif"].grain == "couples (partie, siege)"
-    assert comptes["B1-motif-par-partie"].grain == "parties (au moins un siege mesure)"
+    assert (
+        comptes["B1-motif-par-partie"].grain == "parties (au moins un des 1 sieges mesures)"
+    )
     assert comptes["B1-motif-par-partie"].succes == comptes["B1-motif"].succes
+
+
+def _trace_b1_indifferente_exactement():
+    """Le joueur 0 nourrit f1 chez le joueur 1, puis ramene f1 a `d = 0` **exactement**.
+
+    Nœud 0, tour 1 : plateau vide, f1 **Indifferente** dans sa vue -- clause 1 tenue. Il pose
+    **Noble f1 en Estime** (`+2`), Garde f2 chez lui, et **Neutre f1 chez le joueur 1** : c'est
+    l'evenement « nourrir » sur (f1, joueur 1).
+
+    Nœud 1, tour 2 : il pose **Noble f1 en Disgrace** (`-2`). C'est l'evenement « baisser ».
+
+    Decompte : `d(f1) = +2 - 2 = 0`, donc **Indifferente** -- ni Lumiere, ni Obscurite. Le
+    joueur 1 detient encore le Neutre f1 vivant.
+    """
+    nourrir = pose(
+        numero=0,
+        joueur=0,
+        tour=1,
+        cartes=(
+            banquet(1, Role.NOBLE, Position.ESTIME, poseur=0),
+            domaine(2, Role.GARDE, proprietaire=0, poseur=0),
+            domaine(1, Role.NEUTRE, proprietaire=1, poseur=0),
+        ),
+        main=(carte(1, Role.NOBLE), carte(2, Role.GARDE), carte(1, Role.NEUTRE)),
+    )
+    connues_apres = nourrir.posees + nourrir.cartes_posees
+    baisser = pose(
+        numero=1,
+        joueur=0,
+        tour=2,
+        cartes=(
+            banquet(1, Role.NOBLE, Position.DISGRACE, poseur=0, exemplaire=1),
+            domaine(3, Role.GARDE, proprietaire=0, poseur=0),
+            domaine(3, Role.NEUTRE, proprietaire=1, poseur=0),
+        ),
+        connues=connues_apres,
+        main=(carte(1, Role.NOBLE, 1), carte(3, Role.GARDE), carte(3, Role.NEUTRE)),
+    )
+    finales = connues_apres + baisser.cartes_posees
+    return trace((nourrir, baisser), posees_finales=finales)
+
+
+def test_b1_compte_une_famille_qui_finit_EXACTEMENT_indifferente():
+    """La clause 3 dit « Indifferente **ou** en Obscurite », et c'est le seul test qui la tient.
+
+    Le paragraphe 2.2 des regles fixe le seuil qui paie a **l'Indifference** : une famille
+    indifferente ne rapporte plus rien, donc le retournement a atteint son but. Restreindre la
+    clause a l'Obscurite est la faute exacte du tour 1 de la phase 1, et l'audit croise l'a
+    reintroduite en obtenant **913 tests verts, zero rouge** : aucun cas ne tenait la clause.
+
+    Ce test est celui qui tombe sous la lecture Obscurite et passe sous la bonne :
+
+      - `B1-motif` doit valoir **1** -- `d(f1) = 0`, donc Indifferente, donc la clause 3 tient ;
+      - `B1-strict`, qui exige l'Obscurite, doit valoir **0** sur la meme partie.
+
+    Ce que la faute couterait, si elle repassait : le taux publie tomberait de **47,93 %** a
+    **38,66 %**, soit **9,27 points**, quand l'ecart detectable au budget de la phase 3 est de
+    **7,64 points**. La regression serait donc silencieuse ET plus grande que ce que la phase
+    suivante peut mesurer.
+
+    Verifie sur les **deux** compositions de sieges, comme tout compteur de comportement depuis
+    les deux defauts de B1.
+    """
+    une = _trace_b1_indifferente_exactement()
+    # La premisse, assertee et non supposee : c'est elle qui fait de ce test le gardien de la
+    # clause. Sans elle, un changement de plateau pourrait la faire glisser en Obscurite et le
+    # test continuerait de passer en ne testant plus rien.
+    assert statut_de(une.posees_finales, 1) is Statut.INDIFFERENTE
+
+    for sieges, denominateur in (([0], 1), ([0, 1, 2], 3)):
+        comptes = comp.motif_b1([une], CONFIG, sieges=sieges)
+        assert comptes["B1-motif"].succes == 1, sieges
+        assert comptes["B1-strict"].succes == 0, sieges
+        assert comptes["B1-motif"].total == denominateur
 
 
 def test_b1_ne_compte_pas_si_l_adversaire_ne_detient_plus_rien_de_la_famille():
