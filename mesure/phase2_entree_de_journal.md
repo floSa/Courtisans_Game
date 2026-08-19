@@ -92,7 +92,8 @@ concurrentes annoncées d'avance sont chiffrées ; onze des douze sens annoncés
   bas** — même un agent à 0 % n'est qu'à 0,15 point, soit la moitié du détectable.
 
 **Audit.** **VERDICT : REJETÉ.** Trois défauts trouvés par l'auditeur, recalculés indépendamment
-par l'humain et tenus tous les trois ; un quatrième, mineur, trouvé par l'humain. Les quatre sont
+par l'humain et tenus tous les trois ; un quatrième, mineur, et un **cinquième, majeur**, trouvés
+par l'humain — ce dernier dans la table que j'avais ajoutée pour corriger le premier. Les cinq sont
 corrigés, chacun avec le test qui le tient.
 
 **Ce que l'audit a trouvé et que je n'avais pas vu.**
@@ -154,6 +155,43 @@ branche.
 - **La lecture de la clause 3 confirmée indépendamment** : deux lectures séparées du même texte
   convergent. C'est le meilleur résultat de cet audit, et il vaut plus que le chiffre.
 
+**A5, majeur, trouvé par l'humain DANS la table ajoutée pour corriger A1 — six budgets gonflés
+d'un facteur trois.** La colonne « parties pour l'établir » de la troisième population divisait le
+dénominateur par partie par le nombre de sièges. Un compteur `-par-partie` rend **une** observation
+de Bernoulli par partie — « au moins un des trois sièges » est un seul booléen, l'agrégation étant
+dans son **numérateur** — donc son dénominateur par partie vaut **1,0** et pas 1/3. Le texte que le
+générateur imprimait énonçait la faute mot pour mot.
+
+| Ligne | Publié | Juste |
+|---|---:|---:|
+| `B1-collectif-par-partie` | 3 885 | **1 295** |
+| `B1-motif-par-partie` | 895 | **299** |
+| `B1-tentative-par-partie` | 715 | **239** |
+| `B1-strict-par-partie` | 31 199 | **10 400** |
+| `B1-savoir-commun-par-partie` | 838 | **280** |
+| **`B1-collectif`** (grain du couple) | **2 234** | **745** |
+
+**La sixième ligne n'était pas dans la liste de l'audit.** `B1-collectif` est au grain du couple
+`(partie, siège)` : son dénominateur par partie **est** 3,0 — trois sièges mesurés — et le
+générateur passait 1,0. Même cause racine, valeur juste différente.
+
+**C'est la quatrième fois dans ce projet qu'un nombre juste porte une phrase décrivant autre
+chose**, et cette fois dans la table ajoutée pour corriger la troisième. Ce n'est pas un échec de
+la correction de A1 : la parade lève, les cellules refusent de se remplir. C'est que **toute table
+neuve est une première livraison** — ce que j'avais écrit moi-même de cette table, et qui rend la
+trouvaille normale.
+
+La parade, exigée par l'humain et de la même forme que celle du grain : **une seule fonction**,
+`phase2.budget_d_un_compteur`, appelée par les **trois** tables qui traduisent un écart en budget —
+le §6, le §5 bis, et le paragraphe sur B7 qui déduisait aussi son propre dénominateur. Elle reçoit
+le **nombre de parties**, calculé du plan (`donnes_b × joueurs`) et jamais déduit d'un compteur. Et
+`observations_par_partie` **lève** si un compteur `-par-partie` a un dénominateur différent du
+nombre de parties : l'invariant est asserté, pas supposé.
+
+**Contrôle de non-régression de la centralisation** : sur les 19 lignes du §6 que le diff expose,
+le couple (dénominateur par partie, parties requises) est **inchangé sur les 19**. Les trois lignes
+que l'humain avait reconstruites — 418, 72, 320 163 — sont épinglées par un test.
+
 **Un désaccord de valeur reste ouvert sur A3, et c'est à l'humain de le fermer.** J'ai reproduit le
 `7,33 %` de l'auditeur avec mon propre compteur, sur les 200 premières donnes de la campagne B puis
 sur la campagne entière. Deux conclusions séparées :
@@ -174,7 +212,7 @@ sur la campagne entière. Deux conclusions séparées :
 **La réserve 2 est fermée par la population à trois greedys.** `B1-collectif` mesuré sur trois
 greedys vaut **71,78 %** (21538/30006) contre **70,07 %** avec un greedy et deux hasards, pour un
 hasard à **67,18 %** : l'écart à établir passe de **+2,89** à **+4,60** points, et le nombre de
-parties nécessaires de **5 868** à **2 234**. La ligne de base collective que la phase 3 doit
+parties nécessaires de **5 868** à **745**. La ligne de base collective que la phase 3 doit
 utiliser est celle-là, et non celle de la composition de référence.
 
 **Ce que mon propre auto-audit avait trouvé (étape 4), et qui reste au dossier :**
@@ -237,7 +275,7 @@ n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cett
 - **Réserve 2 — FERMÉE.** `B1-collectif` chez le greedy de référence mélangeait sa propre bascule
   et celles de deux adversaires **aléatoires**. La population à trois greedys, autorisée après
   l'audit, donne la ligne de base collective utilisable : **71,78 %** contre **67,18 %** pour le
-  hasard, **+4,60 pt**, **2 234** parties pour l'établir. Périmètre publié : `B1-collectif`, sa
+  hasard, **+4,60 pt**, **745** parties pour l'établir. Périmètre publié : `B1-collectif`, sa
   variante, et les lignes `-par-partie` — six lignes, et pas une de plus.
 - **Réserve 3** — `FENETRE_STABILITE = 200` est une proposition, appuyée empiriquement sur deux
   valeurs de `p₁` seulement.
@@ -246,13 +284,17 @@ n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cett
   était fausse et la conclusion trop faible. Sur du **code inchangé et les mêmes seeds**, quatre
   passes donnent :
 
-  | Campagne | passe 1 | passe 2 | passe 3 | passe 4 | max / min |
-  |---|---:|---:|---:|---:|---:|
-  | A | 210,9 s | 244,8 s | **94,2 s** | 108,8 s | **2,60** |
-  | B | 261,0 s | 301,5 s | 112,7 s | **112,0 s** | **2,69** |
+  | Campagne | passe 1 | passe 2 | passe 3 | passe 4 | passe 5 | max / min |
+  |---|---:|---:|---:|---:|---:|---:|
+  | A | 210,9 s | **244,8 s** | 94,2 s | 108,8 s | **83,5 s** | **2,93** |
+  | A contrôle | 216,4 s | **247,3 s** | 91,7 s | 94,2 s | **82,3 s** | **3,00** |
+  | B | 261,0 s | **301,5 s** | 112,7 s | 112,0 s | **101,1 s** | **2,98** |
+  | B, 2 greedys | 307,3 s | **351,1 s** | 134,1 s | 132,0 s | **118,1 s** | **2,97** |
+  | B, départage déterministe | 261,6 s | **297,5 s** | 113,1 s | 111,5 s | **100,8 s** | **2,95** |
 
-  Non monotone, et un rapport **max/min de 2,6 à 2,7**. Les passes 3 et 4 portent un code
-  **identique** et diffèrent encore de **−19 % à +16 %** selon la campagne.
+  Non monotone, et un rapport **max/min de 2,93 à 3,00 sur les cinq campagnes**. Les passes 3, 4 et
+  5 portent un code **identique sur la phase de jeu** et s'étalent encore de **−26 % à +16 %**. Le
+  total est passé de 1 013 s à 1 961 s puis à **808 s**.
 
   **Ce que ça établit, et c'est plus que ce que je disais** : le temps mural mesuré sur cette
   machine n'est **pas un instrument**. Il ne mesure pas le coût du code, il mesure l'état de la
@@ -266,7 +308,7 @@ n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cett
   bootstrap, compteurs et rédaction. C'est là que le checkpoint annoncé dans ma pré-inscription
   manque, et nulle part ailleurs.
 
-**Impact plan.** Cinq trous du protocole, **cinq** enseignements de méthode, une question ouverte
+**Impact plan.** Cinq trous du protocole, **six** enseignements de méthode, une question ouverte
 nommée pour la phase 3, les motifs de mutation à inscrire, et un point d'API.
 
 - **`05_protocole_experimental.md` — trois termes non définis.** « retournement »,
@@ -295,8 +337,14 @@ nommée pour la phase 3, les motifs de mutation à inscrire, et un point d'API.
   le numérateur, là ils ne font que façonner le plateau » — dérive toujours vers l'extérieur au bord
   d'un périmètre : le lecteur suivant ajoute un élément de plus avec une raison aussi bonne, et rien
   ne l'arrête. Le critère retenu pour la troisième population est textuel — *la définition nomme-t-
-  elle un autre joueur ?* — et il s'arrête où le texte s'arrête. **(e) Un libellé de grain doit
-  porter ce qui rend deux grains différents.** Deux colonnes portaient exactement le même libellé
+  elle un autre joueur ?* — et il s'arrête où le texte s'arrête. **(f) Toute quantité qui traduit un
+  résultat en budget doit être produite par UNE fonction, et le nombre de parties doit lui être
+  passé depuis le plan, jamais déduit d'un compteur.** Trois tables déduisaient leur dénominateur
+  par partie sur place ; l'une s'est trompée d'un facteur trois. Déduire le nombre de parties de
+  `B1-motif` marchait **par coïncidence** — son grain est le couple et la composition de référence
+  ne mesure qu'un siège — et cessait de marcher dès qu'une population mesurait trois sièges. Une
+  coïncidence qui tient est une bombe à retardement, pas une simplification. **(e) Un libellé de
+  grain doit porter ce qui rend deux grains différents.** Deux colonnes portaient exactement le même libellé
   en agrégeant l'une un siège et l'autre trois : une parade comparant les libellés n'aurait rien
   levé, et la mention « non comparable » serait restée de la prose. Le libellé porte désormais le
   **compte** des sièges, et c'est lui qui rend la levée possible.

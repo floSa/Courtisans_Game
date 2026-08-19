@@ -337,3 +337,162 @@ def test_une_correlation_negative_ne_fait_pas_exploser_le_dimensionnement():
     lignes = phase2.tableau_de_dimensionnement(0.7, -0.4, (0.10,))
     _, sans, avec = lignes[0]
     assert avec == sans
+
+
+# ---------------------------------------------------------------------------------
+# Le budget : UNE fonction, appelee par les trois tables
+# ---------------------------------------------------------------------------------
+#
+# La colonne « parties pour l'etablir » est la seule du rapport qui traduise un ecart en budget.
+# Elle apparait dans trois tables, elle etait deduite sur place dans chacune, et l'une des trois
+# s'est trompee d'un facteur trois. Ces cas tiennent la fonction unique et l'invariant qui rend
+# l'erreur impossible.
+
+
+def _compte(nom, succes, total, grain):
+    from mesure import comportements as comp
+
+    return comp.Compte(nom, succes, total, grain, comp.VUE_DECIDEUR)
+
+
+def test_les_observations_par_partie_ne_dependent_pas_du_nombre_de_sieges_agreges():
+    """**Le cas qui aurait attrape le facteur trois.**
+
+    Un compteur `-par-partie` rend **une** observation de Bernoulli par partie -- « au moins un
+    des trois sieges » est un seul booleen --, et cela **quel que soit** le nombre de sieges
+    agreges : l'agregation est DANS son numerateur, pas dans son denominateur. Son nombre
+    d'observations par partie vaut donc `1,0` a un siege comme a trois.
+
+    Un compteur au grain du **couple** `(partie, siege)`, lui, en rend autant que de sieges
+    mesures : `1,0` a un siege, `3,0` a trois.
+
+    La table de la troisieme population divisait en plus par le nombre de sieges, ce qui comptait
+    trois fois la meme partie et gonflait cinq budgets d'un facteur exactement trois.
+    """
+    parties = 10_002
+    for sieges in (1, 3):
+        par_partie = _compte(
+            "B1-motif-par-partie",
+            8254,
+            parties,
+            f"parties (au moins un des {sieges} sieges mesures)",
+        )
+        assert phase2.observations_par_partie(par_partie, parties) == 1.0, sieges
+
+    un_siege = _compte("B1-motif", 4794, parties, "couples (partie, siege)")
+    trois_sieges = _compte("B1-collectif", 21538, 3 * parties, "couples (partie, siege)")
+    assert phase2.observations_par_partie(un_siege, parties) == 1.0
+    assert phase2.observations_par_partie(trois_sieges, parties) == 3.0
+
+
+def test_un_compteur_par_partie_dont_le_total_n_est_pas_le_nombre_de_parties_leve():
+    """L'invariant qui rend le facteur trois impossible, asserte au lieu d'etre suppose.
+
+    Le denominateur d'un compteur `-par-partie` **est** le nombre de parties, par construction.
+    Si les deux divergent, ou le compteur ou le nombre de parties passe est faux, et dans les deux
+    cas tout budget calcule ensuite est faux sans que rien ne le signale.
+    """
+    faux = _compte(
+        "B1-motif-par-partie", 100, 3 * 10_002, "parties (au moins un des 3 sieges mesures)"
+    )
+    with pytest.raises(ValueError, match="par-partie"):
+        phase2.observations_par_partie(faux, 10_002)
+    with pytest.raises(ValueError, match="nombre de parties"):
+        phase2.observations_par_partie(
+            _compte("B1-motif", 1, 10, "couples (partie, siege)"), 0
+        )
+
+
+def test_le_budget_reproduit_trois_lignes_deja_auditees():
+    """La fonction unique doit rendre, au chiffre pres, ce que le paragraphe 6 publie deja.
+
+    Trois lignes auditees et reconstruites par l'humain : `B1-motif` **418**, `B3-expose` **72**,
+    `B7-gaspillage` **320 163**. Si la fonction unique s'en ecartait, la centraliser aurait
+    change des chiffres publies -- ce qui n'est pas une refactorisation.
+    """
+    parties = 10_002
+    b1 = _compte("B1-motif", 4794, parties, "couples (partie, siege)")
+    b3 = _compte("B3-expose", 13309, 4 * parties, "poses en domaine adverse")
+    b7 = _compte("B7-gaspillage", 61, 4 * parties, "poses au banquet")
+
+    assert phase2.budget_d_un_compteur(b1, parties, 4794 / parties - 10836 / 30006).parties == 418
+    assert (
+        phase2.budget_d_un_compteur(b3, parties, 13309 / 40008 - 56075 / 120024).parties == 72
+    )
+    budget_b7 = phase2.budget_d_un_compteur(b7, parties, 61 / 40008 - 203 / 120024)
+    assert budget_b7.parties == 320_163
+    # Les deux marqueurs calcules, sur la ligne qui les porte tous les deux.
+    assert budget_b7.aveugle_par_le_bas is True
+    assert budget_b7.hors_budget is True
+
+
+def test_le_budget_de_la_troisieme_population_n_est_pas_divise_par_trois():
+    """Les six lignes corrigees, dont une que l'audit n'avait pas listee.
+
+    Valeurs reconstruites independamment par l'humain sur quatre des cinq lignes `-par-partie` :
+    1 295, 299, 239, 280. La cinquieme, `B1-strict-par-partie`, vaut **10 400** sur les comptes
+    bruts ; l'humain publie 10 396, obtenu avec l'ecart arrondi a `2,33` point au lieu de
+    `2,329534`. C'est exactement le defaut qu'il signale lui-meme sur deux autres lignes, et les
+    comptes bruts font foi.
+
+    La sixieme ligne est `B1-collectif` au grain du **couple**, que l'audit n'a pas listee : elle
+    etait fausse pour la meme raison mais avec une valeur juste differente -- son denominateur par
+    partie vaut **3,0** et non 1,0 -- et elle passe de 2 234 a **745**.
+    """
+    parties = 10_002
+    attendus = {
+        "B1-collectif-par-partie": (9327, 8990, 1295),
+        "B1-motif-par-partie": (8254, 7191, 299),
+        "B1-tentative-par-partie": (9412, 8674, 239),
+        "B1-strict-par-partie": (5917, 5684, 10400),
+        "B1-savoir-commun-par-partie": (8289, 7199, 280),
+    }
+    for nom, (trois, hasard, attendu) in attendus.items():
+        compte = _compte(nom, trois, parties, "parties (au moins un des 3 sieges mesures)")
+        ecart = trois / parties - hasard / parties
+        assert phase2.budget_d_un_compteur(compte, parties, ecart).parties == attendu, nom
+
+    collectif = _compte("B1-collectif", 21538, 3 * parties, "couples (partie, siege)")
+    ecart = 21538 / 30006 - 20157 / 30006
+    resultat = phase2.budget_d_un_compteur(collectif, parties, ecart)
+    assert resultat.par_partie == 3.0
+    assert resultat.parties == 745
+
+
+def test_le_marqueur_hors_budget_se_calcule_sur_le_budget_de_la_phase_3():
+    """Strictement additif : un marqueur, aucun chiffre deplace.
+
+    Un lecteur de la phase 3 doit voir d'un coup d'œil quels compteurs peuvent le servir a
+    **1 000 parties**, sans recalculer. `B1-motif` a 418 parties est dans le budget ;
+    `B1-collectif-par-partie` a 1 295 en sort.
+    """
+    parties = 10_002
+    dedans = phase2.budget_d_un_compteur(
+        _compte("B1-motif", 4794, parties, "couples (partie, siege)"),
+        parties,
+        4794 / parties - 10836 / 30006,
+    )
+    dehors = phase2.budget_d_un_compteur(
+        _compte(
+            "B1-collectif-par-partie", 9327, parties, "parties (au moins un des 3 sieges mesures)"
+        ),
+        parties,
+        9327 / parties - 8990 / parties,
+    )
+    assert (dedans.parties, dedans.hors_budget) == (418, False)
+    assert (dehors.parties, dehors.hors_budget) == (1295, True)
+    assert phase2.BUDGET_PHASE_3 == 1_000
+
+
+def test_un_ecart_nul_ou_absent_ne_rend_aucun_budget():
+    """Aucun nombre de parties n'etablit un ecart nul.
+
+    Et un ecart **absent** n'est pas un ecart de zero : les deux rendent `None`, jamais un
+    nombre.
+    """
+    parties = 10_002
+    compte = _compte("B1-motif", 4794, parties, "couples (partie, siege)")
+    for ecart in (None, 0.0):
+        resultat = phase2.budget_d_un_compteur(compte, parties, ecart)
+        assert resultat.parties is None
+        assert resultat.hors_budget is False

@@ -578,6 +578,115 @@ def parties_pour_separer_un_taux(
 
 
 # ---------------------------------------------------------------------------------
+# Le budget d'un compteur -- UNE fonction, appelee par les trois tables
+# ---------------------------------------------------------------------------------
+
+#: Le budget de la phase 3, paragraphe 3 du protocole. Nomme ici parce que trois tables le
+#: citent et qu'un litteral recopie trois fois est un litteral qu'on corrige deux fois.
+BUDGET_PHASE_3 = 1_000
+
+
+@dataclass(frozen=True)
+class Budget:
+    """Ce qu'un compteur peut separer a un budget donne, et ce que ca coute.
+
+    Attributes:
+        par_partie: le nombre d'observations que le compteur offre **par partie**.
+        detectable: l'ecart de taux etablissable au budget, ou `None` a taux nul ou unitaire.
+        borne_exacte: la borne haute de Clopper-Pearson si le taux est **nul**, sinon `None`.
+        parties: les parties necessaires pour etablir `ecart`, ou `None` si `ecart` est nul,
+            absent, ou si le compteur n'a pas de taux exploitable.
+        aveugle_par_le_bas: l'ecart detectable depasse le taux mesure lui-meme, donc **aucun**
+            agent ne peut etre separe par le bas -- pas meme un agent a 0 %.
+        hors_budget: `parties` depasse le budget de la phase 3.
+    """
+
+    par_partie: float
+    detectable: float | None
+    borne_exacte: float | None
+    parties: int | None
+    aveugle_par_le_bas: bool
+    hors_budget: bool
+
+
+def observations_par_partie(compte: comp.Compte, nb_parties: int) -> float:
+    """Le nombre d'observations que `compte` offre **par partie**. `total / nb_parties`.
+
+    **Le nombre de parties est passe explicitement et jamais deduit d'un compteur.** Le deduire
+    a produit un facteur trois faux dans la table de la troisieme population : un compteur
+    `-par-partie` rend **une** observation de Bernoulli par partie -- « au moins un des trois
+    sieges » est un seul booleen --, parce que l'agregation sur les sieges est DANS son
+    numerateur et pas dans son denominateur. Diviser en plus par le nombre de sieges comptait
+    trois fois la meme partie.
+
+    Un compteur au grain du **couple** `(partie, siege)`, lui, en offre autant que de sieges
+    mesures : `1,0` a un siege, `3,0` a trois. La formule `total / nb_parties` rend les deux
+    correctement, et c'est pourquoi il n'y en a qu'une.
+
+    Raises:
+        ValueError: si `nb_parties` n'est pas strictement positif, ou si un compteur
+            `-par-partie` a un denominateur different du nombre de parties -- **l'invariant qui
+            rend le facteur trois impossible**, asserte au lieu d'etre suppose.
+    """
+    if nb_parties <= 0:
+        raise ValueError(
+            f"un nombre de parties se compte a partir de 1, {nb_parties} recu : le budget d'un "
+            f"compteur n'a pas de sens sans le nombre de parties qui l'a produit"
+        )
+    if compte.nom.endswith("-par-partie") and compte.total != nb_parties:
+        raise ValueError(
+            f"« {compte.nom} » est un compteur par-partie : son denominateur EST le nombre de "
+            f"parties, or il vaut {compte.total} contre {nb_parties} parties. Ou le compteur ou "
+            f"le nombre de parties est faux, et tout budget calcule ensuite le serait aussi."
+        )
+    return compte.total / nb_parties
+
+
+def budget_d_un_compteur(
+    compte: comp.Compte,
+    nb_parties: int,
+    ecart: float | None,
+    budget: int = BUDGET_PHASE_3,
+) -> Budget:
+    """L'ecart detectable, les parties requises, et les deux marqueurs -- **une seule fois**.
+
+    Les trois tables du rapport -- pouvoir discriminant, troisieme population, et le paragraphe
+    sur B7 -- passent par ici. Chacune deduisait auparavant son propre denominateur par partie
+    sur place, et l'une des trois s'est trompee d'un facteur trois. **C'est la meme parade que
+    celle du grain** : une correction arrive avec ce qui l'empeche de se defaire.
+
+    `par_partie` est calcule **ici**, a partir du seul nombre de parties, et rendu dans le
+    resultat : la table imprime donc exactement le nombre qui a servi au calcul, et non un
+    second nombre calcule a cote.
+    """
+    par_partie = observations_par_partie(compte, nb_parties)
+    taux = compte.taux()
+    detectable = (
+        None if taux is None else ecart_de_taux_detectable(taux, par_partie, budget)
+    )
+    borne = (
+        borne_exacte_d_un_taux_nul(par_partie, budget)
+        if taux is not None and compte.succes == 0
+        else None
+    )
+    parties = (
+        None
+        if taux is None or ecart is None or ecart == 0
+        else parties_pour_separer_un_taux(taux, par_partie, abs(ecart))
+    )
+    return Budget(
+        par_partie=par_partie,
+        detectable=detectable,
+        borne_exacte=borne,
+        parties=parties,
+        aveugle_par_le_bas=(
+            detectable is not None and taux is not None and detectable > taux
+        ),
+        hors_budget=parties is not None and parties > budget,
+    )
+
+
+# ---------------------------------------------------------------------------------
 # M4 -- B1 a B7
 # ---------------------------------------------------------------------------------
 
@@ -716,7 +825,11 @@ __all__ = [
     "ResultatGreedy",
     "ResultatSiege",
     "ResultatVariance",
+    "BUDGET_PHASE_3",
+    "Budget",
     "borne_exacte_d_un_taux_nul",
+    "budget_d_un_compteur",
+    "observations_par_partie",
     "campagne_a",
     "campagne_b",
     "ecart_de_taux_detectable",

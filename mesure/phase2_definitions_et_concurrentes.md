@@ -101,7 +101,7 @@ l'influence de `f` ; au décompte `f` est **Indifférente ou en Obscurité dans 
   deux politiques uniformes, il mélange la bascule du greedy et celles de deux hasards. La phase 3
   fera jouer les trois sièges par des agents entraînés, donc c'est la population à **trois greedys**
   qui donne sa ligne de base : **71,78 %** (21538/30006) contre **67,18 %** pour le hasard, soit
-  **+4,60 pt** et **2 234** parties pour l'établir — là où la composition de référence donnait
+  **+4,60 pt** et **745** parties pour l'établir — là où la composition de référence donnait
   +2,89 pt et 5 868 parties. Le critère du périmètre est textuel : `B1-collectif` est le seul dont
   la **définition nomme un autre joueur**.
 - **`B1-savoir-commun`** n'a **aucune inclusion** avec la retenue, dans aucun des deux sens :

@@ -446,7 +446,8 @@ def section_troisieme_population(
     greedy: dict[str, comp.Compte],
     hasard: dict[str, comp.Compte],
     trois: dict[str, comp.Compte] | None,
-    budget: int = 1_000,
+    nb_parties: int,
+    budget: int = phase2.BUDGET_PHASE_3,
 ) -> None:
     """La population a trois greedys, publiee **uniquement** ou elle repare une ligne de base.
 
@@ -512,10 +513,11 @@ def section_troisieme_population(
         "la colonne « 1 greedy » des lignes `-par-partie` ne peut donc pas etre soustraite du "
         "hasard, et la colonne « 3 greedys » peut l'etre.",
         "",
-        "| Compteur | 3 greedys - hasard | Parties pour l'etablir | 1 greedy - hasard |",
-        "|---|---:|---:|---|",
+        "| Compteur | 3 greedys - hasard | Obs. / partie | Parties pour l'etablir | "
+        "1 greedy - hasard |",
+        "|---|---:|---:|---:|---|",
     ]
-    nb_reference = greedy["B1-motif"].total
+    hors_budget: list[str] = []
     for nom in perimetre:
         un, trois_g, hz = greedy.get(nom), trois.get(nom), hasard.get(nom)
         if un is None or trois_g is None or hz is None:
@@ -524,14 +526,18 @@ def section_troisieme_population(
             ecart_trois = comp.ecart_de_taux(trois_g, hz)
         except comp.GrainsIncomparables:
             ecart_trois = None
+        # **La fonction unique, et c'est ici que le facteur trois etait.** Cette table deduisait
+        # son propre denominateur par partie en divisant en plus par le nombre de sieges, ce qui
+        # comptait trois fois la meme partie et gonflait les six budgets d'un facteur exactement
+        # trois. `observations_par_partie` ne prend que le nombre de PARTIES.
+        resultat = phase2.budget_d_un_compteur(trois_g, nb_parties, ecart_trois, budget)
+        if resultat.hors_budget:
+            hors_budget.append(nom)
         besoin = (
             "sans objet"
-            if ecart_trois is None or ecart_trois == 0
-            else str(
-                phase2.parties_pour_separer_un_taux(
-                    trois_g.taux(), trois_g.total / (3 * nb_reference), abs(ecart_trois)
-                )
-            )
+            if resultat.parties is None
+            else str(resultat.parties)
+            + (" **(hors budget)**" if resultat.hors_budget else "")
         )
         try:
             comp.ecart_de_taux(un, hz)
@@ -541,13 +547,17 @@ def section_troisieme_population(
         lignes.append(
             f"| `{nom}` | "
             f"{'sans objet' if ecart_trois is None else f'{100 * ecart_trois:+.2f} pt'} | "
-            f"{besoin} | {ecart_un} |"
+            f"{resultat.par_partie:.4f} | {besoin} | {ecart_un} |"
         )
     lignes += [
         "",
-        f"Le denominateur par partie de la colonne « 3 greedys » vaut "
-        f"`total / (3 x {nb_reference})` -- trois sieges mesures par partie, la ou la colonne de "
-        "reference n'en mesure qu'un.",
+        "Le denominateur par partie est celui que `phase2.observations_par_partie` rend, "
+        f"`total / {nb_parties} parties`, et **rien d'autre** : il vaut **1,0** pour une ligne "
+        "`-par-partie` -- « au moins un des trois sieges » est **un seul** booleen par partie, "
+        "l'agregation etant dans le numerateur -- et **3,0** au grain du couple `(partie, siege)`, "
+        "ou trois sieges sont mesures. Une version precedente de cette table divisait en plus par "
+        f"le nombre de sieges : ses six budgets etaient gonfles d'un facteur exactement trois. "
+        f"Marqueur `(hors budget)` calcule sur les {budget} parties de la phase 3.",
         "",
         "**Le critere du perimetre se decide sur le TEXTE de la definition, sans mesurer : la "
         "definition nomme-t-elle un autre joueur ?** `B1-collectif` exige que `t1` et `t2` soient "
@@ -726,8 +736,62 @@ def section_m4(
         lignes.append(f"| {groupe} | {rendues} |")
 
 
+def _ligne_de_budget(
+    nom: str,
+    compte: comp.Compte,
+    observe: float | None,
+    incomparable: bool,
+    nb_parties: int,
+    budget: int,
+    aveugles: list[str],
+    hors_budget: list[str],
+) -> str:
+    """Une ligne de la table du pouvoir discriminant, budget calcule par la fonction unique.
+
+    Les deux marqueurs -- `(aveugle par le bas)` et `(hors budget)` -- sont **calcules** et non
+    ecrits a la main : une prose se corrige une fois, un critere n'oublie pas la ligne suivante.
+    """
+    resultat = phase2.budget_d_un_compteur(compte, nb_parties, observe, budget)
+    if resultat.aveugle_par_le_bas:
+        aveugles.append(nom)
+    if resultat.hors_budget:
+        hors_budget.append(nom)
+
+    if resultat.detectable is None and compte.succes == 0:
+        cellule_detectable = (
+            "borne exacte "
+            f"{'sans objet' if resultat.borne_exacte is None else _pct(resultat.borne_exacte)}"
+        )
+    elif resultat.detectable is None:
+        cellule_detectable = "sans objet"
+    else:
+        cellule_detectable = _pct(resultat.detectable) + (
+            " **(aveugle par le bas)**" if resultat.aveugle_par_le_bas else ""
+        )
+
+    if incomparable:
+        cellule_ecart = "non comparable : grains differents"
+        cellule_besoin = "non comparable : grains differents"
+    else:
+        cellule_ecart = "sans objet" if observe is None else f"{100 * observe:+.2f} pt"
+        if resultat.parties is None:
+            cellule_besoin = "voir ci-dessous" if compte.succes == 0 else "sans objet"
+        else:
+            cellule_besoin = str(resultat.parties) + (
+                " **(hors budget)**" if resultat.hors_budget else ""
+            )
+    taux = "**0 %**" if compte.succes == 0 else _pct(compte.taux())
+    return (
+        f"| `{nom}` | {taux} | {resultat.par_partie:.4f} | {cellule_detectable} | "
+        f"{cellule_ecart} | {cellule_besoin} |"
+    )
+
+
 def section_pouvoir_discriminant(
-    lignes: list[str], greedy: dict[str, comp.Compte], hasard: dict[str, comp.Compte]
+    lignes: list[str],
+    greedy: dict[str, comp.Compte],
+    hasard: dict[str, comp.Compte],
+    nb_parties: int,
 ) -> None:
     """Ce que chaque compteur peut separer au budget de la phase 3. La vraie livrable de M4.
 
@@ -742,7 +806,7 @@ def section_pouvoir_discriminant(
             "pas comparable"
         )
     )
-    budget = 1_000
+    budget = phase2.BUDGET_PHASE_3
     lignes += [
         f"La phase 3 se donne **{budget} parties appariees** (paragraphe 3 du protocole). Pour "
         "chaque compteur, l'ecart de taux qu'elle pourra **etablir** a ce budget, a 99 % "
@@ -770,27 +834,11 @@ def section_pouvoir_discriminant(
         f"{budget} parties | Ecart greedy-hasard observe | Parties pour l'etablir |",
         "|---|---:|---:|---:|---:|---:|",
     ]
-    nb_reference = greedy["B4-brut"].total and greedy["B1-motif"].total
     aveugles: list[str] = []
+    hors_budget: list[str] = []
     for nom, compte in greedy.items():
         if compte.total == 0 or compte.taux() is None:
             lignes.append(f"| `{nom}` | sans objet | 0 | sans objet | sans objet | sans objet |")
-            continue
-        par_partie = compte.total / nb_reference
-        detectable = phase2.ecart_de_taux_detectable(compte.taux(), par_partie, budget)
-        if detectable is None and compte.succes == 0:
-            borne = phase2.borne_exacte_d_un_taux_nul(par_partie, budget)
-            autre = hasard.get(nom)
-            gap = (
-                "sans objet"
-                if autre is None or autre.taux() is None
-                else f"{-100 * autre.taux():+.2f} pt"
-            )
-            lignes.append(
-                f"| `{nom}` | **0 %** | {par_partie:.4f} | borne exacte "
-                f"{'sans objet' if borne is None else _pct(borne)} | {gap} | "
-                "voir ci-dessous |"
-            )
             continue
         autre = hasard.get(nom)
         incomparable = False
@@ -800,37 +848,23 @@ def section_pouvoir_discriminant(
                 observe = comp.ecart_de_taux(compte, autre)
             except comp.GrainsIncomparables:
                 incomparable = True
-        besoin = (
-            None
-            if observe is None
-            else phase2.parties_pour_separer_un_taux(
-                compte.taux(), par_partie, abs(observe)
-            )
-        )
-        # **Critere mecanique, et non une phrase a se rappeler d'ecrire.** Un compteur dont
-        # l'ecart detectable depasse son propre taux ne peut separer AUCUN agent par le bas,
-        # pas meme un agent a 0 : un cote entier de la comparaison est hors d'atteinte.
-        aveugle = detectable is not None and detectable > compte.taux()
-        if aveugle:
-            aveugles.append(nom)
-        cellule_ecart = (
-            "non comparable : grains differents"
-            if incomparable
-            else ("sans objet" if observe is None else f"{100 * observe:+.2f} pt")
-        )
-        cellule_besoin = (
-            "non comparable : grains differents"
-            if incomparable
-            else ("sans objet" if besoin is None else str(besoin))
-        )
         lignes.append(
-            f"| `{nom}` | {_pct(compte.taux())} | {par_partie:.4f} | "
-            f"{'sans objet' if detectable is None else _pct(detectable)}"
-            f"{' **(aveugle par le bas)**' if aveugle else ''} | "
-            f"{cellule_ecart} | {cellule_besoin} |"
+            _ligne_de_budget(
+                nom, compte, observe, incomparable, nb_parties, budget, aveugles, hors_budget
+            )
         )
 
     lignes += [
+        "",
+        f"**Hors budget.** Les parties necessaires depassent les {budget} parties de la phase 3 : "
+        "ce compteur ne peut pas etablir, a ce budget, l'ecart qu'il montre entre le greedy et le "
+        "hasard. Marqueur **calcule** sur chaque ligne. Compteurs marques : "
+        + (
+            ", ".join(f"`{nom}`" for nom in hors_budget)
+            if hors_budget
+            else "aucun"
+        )
+        + f" -- soit {len(hors_budget)} sur {len(greedy)} lignes.",
         "",
         "**Aveugle par le bas.** L'ecart detectable a "
         f"{budget} parties depasse le taux mesure lui-meme : **aucun** agent ne peut etre "
@@ -846,10 +880,14 @@ def section_pouvoir_discriminant(
 
     b7 = greedy["B7-gaspillage"]
     occ = greedy["B7-occasions"]
-    par_partie_b7 = b7.total / nb_reference
-    detectable_b7 = phase2.ecart_de_taux_detectable(b7.taux(), par_partie_b7, budget)
-    ecart_b7 = abs(b7.taux() - hasard["B7-gaspillage"].taux())
-    besoin_b7 = phase2.parties_pour_separer_un_taux(b7.taux(), par_partie_b7, ecart_b7)
+    # **Troisieme site d'appel de la meme fonction.** C'est celui-ci qui manquait a l'inventaire :
+    # ce paragraphe deduisait son propre denominateur par partie, comme les deux tables.
+    budget_b7 = phase2.budget_d_un_compteur(
+        b7, nb_parties, comp.ecart_de_taux(b7, hasard["B7-gaspillage"]), budget
+    )
+    budget_occ = phase2.budget_d_un_compteur(occ, nb_parties, None, budget)
+    detectable_b7 = budget_b7.detectable
+    besoin_b7 = budget_b7.parties
     lignes += [
         "",
         "### Les deux zeros ne sont pas « rien a detecter »",
@@ -867,7 +905,7 @@ def section_pouvoir_discriminant(
         "",
         f"L'occasion ne survient que dans {_pct(occ.taux())} des poses au banquet, soit "
         f"{occ.succes} occasions sur {occ.total}. A {budget} parties il en resterait de l'ordre "
-        f"de {round(budget * occ.total / nb_reference * occ.taux())}.",
+        f"de {round(budget * budget_occ.par_partie * occ.taux())}.",
         "",
         f"L'ecart greedy-hasard observe vaut "
         f"{100 * (b7.taux() - hasard['B7-gaspillage'].taux()):+.2f} point, quand l'ecart "
@@ -1018,8 +1056,13 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
         b6_concurrente_greedy,
         b6_concurrente_hasard,
     )
-    section_troisieme_population(lignes, greedy, hasard, trois_greedys)
-    section_pouvoir_discriminant(lignes, greedy, hasard)
+    # **Le nombre de parties est passe depuis le haut**, calcule du plan et non deduit d'un
+    # compteur : le deduire de `B1-motif` marchait par coincidence -- son grain est le couple et
+    # il n'y a qu'un siege mesure dans la composition de reference -- et cessait de marcher des
+    # qu'une population mesurait trois sieges.
+    nb_parties = donnes_b * phase2.CONFIG.joueurs
+    section_troisieme_population(lignes, greedy, hasard, trois_greedys, nb_parties)
+    section_pouvoir_discriminant(lignes, greedy, hasard, nb_parties)
     section_ce_que_ca_n_etablit_pas(lignes, greedy)
 
     lignes.append(_titre("8. Duree machine"))

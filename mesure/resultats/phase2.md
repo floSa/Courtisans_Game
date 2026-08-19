@@ -362,16 +362,16 @@ Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax
 
 **Ce qui se compare, et ce qui ne se compare pas.** Les cellules ci-dessous sont calculees par `comportements.ecart_de_taux`, qui **leve** quand les grains diffèrent : la colonne « 1 greedy » des lignes `-par-partie` ne peut donc pas etre soustraite du hasard, et la colonne « 3 greedys » peut l'etre.
 
-| Compteur | 3 greedys - hasard | Parties pour l'etablir | 1 greedy - hasard |
-|---|---:|---:|---|
-| `B1-collectif` | +4.60 pt | 2234 | comparable, voir paragraphe 6 |
-| `B1-collectif-par-partie` | +3.37 pt | 3885 | **non comparable : grains differents** |
-| `B1-motif-par-partie` | +10.63 pt | 895 | **non comparable : grains differents** |
-| `B1-tentative-par-partie` | +7.38 pt | 715 | **non comparable : grains differents** |
-| `B1-strict-par-partie` | +2.33 pt | 31199 | **non comparable : grains differents** |
-| `B1-savoir-commun-par-partie` | +10.90 pt | 838 | **non comparable : grains differents** |
+| Compteur | 3 greedys - hasard | Obs. / partie | Parties pour l'etablir | 1 greedy - hasard |
+|---|---:|---:|---:|---|
+| `B1-collectif` | +4.60 pt | 3.0000 | 745 | comparable, voir paragraphe 6 |
+| `B1-collectif-par-partie` | +3.37 pt | 1.0000 | 1295 **(hors budget)** | **non comparable : grains differents** |
+| `B1-motif-par-partie` | +10.63 pt | 1.0000 | 299 | **non comparable : grains differents** |
+| `B1-tentative-par-partie` | +7.38 pt | 1.0000 | 239 | **non comparable : grains differents** |
+| `B1-strict-par-partie` | +2.33 pt | 1.0000 | 10400 **(hors budget)** | **non comparable : grains differents** |
+| `B1-savoir-commun-par-partie` | +10.90 pt | 1.0000 | 280 | **non comparable : grains differents** |
 
-Le denominateur par partie de la colonne « 3 greedys » vaut `total / (3 x 10002)` -- trois sieges mesures par partie, la ou la colonne de reference n'en mesure qu'un.
+Le denominateur par partie est celui que `phase2.observations_par_partie` rend, `total / 10002 parties`, et **rien d'autre** : il vaut **1,0** pour une ligne `-par-partie` -- « au moins un des trois sieges » est **un seul** booleen par partie, l'agregation etant dans le numerateur -- et **3,0** au grain du couple `(partie, siege)`, ou trois sieges sont mesures. Une version precedente de cette table divisait en plus par le nombre de sieges : ses six budgets etaient gonfles d'un facteur exactement trois. Marqueur `(hors budget)` calcule sur les 1000 parties de la phase 3.
 
 **Le critere du perimetre se decide sur le TEXTE de la definition, sans mesurer : la definition nomme-t-elle un autre joueur ?** `B1-collectif` exige que `t1` et `t2` soient de joueurs **differents** -- le mot est dans la definition. Aucun autre compteur ne nomme personne.
 
@@ -395,38 +395,40 @@ Le `denominateur par partie` est ce qui decide : un compteur d'action en offre p
 |---|---:|---:|---:|---:|---:|
 | `B1-motif` | 47.93 % | 1.0000 | 7.64 % | +11.82 pt | 418 |
 | `B1-motif-par-partie` | 47.93 % | 1.0000 | 7.64 % | non comparable : grains differents | non comparable : grains differents |
-| `B1-tentative` | 55.63 % | 1.0000 | 7.59 % | +6.58 pt | 1331 |
+| `B1-tentative` | 55.63 % | 1.0000 | 7.59 % | +6.58 pt | 1331 **(hors budget)** |
 | `B1-tentative-par-partie` | 55.63 % | 1.0000 | 7.59 % | non comparable : grains differents | non comparable : grains differents |
 | `B1-strict` | 38.66 % | 1.0000 | 7.44 % | +12.13 pt | 377 |
 | `B1-strict-par-partie` | 38.66 % | 1.0000 | 7.44 % | non comparable : grains differents | non comparable : grains differents |
-| `B1-collectif` | 70.07 % | 1.0000 | 7.00 % | +2.89 pt | 5868 |
+| `B1-collectif` | 70.07 % | 1.0000 | 7.00 % | +2.89 pt | 5868 **(hors budget)** |
 | `B1-collectif-par-partie` | 70.07 % | 1.0000 | 7.00 % | non comparable : grains differents | non comparable : grains differents |
 | `B1-savoir-commun` | 48.27 % | 1.0000 | 7.64 % | +12.06 pt | 401 |
 | `B1-savoir-commun-par-partie` | 48.27 % | 1.0000 | 7.64 % | non comparable : grains differents | non comparable : grains differents |
-| `B2-contestee` | 68.32 % | 2.3986 | 4.59 % | +3.42 pt | 1806 |
-| `B2-contestee-publique` | 67.00 % | 2.3986 | 4.64 % | +3.98 pt | 1359 |
-| `B2-fragile-2` | 78.83 % | 2.3986 | 4.03 % | +3.61 pt | 1250 |
-| `B2-banquet` | 34.89 % | 2.3986 | 4.70 % | +1.54 pt | 9284 |
-| `B2-cibles` | 80.84 % | 2.3986 | 3.88 % | +2.26 pt | 2956 |
-| `B2-destination/banquet-Estime` | 18.82 % | 2.3986 | 3.86 % | +2.08 pt | 3432 |
-| `B2-destination/banquet-Disgrace` | 16.07 % | 2.3986 | 3.62 % | -0.54 pt | 45302 |
-| `B2-destination/domaine propre` | 30.29 % | 2.3986 | 4.53 % | -2.85 pt | 2532 |
-| `B2-destination/domaine adverse` | 34.82 % | 2.3986 | 4.70 % | +1.31 pt | 12952 |
+| `B2-contestee` | 68.32 % | 2.3986 | 4.59 % | +3.42 pt | 1806 **(hors budget)** |
+| `B2-contestee-publique` | 67.00 % | 2.3986 | 4.64 % | +3.98 pt | 1359 **(hors budget)** |
+| `B2-fragile-2` | 78.83 % | 2.3986 | 4.03 % | +3.61 pt | 1250 **(hors budget)** |
+| `B2-banquet` | 34.89 % | 2.3986 | 4.70 % | +1.54 pt | 9284 **(hors budget)** |
+| `B2-cibles` | 80.84 % | 2.3986 | 3.88 % | +2.26 pt | 2956 **(hors budget)** |
+| `B2-destination/banquet-Estime` | 18.82 % | 2.3986 | 3.86 % | +2.08 pt | 3432 **(hors budget)** |
+| `B2-destination/banquet-Disgrace` | 16.07 % | 2.3986 | 3.62 % | -0.54 pt | 45302 **(hors budget)** |
+| `B2-destination/domaine propre` | 30.29 % | 2.3986 | 4.53 % | -2.85 pt | 2532 **(hors budget)** |
+| `B2-destination/domaine adverse` | 34.82 % | 2.3986 | 4.70 % | +1.31 pt | 12952 **(hors budget)** |
 | `B3-expose` | 33.27 % | 4.0000 | 3.60 % | -13.45 pt | 72 |
 | `B3-expose-vraie` | 38.33 % | 4.0000 | 3.72 % | -12.00 pt | 96 |
 | `B3-simultane` | 9.84 % | 4.0000 | 2.28 % | -5.23 pt | 189 |
 | `B4-brut` | 23.65 % | 2.0175 | 4.57 % | -6.62 pt | 477 |
 | `B4-strict` | 38.78 % | 0.4772 | 10.78 % | +30.82 pt | 123 |
-| `B4-departage` | 61.22 % | 0.4772 | 10.78 % | +2.90 pt | 13824 |
+| `B4-departage` | 61.22 % | 0.4772 | 10.78 % | +2.90 pt | 13824 **(hors budget)** |
 | `B4-contre-nature` | **0 %** | 0.4772 | borne exacte 1.10 % | -33.72 pt | voir ci-dessous |
-| `B4-tout-dos` | 3.89 % | 2.0175 | 2.08 % | -1.13 pt | 3360 |
+| `B4-tout-dos` | 3.89 % | 2.0175 | 2.08 % | -1.13 pt | 3360 **(hors budget)** |
 | `B4-meurtre-couteux` | **0 %** | 1.5403 | borne exacte 0.34 % | -4.77 pt | voir ci-dessous |
-| `B5-renfort` | 20.41 % | 1.8667 | 4.51 % | -1.03 pt | 19030 |
-| `B5-pire-cas` | 19.00 % | 1.3953 | 5.08 % | -2.59 pt | 3846 |
-| `B7-gaspillage` | 0.15 % | 4.0000 | 0.30 % **(aveugle par le bas)** | -0.02 pt | 320163 |
-| `B7-gaspillage-vraie` | 0.20 % | 4.0000 | 0.35 % **(aveugle par le bas)** | -0.04 pt | 93058 |
-| `B7-lumiere` | 11.81 % | 4.0000 | 2.47 % | -1.64 pt | 2255 |
-| `B7-occasions` | 1.22 % | 4.0000 | 0.84 % | +0.03 pt | 989815 |
+| `B5-renfort` | 20.41 % | 1.8667 | 4.51 % | -1.03 pt | 19030 **(hors budget)** |
+| `B5-pire-cas` | 19.00 % | 1.3953 | 5.08 % | -2.59 pt | 3846 **(hors budget)** |
+| `B7-gaspillage` | 0.15 % | 4.0000 | 0.30 % **(aveugle par le bas)** | -0.02 pt | 320163 **(hors budget)** |
+| `B7-gaspillage-vraie` | 0.20 % | 4.0000 | 0.35 % **(aveugle par le bas)** | -0.04 pt | 93058 **(hors budget)** |
+| `B7-lumiere` | 11.81 % | 4.0000 | 2.47 % | -1.64 pt | 2255 **(hors budget)** |
+| `B7-occasions` | 1.22 % | 4.0000 | 0.84 % | +0.03 pt | 989815 **(hors budget)** |
+
+**Hors budget.** Les parties necessaires depassent les 1000 parties de la phase 3 : ce compteur ne peut pas etablir, a ce budget, l'ecart qu'il montre entre le greedy et le hasard. Marqueur **calcule** sur chaque ligne. Compteurs marques : `B1-tentative`, `B1-collectif`, `B2-contestee`, `B2-contestee-publique`, `B2-fragile-2`, `B2-banquet`, `B2-cibles`, `B2-destination/banquet-Estime`, `B2-destination/banquet-Disgrace`, `B2-destination/domaine propre`, `B2-destination/domaine adverse`, `B4-departage`, `B4-tout-dos`, `B5-renfort`, `B5-pire-cas`, `B7-gaspillage`, `B7-gaspillage-vraie`, `B7-lumiere`, `B7-occasions` -- soit 19 sur 34 lignes.
 
 **Aveugle par le bas.** L'ecart detectable a 1000 parties depasse le taux mesure lui-meme : **aucun** agent ne peut etre separe du greedy par le bas sur ce compteur, pas meme un agent a 0 %. Un compteur dont un cote entier est hors d'atteinte ne teste rien de ce cote-la. Le critere est **calcule** sur chaque ligne, pas ecrit a la main -- une prose se corrige une fois, un critere n'oublie pas la ligne suivante.
 
@@ -459,11 +461,11 @@ L'ecart greedy-hasard observe vaut -0.02 point, quand l'ecart detectable a 1000 
 
 | Campagne | Duree |
 |---|---:|
-| A | 108.8 s |
-| A controle | 94.2 s |
-| B | 112.0 s |
-| B, 2 greedys contre 1 aleatoire | 132.0 s |
-| B, 1 greedy, departage deterministe | 111.5 s |
-| B, 3 greedys (M4 seulement) | 145.0 s |
+| A | 83.5 s |
+| A controle | 82.3 s |
+| B | 101.1 s |
+| B, 2 greedys contre 1 aleatoire | 118.1 s |
+| B, 1 greedy, departage deterministe | 100.8 s |
+| B, 3 greedys (M4 seulement) | 133.6 s |
 
-<!-- duree totale : 916.2 s -->
+<!-- duree totale : 808.0 s -->

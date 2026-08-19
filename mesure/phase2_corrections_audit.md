@@ -1,7 +1,9 @@
-# Phase 2 — les quatre défauts de l'audit croisé, corrigés
+# Phase 2 — les cinq défauts de l'audit croisé, corrigés
 
 **Verdict de l'audit croisé : REJETÉ.** Les trois défauts qu'il a trouvés ont été recalculés
-indépendamment par l'humain et tiennent tous les trois ; un quatrième, mineur, vient de l'humain.
+indépendamment par l'humain et tiennent tous les trois ; un quatrième, mineur, et un **cinquième,
+majeur**, viennent de l'humain — ce dernier trouvé **dans la table que j'avais ajoutée pour
+corriger le premier**.
 Ce document est la liste que l'audit re-vérifiera, et rien d'autre : pour chaque défaut, ce qui a
 été corrigé, le test qui le tient, et la preuve que le test mord.
 
@@ -328,6 +330,96 @@ pas le périmètre de cette table.
 
 **Cette population n'a été auditée par personne.** Elle est écrite comme une première livraison,
 pas comme un appendice, et l'humain l'ajoute à la liste de l'audit comme cinquième point.
+
+---
+
+## Défaut 5 — MAJEUR, trouvé par l'humain — six budgets gonflés d'un facteur trois
+
+**Le défaut.** La colonne « parties pour l'établir » du §5 bis divisait le dénominateur par partie
+par le nombre de sièges :
+
+```python
+nb_reference = greedy["B1-motif"].total          # = 10 002
+...
+phase2.parties_pour_separer_un_taux(
+    trois_g.taux(), trois_g.total / (3 * nb_reference), abs(ecart_trois)
+)
+```
+
+Pour une ligne `-par-partie` à trois greedys : `10002 / (3 × 10002)` = **1/3**. Le `3 *` ne doit pas
+y être. Un compteur `-par-partie` rend **une** observation de Bernoulli par partie — « au moins un
+des trois sièges » est un seul booléen — parce que l'agrégation sur les sièges est dans son
+**numérateur**, pas dans son dénominateur. Diviser en plus par trois comptait trois fois la même
+partie. Et le texte que le générateur imprimait énonçait la faute mot pour mot : *« vaut
+`total / (3 × 10002)` — trois sièges mesurés par partie »*.
+
+**Ce n'était pas un coût en parties-siège.** Cette unité aurait été légitime, mais je ne l'ai jamais
+visée : la phrase et le calcul disaient tous les deux « par partie », et le calcul se trompait.
+
+| Ligne | Publié | Juste | Facteur |
+|---|---:|---:|---:|
+| `B1-collectif-par-partie` | 3 885 | **1 295** | 3,00 |
+| `B1-motif-par-partie` | 895 | **299** | 3,00 |
+| `B1-tentative-par-partie` | 715 | **239** | 3,00 |
+| `B1-strict-par-partie` | 31 199 | **10 400** | 3,00 |
+| `B1-savoir-commun-par-partie` | 838 | **280** | 3,00 |
+| **`B1-collectif`** (grain du couple) | **2 234** | **745** | **3,00** |
+
+**La sixième ligne n'était pas dans la liste de l'audit.** `B1-collectif` est au grain du couple
+`(partie, siège)` : son dénominateur par partie **est** 3,0 — trois sièges mesurés — et le
+générateur passait 1,0. Même cause racine, valeur juste différente.
+
+**Quatre des cinq valeurs de l'humain sont les miennes au chiffre près** — 1 295, 299, 239, 280. La
+cinquième diffère de 4 parties sur 10 400 : il publie **10 396**, obtenu avec l'écart arrondi à
+`2,33` point ; les comptes bruts donnent `2,329534` point et **10 400**. C'est exactement le défaut
+qu'il signale lui-même sur `B2-contestée` et `B5-renfort` — dont j'ai vérifié que mes **1 806** et
+**19 030** se reconstruisent au chiffre près sur les comptes bruts.
+
+### La parade : une seule fonction, et le nombre de parties vient du plan
+
+Il y avait **trois** sites de calcul, chacun déduisant son dénominateur par partie sur place — le
+§6, le §5 bis, et le paragraphe sur B7. Désormais `phase2.budget_d_un_compteur(compte, nb_parties,
+ecart, budget)` est appelée par les trois et rend l'écart détectable, la borne exacte d'un zéro, les
+parties requises, le dénominateur par partie **utilisé**, et les deux marqueurs calculés. La table
+imprime le dénominateur qui a servi au calcul, et non un second calculé à côté.
+
+**Un écart avec la consigne, et il est délibéré.** L'humain demandait le dénominateur par partie
+« passé explicitement ». Je passe le **nombre de parties** et la fonction calcule le dénominateur.
+C'est plus fort : avec un dénominateur passé, chaque appelant fabrique encore un nombre et peut
+encore se tromper ; avec un entier venu du plan (`donnes_b × joueurs`), il n'y a plus rien à
+fabriquer. Et il ne se déduit plus d'un compteur — le déduire de `B1-motif` marchait **par
+coïncidence**, son grain étant le couple et la composition de référence ne mesurant qu'un siège.
+
+**L'invariant est asserté et non supposé** : `observations_par_partie` **lève** si un compteur
+`-par-partie` a un dénominateur différent du nombre de parties. C'est la forme de la parade du
+grain.
+
+**Les tests, dans `tests/mesure/test_phase2.py`.**
+
+| Test | Ce qu'il tient |
+|---|---|
+| `test_les_observations_par_partie_ne_dependent_pas_du_nombre_de_sieges_agreges` | **le cas qui aurait attrapé le facteur trois** : 1,0 à un siège comme à trois pour `-par-partie`, 3,0 au grain du couple |
+| `test_un_compteur_par_partie_dont_le_total_n_est_pas_le_nombre_de_parties_leve` | l'invariant, et le refus d'un nombre de parties nul |
+| `test_le_budget_reproduit_trois_lignes_deja_auditees` | 418, 72, 320 163 — la centralisation ne déplace aucun chiffre publié |
+| `test_le_budget_de_la_troisieme_population_n_est_pas_divise_par_trois` | les six valeurs corrigées, épinglées |
+| `test_le_marqueur_hors_budget_se_calcule_sur_le_budget_de_la_phase_3` | le marqueur, et `BUDGET_PHASE_3 = 1 000` |
+| `test_un_ecart_nul_ou_absent_ne_rend_aucun_budget` | un écart absent n'est pas un écart de zéro |
+
+**Contrôle de non-régression.** Sur les 19 lignes du §6 que le diff expose, le couple (dénominateur
+par partie, parties requises) est **inchangé sur les 19**. Les lignes sous 1 000 parties
+n'apparaissent pas au diff du tout.
+
+### Le marqueur `(hors budget)`, ajouté
+
+Même forme que `(aveugle par le bas)` : **calculé** sur chaque ligne, avec un renvoi qui énonce le
+critère et liste les compteurs marqués. **19 lignes sur 34** dépassent les 1 000 parties de la
+phase 3. Strictement additif — aucun chiffre déplacé.
+
+**Ce que ce défaut dit, sans le dramatiser.** C'est la quatrième fois dans ce projet qu'un nombre
+juste porte une phrase décrivant autre chose, et cette fois dans la table ajoutée pour corriger la
+troisième. Ce n'est pas un échec de la correction du défaut 1 : la parade lève, les cellules
+refusent de se remplir. C'est que **toute table neuve est une première livraison** — ce que j'avais
+écrit de cette table moi-même.
 
 ---
 
