@@ -43,11 +43,12 @@ A contrôle : seeds 10000–11666. B : 1 greedy contre 2 aléatoires, 3 334 donn
   **47,93 %**, `B4-brut` **23,65 %**, `B7-gaspillage` **0,15 %**. Chaque ligne porte l'écart
   détectable au budget de la phase 3 ; **19 lignes sur 34 sont hors budget**.
 
-**Audit.** Deux tours, par une conversation distincte qui a réimplémenté depuis le texte des
-règles sa propre vue légale, son greedy, ses sept compteurs et son intervalle de confiance,
-sans réutiliser une ligne du constructeur, et écrit **66 contrôles hostiles**. Code :
-`audit/phase2/` et `tests/audit_phase2/`. Verdicts dans `audit/verdict_phase_2.md` et
-`audit/verdict_phase_2_tour_2.md`.
+**Audit.** **Trois tours**, par une conversation distincte qui a réimplémenté depuis le texte
+des règles sa propre vue légale, son greedy, ses sept compteurs et son intervalle de confiance,
+sans réutiliser une ligne du constructeur, et écrit **105 contrôles hostiles et de
+re-vérification**. Code : `audit/phase2/` et `tests/audit_phase2/`. Verdicts dans
+`audit/verdict_phase_2.md`, `audit/verdict_phase_2_tour_2.md` et
+`audit/verdict_phase_2_tour_3.md`.
 
 *Tour 1 — livrable `02ae24b`, verdict **REJETÉ**.*
 
@@ -107,6 +108,24 @@ faux, est vérifiée sur les deux anciennes colonnes et pas sur la troisième po
 qui existe précisément pour `B1-collectif`. L'auditeur l'a vérifiée lui-même : 3 916 ≥ 2 528 au
 même grain, elle tient.
 
+*Tour 3 — corrections `479a57e`, verdict **ACCEPTÉ**.*
+
+Les deux réserves sont levées et le test que l'auditeur avait laissé rouge revient par son nom,
+vert : `test_p3_les_compteurs_juges_par_l_evaluation_myope_sont_QUATRE_et_nommes`. Le §4 bis
+écrit désormais **quatre** compteurs, les nomme, et ajoute que **les deux zéros absolus sont
+dans ce lot** — aucune occurrence de « trois compteurs de B4 » ne survit dans le dépôt, y
+compris dans `agents/greedy.py`, la spécification de l'agent, où la phrase était la même.
+`verifier_inclusion_b1` **lève** et le rapport l'appelle sur les **trois** populations avant
+d'écrire, aux **deux** grains — extension au grain `-par-partie` qui n'était contrôlé nulle
+part. L'auditeur a éprouvé les deux branches aux deux grains, y compris le cas d'égalité, qui
+est licite. **977 tests verts, 0 rouge.**
+
+Une **quatrième occurrence de la même faute** est sortie dans ce tour, trouvée par le
+constructeur dans la dernière phrase qu'il venait d'écrire : sa ligne de durées machine annonçait
+« −26 % à +16 % » sur « les cinq campagnes » alors que le −26 % venait de `B, 3 greedys`, qui
+n'existe que dans les passes 3 à 5 et que la phrase excluait. Deux chiffres exacts sur une
+population que la phrase ne nommait pas. Corrigé en « −23,3 % à +15,5 % », refait par l'auditeur.
+
 Quatre mineurs du tour 1 restent ouverts, hors du périmètre re-vérifié : l'encodage cp1252 du
 rapport généré quand les quatre autres documents sont en UTF-8 ; `vue_du_joueur`, rendue
 publique par cette phase, qui ne valide pas son argument et rend une vue n'appartenant à aucun
@@ -134,7 +153,7 @@ lui-même : son compteur s'appelait `parties` et comptait des itérations, si bi
 et aucune conclusion ne changent. Corrigée, et tenue par deux tests — l'un sur l'égalité des
 sièges-parties, l'autre sur l'indépendance de la main à la politique.
 
-**Décision. Go.** La phase 2 est close. Les quatre lignes de base sont établies et citables par
+**Décision. Go.** Verdict final **ACCEPTÉ** au tour 3. La phase 2 est close. Les quatre lignes de base sont établies et citables par
 les phases suivantes, à trois conditions écrites dans le rapport lui-même : B1 et B3 mesurent
 chez le greedy la fréquence à laquelle le **motif** apparaît par coïncidence, jamais une
 planification ; B1 est plafonné par les 7,40 % de parties portant une perte d'acquis qu'aucun
@@ -181,3 +200,14 @@ lignes de base que toutes les phases suivantes citeront sans les rejouer.
   d'horizon du greedy est réelle et mesurée ; la corriger aurait déplacé l'étalon de toutes les
   phases suivantes. Le test qui l'interdisait a été requalifié en test qui la caractérise, par
   l'auditeur et sur son propre code.
+- **La correction est le lieu du défaut suivant, et il faut donc relire ce qui a été écrit en
+  dernier, pas ce qui a été mesuré en premier.** Quatre fois de suite dans cette phase : le
+  défaut 3 corrigé puis laissé à moitié puis complété, le défaut 5 né dans la table qui
+  corrigeait le défaut 1, la réserve 3 née dans le harnais de l'auditeur, et la clause des
+  durées née dans le commit qui consignait la leçon. **La même faute — un chiffre exact sur une
+  population que sa phrase ne nomme pas — est sortie sous quatre formes dans une seule phase**,
+  chez le constructeur comme chez l'auditeur, et chaque fois dans le texte le plus récent.
+- **Un contrôle de non-régression n'établit pas la justesse d'une unité, seulement la neutralité
+  d'un refactor.** Si une ligne portait un dénominateur faux depuis le début, le contrôle
+  passerait à l'identique. C'est le piège du `2 234` appliqué à un contrôle au lieu d'un nombre,
+  et c'est le constructeur qui l'a écrit à côté de son propre instrument.

@@ -506,3 +506,103 @@ def test_mes_deux_populations_comptent_le_meme_nombre_de_sieges_parties():
     for comptage in (trois, un):
         assert "sieges-parties mesures" in comptage.texte()
         assert "parties jouees" in comptage.texte()
+
+
+# ---------------------------------------------------------------------------------
+# Reserve 2 -- l'inclusion levee, ses deux branches, et le grain -par-partie
+# ---------------------------------------------------------------------------------
+
+
+def _paire_inclusion(collectif: int, motif: int, suffixe: str = "") -> dict:
+    """Deux comptes d'inclusion fabriques, au grain demande."""
+    grain = "parties (au moins un des 3 sieges mesures)" if suffixe else "couples (partie, siege)"
+    return {
+        f"B1-collectif{suffixe}": _compte(f"B1-collectif{suffixe}", collectif, 100, grain),
+        f"B1-motif{suffixe}": _compte(f"B1-motif{suffixe}", motif, 100, grain),
+    }
+
+
+@pytest.mark.parametrize("suffixe", ["", "-par-partie"])
+def test_r2_l_inclusion_leve_quand_elle_tombe(suffixe):
+    """La branche qui compte : `B1-collectif < B1-motif` doit **lever**, aux deux grains.
+
+    Une phrase du rapport se re-remplit ; une levee, non. C'est la parade que la correction
+    du defaut 1 a introduite, appliquee ici a une inclusion qui n'etait imprimee que sur deux
+    populations sur trois.
+    """
+    with pytest.raises(ValueError, match="inclusion tombee"):
+        comp.verifier_inclusion_b1(_paire_inclusion(collectif=10, motif=11, suffixe=suffixe))
+
+
+@pytest.mark.parametrize("suffixe", ["", "-par-partie"])
+def test_r2_l_inclusion_passe_quand_elle_tient(suffixe):
+    """L'autre branche. Une garde qui leverait toujours interdirait le rapport entier."""
+    assert (
+        comp.verifier_inclusion_b1(_paire_inclusion(collectif=11, motif=10, suffixe=suffixe))
+        is None
+    )
+    # L'egalite est licite : `B1-collectif` MAJORE, il n'est pas strictement superieur.
+    assert (
+        comp.verifier_inclusion_b1(_paire_inclusion(collectif=10, motif=10, suffixe=suffixe))
+        is None
+    )
+
+
+def test_r2_un_grain_absent_est_ignore_et_ne_leve_pas():
+    """Un compteur manquant n'est pas une inclusion tombee. Les deux cas se distinguent.
+
+    Sans cela, une population qui ne publierait qu'un grain ferait lever la garde et le
+    rapport ne s'ecrirait plus du tout -- une garde qui interdit ce qu'elle devait protéger.
+    """
+    assert comp.verifier_inclusion_b1({}) is None
+    partiel = _paire_inclusion(collectif=10, motif=11)
+    del partiel["B1-motif"]
+    assert comp.verifier_inclusion_b1(partiel) is None
+
+
+def test_r2_le_rapport_refuse_d_ecrire_si_l_inclusion_tombe_sur_LA_TROISIEME():
+    """La garde est appelee **avant** d'ecrire, et sur les trois populations, pas sur deux.
+
+    Verifie en executant plutot qu'en lisant : on passe une troisieme population dont
+    l'inclusion est volontairement fausse, et la generation doit lever. Un grep sur le nombre
+    d'appels aurait ete la mauvaise forme de controle -- il n'y a qu'**un** site, dans une
+    boucle sur les trois populations, ce qui est le meilleur motif et la meme discipline que
+    `budget_d_un_compteur`.
+    """
+    from mesure.rapport_phase2 import section_m4
+
+    def population(collectif: int, motif: int) -> dict:
+        """Une population minimale portant la seule paire d'inclusion."""
+        grain = "couples (partie, siege)"
+        return {
+            "B1-collectif": _compte("B1-collectif", collectif, 100, grain),
+            "B1-motif": _compte("B1-motif", motif, 100, grain),
+        }
+
+    saines = population(11, 10)
+    vide: dict = {}
+    # La troisieme population viole l'inclusion : la generation doit refuser d'ecrire.
+    with pytest.raises(ValueError, match="inclusion tombee"):
+        section_m4([], saines, saines, vide, vide, vide, vide, trois=population(9, 10))
+    # Et l'absence de troisieme population ne doit pas empecher la verification des deux.
+    with pytest.raises(ValueError, match="inclusion tombee"):
+        section_m4([], population(9, 10), saines, vide, vide, vide, vide)
+
+
+def test_r2_les_trois_valeurs_publiees_satisfont_l_inclusion():
+    """Les trois couples imprimes, verifies par moi sur le texte du rapport.
+
+    Mon propre `3 916 >= 2 528` du tour 2 portait sur un **sous-echantillon** :
+    `campagne_b(donnes=600, depart=6000000, nb_greedys=3)`, soit les 600 premieres donnes de
+    la meme plage de graines, 5 400 couples `(partie, siege)`. Le sien porte les 3 334 donnes
+    entieres, 30 006 couples. Les deux se comparent en taux : 72,52 % contre 71,78 % pour
+    `B1-collectif`, 46,81 % contre 46,13 % pour `B1-motif`.
+    """
+    texte = _rapport()
+    for collectif, motif in ((7008, 4794), (20157, 10836), (21538, 13843)):
+        assert str(collectif) in texte, collectif
+        assert str(motif) in texte, motif
+        assert collectif >= motif
+    # Le taux de mon sous-echantillon et celui de sa campagne entiere, au meme grain.
+    assert abs(3916 / 5400 - 21538 / 30006) < 0.01
+    assert abs(2528 / 5400 - 13843 / 30006) < 0.01
