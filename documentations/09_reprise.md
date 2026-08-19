@@ -64,7 +64,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 | **1** | Pilote | active — c'est celle qu'on reprend |
 | **2** | Mesure de la phase 1 | close (elle a produit les 96 % de retournement) |
 | **3** | Audit de la phase 1 | clos (il a écrit REJETÉ) |
-| **4** | Mesure de la phase 2, constructeur | en attente de feu vert (voir §5) |
+| **4** | Mesure de la phase 2, constructeur | terminée — elle attend le verdict (voir §5) |
 | **5** | Audit de la phase 2 | en cours — re-vérification des sept points (§6) |
 
 ## 4. État du dépôt, vérifié le 19/08/2026
