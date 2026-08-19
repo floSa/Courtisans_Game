@@ -9,13 +9,11 @@ from __future__ import annotations
 
 import pytest
 
-from courtisans.cards import Carte, Position, Role
-from courtisans.engine import Phase
-
 from audit.phase2.decompte import scores
 from audit.phase2.greedy import Greedy
+from courtisans.cards import Carte, Position, Role
+from courtisans.engine import Phase
 from tests.audit_phase2.outils import INSTANCE, banquet, domaine, etat_de_ciblage, etat_de_pose
-
 
 # ---------------------------------------------------------------------------------
 # Deux positions symetriques : il DOIT refuser, il DOIT tuer

@@ -24,10 +24,9 @@ from dataclasses import dataclass, field
 from itertools import permutations
 from statistics import mean, pvariance
 
-from courtisans.engine import Engine
-
 from audit.phase2.greedy import Aleatoire, Greedy
 from audit.phase2.trace import Trace, jouer
+from courtisans.engine import Engine
 
 #: Le decalage de seed des politiques aleatoires. Nomme, jamais en dur dans un appel :
 #: l'audit de la phase 1 a paye deux fois une valeur en dur invisible dans les chiffres

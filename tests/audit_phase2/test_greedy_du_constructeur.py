@@ -15,11 +15,10 @@ import pytest
 
 from agents.greedy import choisir, evaluer_actions
 from agents.perception import percevoir
+from audit.phase2.decompte import scores
 from courtisans.cards import Carte, Position, Role
 from courtisans.engine import Engine
-
-from audit.phase2.decompte import scores
-from tests.audit_phase2.outils import INSTANCE, banquet, domaine, etat_de_ciblage, etat_de_pose
+from tests.audit_phase2.outils import INSTANCE, banquet, domaine, etat_de_ciblage
 from tests.audit_phase2.test_greedy_auditeur import (
     _paire_differant_par_un_dos,
     _position_ou_tuer_coute,
@@ -173,7 +172,6 @@ def test_la_valeur_annoncee_par_la_pose_est_celle_qui_sera_realisee():
                 while etat.phase().name == "CIBLAGE" and etat.current_player() == joueur:
                     etat.apply(choisir(percevoir(etat, joueur), alea))
                 from agents.greedy import evaluer
-
                 from courtisans.infoset import vue_du_joueur
 
                 realisee = evaluer(

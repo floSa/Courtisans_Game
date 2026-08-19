@@ -24,10 +24,9 @@ import random
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 
-from courtisans.cards import GenreZone, Position, Role
-
 from audit.phase2.decompte import LUMIERE, statut, valeur
 from audit.phase2.trace import EvenementCiblage, EvenementPose, Trace
+from courtisans.cards import GenreZone, Position, Role
 
 
 @dataclass(frozen=True)

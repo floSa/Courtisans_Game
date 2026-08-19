@@ -41,11 +41,10 @@ import random
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
-from courtisans.cards import ROLES_CACHES, CartePosee
-from courtisans.engine import Phase, State
-
 from audit.phase2.decompte import ecart, scores
 from audit.phase2.vue import vue_legale
+from courtisans.cards import ROLES_CACHES, CartePosee
+from courtisans.engine import Phase, State
 
 HORIZON_TOUR = "tour"
 HORIZON_NOEUD = "noeud"

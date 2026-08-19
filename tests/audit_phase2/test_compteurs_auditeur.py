@@ -11,12 +11,11 @@ import random
 
 import pytest
 
-from courtisans.cards import Carte, Position, Role
-from courtisans.engine import Engine
-
 from audit.phase2 import comportements as B
 from audit.phase2.greedy import Aleatoire, Greedy
 from audit.phase2.trace import EvenementCiblage, EvenementPose, Trace, jouer
+from courtisans.cards import Carte, Position, Role
+from courtisans.engine import Engine
 from tests.audit_phase2.outils import INSTANCE, SANS_ASSASSIN, banquet, domaine
 
 LUMIERE, INDIFFERENTE, OBSCURITE = 1, 0, -1
@@ -98,7 +97,7 @@ def test_sans_assassin_les_denominateurs_de_b2_et_b4_valent_exactement_zero():
     assert b4.numerateur == 0
     assert b4.valeur is None
 
-    for zone, taux in B.b2_distribution(traces[0]).items():
+    for zone in B.b2_distribution(traces[0]):
         cumul = B.cumule([B.b2_distribution(t)[zone] for t in traces])
         assert cumul.denominateur == 0, zone
         assert cumul.valeur is None, zone

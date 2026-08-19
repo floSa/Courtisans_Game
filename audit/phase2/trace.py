@@ -19,10 +19,6 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Protocol
 
-from courtisans.cards import Carte, CartePosee, GenreZone, Position
-from courtisans.engine import Engine, Phase, State
-from courtisans.rules import ROLES_IMMUNISES_CONTRE_ASSASSIN
-
 from audit.phase2.decompte import (
     LUMIERE,
     OBSCURITE,
@@ -35,6 +31,9 @@ from audit.phase2.decompte import (
     valeur,
 )
 from audit.phase2.vue import vue_legale
+from courtisans.cards import Carte, CartePosee, GenreZone, Position
+from courtisans.engine import Engine, Phase, State
+from courtisans.rules import ROLES_IMMUNISES_CONTRE_ASSASSIN
 
 
 class Politique(Protocol):

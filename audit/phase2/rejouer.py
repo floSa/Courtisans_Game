@@ -11,13 +11,12 @@ import sys
 import time
 from pathlib import Path
 
-from courtisans.engine import Engine
-
 from audit.phase2 import comportements as B
 from audit.phase2.campagne import Issue, aleatoires, mesurer_m1, mesurer_m2, mesurer_m3
 from audit.phase2.greedy import Greedy
 from audit.phase2.stats import clopper_pearson, pouvoir
 from audit.phase2.trace import jouer, restreindre
+from courtisans.engine import Engine
 from tests.audit_phase2.outils import INSTANCE
 
 COMPTEURS = {
