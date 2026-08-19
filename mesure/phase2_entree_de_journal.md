@@ -133,7 +133,10 @@ A3 était trop large. Pour **M3**, plus myope que sa spécification veut dire pl
 `+0,7978` et `86,52 %` sont bien un **plancher**. Pour **M4**, non : `B4-strict`, `B4-départage` et
 `B4-contre-nature` sont jugés **par `evaluer_actions`**, l'évaluation myope elle-même. Le zéro de
 `B4-contre-nature` ne dit pas que le greedy n'a jamais commis de meurtre contre-productif ; il dit
-qu'il n'a jamais **contredit sa propre évaluation**. **Trois compteurs, pas un.**
+qu'il n'a jamais **contredit sa propre évaluation**. **Quatre compteurs, pas un** —
+`B4-strict`, `B4-départage`, `B4-contre-nature` et `B4-meurtre-coûteux`, les quatre qui lisent
+`decision.valeurs`. J'avais d'abord écrit « trois », et l'omis était **l'un des deux zéros
+absolus** : l'audit l'a relevé au tour suivant.
 
 **Une garde qui confondait une mesure avec une phase.** `campagne_b` refusait `nb_greedys=3` en
 disant « la mesure n'a plus d'objet » : vrai de **M3** — trois politiques identiques rendent un

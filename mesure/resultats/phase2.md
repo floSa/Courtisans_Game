@@ -256,7 +256,7 @@ La **pose** du greedy est evaluee avec ses Assassins resolus **conjointement** (
 **Le sens du biais, et il n'est pas le meme pour M3 et pour M4.**
 
 - **M3 : plancher.** Un agent plus myope que sa specification est plus **faible**, donc le gain moyen et la part de victoire de la section 4 sont un **plancher** du greedy, pas une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de la phase 3 plus bas, jamais plus haut.
-- **M4 : aucun sens determine.** Trois compteurs de B4 sont juges **par cette meme evaluation myope** -- voir la section 5. Leur zero ou leur partage ne se lit pas comme un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence interne**.
+- **M4 : aucun sens determine.** **Quatre** compteurs de B4 sont juges **par cette meme evaluation myope** -- `B4-strict`, `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`**, voir la section 5. Leur zero ou leur partage ne se lit pas comme un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence interne**. Les **deux zeros absolus** sont dans ce lot : ni l'un ni l'autre ne dit que le greedy n'a jamais mal joue, seulement qu'il n'a jamais contredit sa propre evaluation.
 
 **Ce comportement est tenu par un test** (`tests/agents/test_greedy.py`), sur une position construite a la main ou l'argmax myope est a egalite et l'argmax coherent strictement meilleur de 2 points. Un « correctif » futur casserait ce test bruyamment, et c'est le but : la ligne de base de toutes les phases suivantes est celle de **cet** agent.
 
@@ -317,13 +317,19 @@ Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux d
 
 **3.89 % des nœuds de ciblage du greedy n'offrent que des dos.** Sur ceux-la son evaluation est **plate** -- un dos ne compte pas dans l'influence percue, donc le tuer ne change rien -- et c'est la **regle de departage** qui choisit, pas l'heuristique : elle refuse avec probabilite `1/(k+1)`. C'est la part de `B4-brut` qui ne mesure pas un comportement, et elle se lit a cet endroit.
 
-**Ces trois compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela change ce qu'ils disent.** `B4-strict`, `B4-departage` et `B4-contre-nature` se definissent par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins du meme bloc encore en attente** (voir la section « le greedy et sa specification » ci-dessus). Consequence a lire mot pour mot : le zero de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de meurtre contre-productif ; il dit qu'il n'a jamais **contredit sa propre evaluation**. Deux enonces differents, et seul le second est vrai. Les denominateurs de `B4-strict` et `B4-departage` sortent du meme argmax, donc la meme lecture s'applique aux trois.
+**QUATRE de ces compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela change ce qu'ils disent.** `B4-strict`, `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`** se definissent tous les quatre par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins du meme bloc encore en attente** (voir la section « le greedy et sa specification » ci-dessus). Consequence a lire mot pour mot :
+
+> Le zero de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de refus contre-productif, et le zero de `B4-meurtre-couteux` **ne dit pas** qu'il n'a jamais commis de meurtre contre-productif. Les deux disent qu'il n'a jamais **contredit sa propre evaluation**.
+
+Deux enonces differents a chaque fois, et seul le second est vrai. **Les deux zeros absolus de la section 6 sont tous les deux dans ce lot**, donc aucun des deux ne se lit comme un resultat sur le jeu du greedy. `B4-strict` et `B4-departage` ont leur **denominateur** issu du meme argmax, donc la meme lecture s'applique aux quatre.
 
 Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax n'est pas celui de l'etalon, donc `B4-contre-nature` devient un vrai diagnostic -- et un refus par anticipation d'un retournement y comptera, ce qui se lit comme un signe de planification et non comme un defaut.
 
 ### Une inclusion, verifiee et non deduite
 
-`B1-collectif` majore `B1-motif` **par construction** : le don vient du siege mesure, la bascule de n'importe quel siege. L'inclusion est verifiee sur les deux colonnes -- greedy 7008 >= 4794, hasard 20157 >= 10836. **Une inclusion qui tombe designerait un compteur faux**, et celle-ci est tombee une fois : `B1-collectif` n'agregeait que les sieges mesures, donc il valait exactement `B1-motif` des qu'on mesurait un agent seul -- muet precisement dans le cas ou il sert, un don du greedy retourne par un adversaire.
+`B1-collectif` majore `B1-motif` **par construction** : le don vient du siege mesure, la bascule de n'importe quel siege. L'inclusion est verifiee sur **les trois populations** -- greedy 7008 >= 4794, hasard 20157 >= 10836, 3 greedys 21538 >= 13843. **Une inclusion qui tombe designerait un compteur faux**, et celle-ci est tombee une fois : `B1-collectif` n'agregeait que les sieges mesures, donc il valait exactement `B1-motif` des qu'on mesurait un agent seul -- muet precisement dans le cas ou il sert, un don du greedy retourne par un adversaire.
+
+**La troisieme population manquait a ce controle**, et c'est justement celle qui existe pour `B1-collectif` : l'audit a du la verifier a la main. `comportements.verifier_inclusion_b1` **leve** desormais si l'inclusion tombe, et le rapport l'appelle sur les trois. Personne n'a plus a la refaire a la main.
 
 ### Deux choses que la mesure a corrigees dans ma propre lecture
 
@@ -461,11 +467,11 @@ L'ecart greedy-hasard observe vaut -0.02 point, quand l'ecart detectable a 1000 
 
 | Campagne | Duree |
 |---|---:|
-| A | 83.5 s |
-| A controle | 82.3 s |
-| B | 101.1 s |
-| B, 2 greedys contre 1 aleatoire | 118.1 s |
-| B, 1 greedy, departage deterministe | 100.8 s |
-| B, 3 greedys (M4 seulement) | 133.6 s |
+| A | 98.3 s |
+| A controle | 91.0 s |
+| B | 110.6 s |
+| B, 2 greedys contre 1 aleatoire | 137.8 s |
+| B, 1 greedy, departage deterministe | 115.6 s |
+| B, 3 greedys (M4 seulement) | 151.8 s |
 
-<!-- duree totale : 808.0 s -->
+<!-- duree totale : 916.6 s -->

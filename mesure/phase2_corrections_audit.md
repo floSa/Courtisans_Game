@@ -145,13 +145,20 @@ global ; c'est vrai de M3 et faux de M4.
 - **M3 : plancher.** Un agent plus myope que sa spécification est plus **faible**, donc `+0,7978`
   et `86,52 %` sont un **plancher**, pas une estimation de ce qu'un G-combiné complet obtiendrait.
   Un plancher place la barre de la phase 3 plus bas, jamais plus haut.
-- **M4 : aucun sens déterminé, et trois compteurs sont tautologiques.** `B4-strict`,
-  `B4-départage` et `B4-contre-nature` sont jugés **par `evaluer_actions`**, l'évaluation myope
-  elle-même. Le zéro de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de
-  meurtre contre-productif : il dit qu'il n'a jamais **contredit sa propre évaluation**. Deux
-  énoncés différents, et seul le second est vrai. Les dénominateurs de `B4-strict` et
-  `B4-départage` sortent du même argmax, donc la même lecture s'applique aux trois. Pour un agent
-  de la phase 3 ce même zéro cesse d'être tautologique et redevient un diagnostic.
+- **M4 : aucun sens déterminé, et QUATRE compteurs sont tautologiques.** `B4-strict`,
+  `B4-départage`, `B4-contre-nature` et **`B4-meurtre-coûteux`** sont jugés **par
+  `evaluer_actions`**, l'évaluation myope elle-même — les quatre lisent `decision.valeurs`. Le zéro
+  de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de refus contre-productif, et
+  le zéro de `B4-meurtre-coûteux` **ne dit pas** qu'il n'a jamais commis de meurtre
+  contre-productif : les deux disent qu'il n'a jamais **contredit sa propre évaluation**. **Les deux
+  zéros absolus sont tous les deux dans ce lot**, donc aucun des deux ne se lit comme un résultat
+  sur le jeu du greedy. Les dénominateurs de `B4-strict` et `B4-départage` sortent du même argmax,
+  donc la même lecture s'applique aux quatre. Pour un agent de la phase 3 ces deux zéros cessent
+  d'être tautologiques et redeviennent des diagnostics.
+
+  **J'avais écrit « trois » et il y en a quatre.** L'omis était `B4-meurtre-coûteux`, donc **l'un
+  des deux zéros absolus** : un lecteur de la phase 3 aurait lu son zéro comme un résultat sur le
+  greedy. Relevé par l'audit au tour suivant — la correction du défaut 3 était laissée à moitié.
 
 **Le test qui tient le comportement myope**, dans `tests/agents/test_greedy.py` :
 `test_le_ciblage_ignore_les_assassins_en_attente_et_c_est_caracterise`. Une position construite à

@@ -11,7 +11,8 @@ chacune, et le verdict sur le sens annoncé d'avance.
 **L'audit croisé a rendu REJETÉ, et ce document a été corrigé en conséquence.** Les quatre
 défauts, leurs corrections et les tests qui les tiennent sont dans
 [phase2_corrections_audit.md](phase2_corrections_audit.md). Trois d'entre eux touchent ce qui est
-écrit ici : le grain des lignes `-par-partie` (§1), la lecture des trois compteurs de B4 (§4), et
+écrit ici : le grain des lignes `-par-partie` (§1), la lecture des **quatre** compteurs de B4
+(§4), et
 le nombre de compteurs aveugles par le bas (§7).
 
 **Ce qui est autoritatif.** Les comptes viennent de [resultats/phase2.md](resultats/phase2.md),
@@ -323,19 +324,24 @@ d'un zéro est sa **borne haute exacte de Clopper-Pearson** : à 1 000 parties, 
 **1,10 %** (`B4-contre-nature`) ou **0,34 %** (`B4-meurtre-coûteux`) est **séparable** du greedy ;
 en dessous, il ne l'est pas.
 
-**Trois de ces compteurs sont jugés par l'évaluation myope du greedy lui-même, et cela change ce
+**QUATRE de ces compteurs sont jugés par l'évaluation myope du greedy lui-même, et cela change ce
 qu'ils disent.** Défaut majeur relevé par l'audit croisé, et il ne porte pas sur les chiffres mais
-sur leur lecture. `B4-strict`, `B4-départage` et `B4-contre-nature` se définissent par rapport à
-`greedy.evaluer_actions`, qui **ne regarde pas les Assassins du même bloc encore en attente** — la
-pose du greedy est évaluée conjointement, ses ciblages non. Conséquence, mot pour mot :
+sur leur lecture. `B4-strict`, `B4-départage`, `B4-contre-nature` et **`B4-meurtre-coûteux`** se
+définissent tous les quatre par rapport à `greedy.evaluer_actions`, qui **ne regarde pas les
+Assassins du même bloc encore en attente** — la pose du greedy est évaluée conjointement, ses
+ciblages non. Conséquence, mot pour mot :
 
-> Le zéro de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de meurtre
-> contre-productif. Il dit qu'il n'a jamais **contredit sa propre évaluation**.
+> Le zéro de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de refus
+> contre-productif, et le zéro de `B4-meurtre-coûteux` **ne dit pas** qu'il n'a jamais commis de
+> meurtre contre-productif. Les deux disent qu'il n'a jamais **contredit sa propre évaluation**.
 
-Deux énoncés différents, et **seul le second est vrai**. Les dénominateurs de `B4-strict` et
-`B4-départage` sortent du même argmax, donc la même lecture s'applique aux trois. Pour un agent de
-la phase 3 ce même zéro cesse d'être tautologique — son argmax n'est pas celui de l'étalon — et
-redevient un diagnostic. Le §4 bis du rapport chiffre l'incohérence et son intervalle.
+Deux énoncés différents à chaque fois, et **seul le second est vrai**. **Les deux zéros absolus du
+§4 sont tous les deux dans ce lot** — c'est ce qui rend l'omission coûteuse : j'avais d'abord écrit
+« trois compteurs », et l'omis était précisément l'un des deux zéros. Les dénominateurs de
+`B4-strict` et `B4-départage` sortent du même argmax, donc la même lecture s'applique aux quatre.
+Pour un agent de la phase 3 ces deux zéros cessent d'être tautologiques — son argmax n'est pas celui
+de l'étalon — et redeviennent des diagnostics. Le §4 bis du rapport chiffre l'incohérence et son
+intervalle.
 
 **Sur quelle évaluation « coûterait » est jugé** : sur `agents.greedy.evaluer_actions`, y compris
 pour l'agent de la phase 3, dont la fonction de valeur propre ne servira **pas** d'étalon. Le prix
