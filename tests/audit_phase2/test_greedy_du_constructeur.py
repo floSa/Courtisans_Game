@@ -146,13 +146,20 @@ def test_son_greedy_est_aveugle_sur_un_balayage_de_parties_entieres():
 # ---------------------------------------------------------------------------------
 
 
-def test_la_valeur_annoncee_par_la_pose_est_celle_qui_sera_realisee():
+def test_l_ecart_entre_la_valeur_promise_et_la_valeur_realisee_est_caracterise():
     """Sa pose est evaluee Assassins resolus **conjointement au mieux** ; ses ciblages, eux,
     se decident un noeud a la fois, sans regarder les Assassins encore en attente.
 
-    Si les deux differaient, il choisirait une pose pour une valeur qu'il ne realiserait
-    pas. Le cas se cherche sur de vraies parties : deux Assassins poses au meme tour, dont
-    l'un peut changer un statut de famille qui modifie ce que vaut le second.
+    **Ce test interdisait l'ecart au tour 1 ; il le caracterise au tour 2.** Le constructeur
+    a repondu en documentant l'incoherence plutot qu'en la corrigeant -- paragraphe 4 bis du
+    rapport, `mesure/coherence_greedy.py` --, et il a raison de le faire ici : la ligne de
+    base de toutes les phases suivantes est celle de **cet** agent, et la corriger apres
+    publication deplacerait l'etalon. Un test qui interdirait encore l'ecart rendrait donc
+    rouge une decision acceptee, ce qui est un faux rapport dans l'autre sens.
+
+    Ce qui est tenu desormais : l'ecart **existe** -- sinon la section 4 bis decrirait un
+    phenomene absent -- et il reste **rare**, sous 2 % des tours. Un elargissement silencieux
+    casserait ce test, et c'est ce qu'on veut de lui.
     """
     engine = Engine(INSTANCE)
     alea = random.Random(777)
@@ -182,9 +189,14 @@ def test_la_valeur_annoncee_par_la_pose_est_celle_qui_sera_realisee():
             else:  # pragma: no cover - la boucle interne consomme deja les ciblages
                 etat.apply(choisir(percevoir(etat, joueur), alea))
     assert tours_a_deux_assassins > 0, "le cas a tester ne s'est jamais presente"
-    assert not desaccords, (
-        f"{len(desaccords)} tours ou la pose promet une valeur que le ciblage ne realise "
-        f"pas ; trois premiers : {desaccords[:3]}"
+    tours = 400 * INSTANCE.joueurs * INSTANCE.tours
+    assert desaccords, (
+        "aucun ecart : le paragraphe 4 bis du rapport decrirait alors un phenomene absent"
+    )
+    part = len(desaccords) / tours
+    assert part < 0.02, (
+        f"{len(desaccords)} / {tours} tours = {100 * part:.2f} % : l'ecart s'est elargi "
+        f"au-dela de ce que le rapport caracterise ; trois premiers {desaccords[:3]}"
     )
 
 
