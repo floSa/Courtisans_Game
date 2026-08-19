@@ -107,7 +107,13 @@ ORDRE DE TRAVAIL — NON NEGOCIABLE
            - des parties construites a la main, resultat calcule de tete, avec des
              controles NEGATIFS — une configuration ou un comportement doit valoir
              EXACTEMENT zero, pas « peu » ;
-           - une instance sans Assassin : la frequence de B4 doit valoir exactement 0 ;
+           - une instance sans Assassin. Attention au piege, il est dans cette phrase :
+             la frequence de B4 ne vaut pas « exactement 0 », elle n'existe pas. Son
+             denominateur est vide, et 0/0 n'est pas 0 %. Ce qui se controle, c'est que
+             le denominateur vaut exactement 0 et que le code REFUSE de publier un
+             taux au lieu d'imprimer 0 %. Un 0 % imprime sur un denominateur vide est
+             le defaut de la phase 1 en miniature : le nombre existe et la phrase
+             parle d'autre chose ;
            - une position ou le greedy DOIT refuser de tuer, et une ou il doit tuer ;
            - la preuve que son greedy ne lit pas la vue de dieu. Ne te contente pas de
              grep : construis deux etats qui ne different QUE par l'identite d'un
