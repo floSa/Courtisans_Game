@@ -67,6 +67,18 @@ Quatre mesures, un agent, et sept definitions.
 Perimetre : ce que le constructeur a ajoute. `courtisans/` est audite deux fois et hors
 sujet — si tu y trouves un defaut, c'est un resultat, mais signale-le a part.
 
+TON POINT DE DEPART
+
+Le travail que tu audites est sur la branche `claude/courtisans-phase-2-baseline-559e17`,
+dont la tete est `02ae24b`. Le moteur de reference est `moteur-conforme`, tete `19f99f2`.
+
+Verifie ta base AVANT toute chose : `git merge-base --is-ancestor 68a5c16 HEAD` doit
+reussir. Les quatre agents precedents ont tous demarre sur un worktree branche sur
+`main`, ou le paquet `courtisans/` n'existe pas. Si ta base est fausse, tu auditeras du
+vide sans le savoir.
+
+Sur ce depot, `uv` exige `UV_LINK_MODE=copy` : OneDrive refuse les liens durs.
+
 DOCUMENTS A LIRE, DANS CET ORDRE
 
   1. documentations/01_regles.md                 — paragraphes 2.2, 2.6, 5, 7.1 et 7.2
@@ -121,10 +133,15 @@ LES QUATRE QUESTIONS QUE TU POSES A CHAQUE CHIFFRE
      franchi ? En phase 1, quatre criteres etaient satisfaits des 1, 3, 3 et 12
      parties sur 1 000 : ils constataient, aucun ne testait. Le seuil de 38 % de M1 a
      le meme probleme, a 9,9 erreurs-type de l'attendu.
+     Cherche en particulier, pour chacun des sept, le cas ou l'ecart DETECTABLE au
+     budget de la phase 3 depasse le taux MESURE lui-meme. Alors aucun agent ne peut
+     etre separe du greedy par le bas -- pas meme un agent a zero, qui n'est distant
+     que du taux mesure. Un compteur aveugle d'un seul cote ne teste rien de ce
+     cote-la, et rien dans le chiffre publie ne le montre.
   4. Un zero ou un cent pour cent a-t-il ete confronte a un cas construit a la main ?
      Un absolu est ce qu'un lecteur retient, et c'est ce qui a ete faux en phase 1.
 
-DEUX PIEGES SPECIFIQUES A CETTE PHASE
+TROIS PIEGES SPECIFIQUES A CETTE PHASE
 
   a) B1 ET B3 MESURES SUR LE GREEDY NE MESURENT PAS UNE PLANIFICATION. Le greedy a un
      horizon d'un tour par construction : il ne planifie rien. Ce qu'un compteur voit
@@ -136,6 +153,20 @@ DEUX PIEGES SPECIFIQUES A CETTE PHASE
      perte d'acquis de famille qu'AUCUN des trois joueurs ne pouvait voir. Aucune
      politique ne peut planifier ces retournements-la. Une ligne de base de B1 qui
      ignore ce plafond sera comparee a tort aux agents des phases suivantes.
+
+  c) UNE CONCURRENTE ANNONCEE PUIS NON MESUREE. Sa pre-inscription annonce, pour chaque
+     comportement, des definitions concurrentes et le sens attendu de leur ecart. Une
+     concurrente sans chiffre ne remplit pas son office : elle existe precisement pour
+     chiffrer ce que le choix de definition coute. Verifie deux choses. D'abord
+     qu'aucune n'a disparu de la livraison sans raison ecrite. Ensuite, quand une
+     raison est donnee, qu'elle ne depende pas des chiffres deja vus -- une concurrente
+     abandonnee APRES avoir lu les autres resultats est exactement la liberte que la
+     pre-inscription existe pour supprimer, et elle se defend avec les memes mots
+     qu'un abandon legitime.
+     Symetriquement : un sens annonce d'avance puis INFIRME par la mesure est un
+     resultat, pas un accident. Il doit etre ecrit comme tel, avec la raison pour
+     laquelle le raisonnement d'avance etait faux. Un rapport ou les douze directions
+     annoncees tiennent toutes les douze merite un controle a lui seul.
 
 CE QUE TU NE FAIS PAS
 
