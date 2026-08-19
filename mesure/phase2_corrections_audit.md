@@ -409,6 +409,16 @@ grain.
 par partie, parties requises) est **inchangé sur les 19**. Les lignes sous 1 000 parties
 n'apparaissent pas au diff du tout.
 
+**Ce que ce contrôle ne dit pas, écrit à côté de lui.** Il établit la **neutralité du refactor** et
+rien de plus : ces 19 lignes ont la **même** unité qu'avant, pas nécessairement la **bonne**. Si
+l'une portait un dénominateur par partie faux depuis le début, le contrôle passerait à l'identique.
+C'est le piège du `2 234` — un nombre reproduit par deux implémentations partageant la même
+hypothèse fausse — appliqué à un **contrôle** au lieu d'un nombre. Ce qui tient l'unité de ces
+lignes est ailleurs : `observations_par_partie` **lève** quand le dénominateur d'un compteur
+`-par-partie` n'est pas le nombre de parties, et le cas
+`test_les_observations_par_partie_ne_dependent_pas_du_nombre_de_sieges_agreges` l'exerce sur deux
+compositions de sièges.
+
 ### Le marqueur `(hors budget)`, ajouté
 
 Même forme que `(aveugle par le bas)` : **calculé** sur chaque ligne, avec un renvoi qui énonce le

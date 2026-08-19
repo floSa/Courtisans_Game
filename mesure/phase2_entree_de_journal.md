@@ -192,6 +192,14 @@ nombre de parties : l'invariant est asserté, pas supposé.
 le couple (dénominateur par partie, parties requises) est **inchangé sur les 19**. Les trois lignes
 que l'humain avait reconstruites — 418, 72, 320 163 — sont épinglées par un test.
 
+**Et voici ce que ce contrôle ne dit pas.** Il établit la **neutralité du refactor**, et rien de
+plus : que ces 19 lignes ont la **même** unité qu'avant, pas qu'elles ont la **bonne**. Si l'une
+d'elles portait un dénominateur par partie faux depuis le début, ce contrôle passerait exactement de
+la même façon. C'est le piège du `2 234` appliqué à un **contrôle** au lieu d'un nombre — voir
+l'enseignement (g). Ce qui tient l'unité de ces lignes n'est pas ce contrôle : c'est
+`observations_par_partie`, qui **lève** quand le dénominateur d'un compteur `-par-partie` n'est pas
+le nombre de parties, et le cas qui l'exerce sur deux compositions de sièges.
+
 **Un désaccord de valeur reste ouvert sur A3, et c'est à l'humain de le fermer.** J'ai reproduit le
 `7,33 %` de l'auditeur avec mon propre compteur, sur les 200 premières donnes de la campagne B puis
 sur la campagne entière. Deux conclusions séparées :
@@ -293,8 +301,17 @@ n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cett
   | B, départage déterministe | 261,6 s | **297,5 s** | 113,1 s | 111,5 s | **100,8 s** | **2,95** |
 
   Non monotone, et un rapport **max/min de 2,93 à 3,00 sur les cinq campagnes**. Les passes 3, 4 et
-  5 portent un code **identique sur la phase de jeu** et s'étalent encore de **−26 % à +16 %**. Le
-  total est passé de 1 013 s à 1 961 s puis à **808 s**.
+  5 portent un code **identique sur la phase de jeu**, et les changements d'une passe à la suivante
+  s'étalent de **−23,3 %** (A, 108,8 → 83,5) à **+15,5 %** (A, 94,2 → 108,8) sur les cinq
+  campagnes. Le total est passé de 1 013 s à 1 961 s puis à **808 s**.
+
+  **Le max/min est la quantité qui porte cette réserve**, parce qu'il ne dépend d'aucun choix de
+  paire de passes. Une version précédente de cette ligne annonçait « −26 % à +16 % » : le −26 %
+  venait de la campagne `B, 3 greedys` (180,0 → 133,6 s, soit −25,8 %), qui **n'existe que dans les
+  passes 3 à 5** puisqu'elle a été ajoutée après l'audit, et que la phrase excluait donc en parlant
+  des cinq campagnes ; le +16 % était +15,5 % arrondi vers le haut. Deux chiffres exacts sur une
+  population qui n'était pas celle que la phrase nommait — la même faute que les six budgets, en
+  plus petit. Consigné ici parce que c'est la troisième forme sous laquelle elle sort.
 
   **Ce que ça établit, et c'est plus que ce que je disais** : le temps mural mesuré sur cette
   machine n'est **pas un instrument**. Il ne mesure pas le coût du code, il mesure l'état de la
@@ -308,7 +325,7 @@ n'appartient pas au constructeur ; le verdict en cours est REJETÉ jusqu'à cett
   bootstrap, compteurs et rédaction. C'est là que le checkpoint annoncé dans ma pré-inscription
   manque, et nulle part ailleurs.
 
-**Impact plan.** Cinq trous du protocole, **six** enseignements de méthode, une question ouverte
+**Impact plan.** Cinq trous du protocole, **sept** enseignements de méthode, une question ouverte
 nommée pour la phase 3, les motifs de mutation à inscrire, et un point d'API.
 
 - **`05_protocole_experimental.md` — trois termes non définis.** « retournement »,
@@ -343,8 +360,15 @@ nommée pour la phase 3, les motifs de mutation à inscrire, et un point d'API.
   par partie sur place ; l'une s'est trompée d'un facteur trois. Déduire le nombre de parties de
   `B1-motif` marchait **par coïncidence** — son grain est le couple et la composition de référence
   ne mesure qu'un siège — et cessait de marcher dès qu'une population mesurait trois sièges. Une
-  coïncidence qui tient est une bombe à retardement, pas une simplification. **(e) Un libellé de
-  grain doit porter ce qui rend deux grains différents.** Deux colonnes portaient exactement le même libellé
+  coïncidence qui tient est une bombe à retardement, pas une simplification. **(g) Reproduire un nombre ne le
+  valide pas — il faut reproduire son UNITÉ d'abord, et le nombre ensuite.** Deux implémentations
+  qui partagent la même hypothèse fausse concordent parfaitement. Le `2 234` de `B1-collectif` a été
+  reproduit à deux parties près par une seconde implémentation, et il était **trois fois trop
+  grand** : le vérificateur avait reçu le dénominateur par partie du générateur au lieu de le
+  dériver du grain. **Le contrôle A7 — « les chiffres se reconstruisent » — ne remplace pas le
+  contrôle 1 — « le calcul est celui que la phrase décrit ».** Vrai entre constructeur et auditeur,
+  et vrai de la phase 3 qui citera ces chiffres sans les recalculer. **(e) Un libellé de grain doit
+  porter ce qui rend deux grains différents.** Deux colonnes portaient exactement le même libellé
   en agrégeant l'une un siège et l'autre trois : une parade comparant les libellés n'aurait rien
   levé, et la mention « non comparable » serait restée de la prose. Le libellé porte désormais le
   **compte** des sièges, et c'est lui qui rend la levée possible.
