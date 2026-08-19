@@ -2,7 +2,12 @@
 
 **Point d'entrée du projet. Où on en est, ce qui est vrai, ce qu'on fait ensuite, et dans quel document c'est écrit.**
 
-Mis à jour le 15/08/2026.
+Mis à jour le 19/08/2026.
+
+> **Tu reprends le projet sur une autre machine ou un autre compte ?** Lis
+> **[09_reprise.md](09_reprise.md)** avant ce document. Il contient ce qui n'est écrit nulle
+> part ailleurs : comment travailler avec l'humain, l'état exact des six branches, ce qui
+> attend un feu vert, et les cinq erreurs déjà commises par le pilote.
 
 ---
 
