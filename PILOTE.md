@@ -42,7 +42,7 @@ reprochait, et l'a inscrite à son nom. Détail au
 > porter son échantillon — seeds, politique, grain. Un zéro absolu se confronte à un cas
 > construit à la main avant d'être écrit.
 
-Le dépôt est poussé sur la branche `moteur-conforme` de
+Le dépôt est poussé sur la branche `main` (nommée `moteur-conforme` jusqu'au 19/08/2026) de
 [floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique
 indépendant de `main` et de `cfr-pivot` : c'est un moteur neuf, pas une correction de
 l'ancien.

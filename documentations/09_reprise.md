@@ -71,27 +71,32 @@ Le pilote **n'écrit pas le code des phases**. Il :
 
 `github.com/floSa/Courtisans_Game`. **Tout est poussé.**
 
-| Branche | Tête | Contenu |
-|---|---|---|
-| `moteur-conforme` | voir `git log` — la phase 2 y est fusionnée | branche de travail : moteur, phases 0 et 1 closes, tous les prompts |
-| `claude/courtisans-action-labels-leak-582d90` | `ade169e` | branche du pilote, au même commit |
-| `claude/courtisans-phase-1-measure-3900b7` | `d7398bd` | mesure de la phase 1 |
-| `claude/courtisans-measurement-audit-9bf2f1` | `c64cd9e` | audit de la phase 1 |
-| `claude/courtisans-phase-2-baseline-559e17` | `db0816b` | **phase 2, constructeur** |
-| `claude/courtisans-phase2-baseline-c5159e` | `8c8c838` | **phase 2, auditeur** — les deux verdicts + 36 contrôles hostiles |
+| Branche | Contenu |
+|---|---|
+| **`main`** | **la branche de travail** — tout le projet Courtisans, phases 0 à 2 closes |
+| `old_version` | l'ancien projet RL, 38 commits, gardé pour mémoire |
+| `cfr-pivot` | l'ancien travail CFR, 53 commits que `old_version` n'a pas — c'est la source du plafond à 0,190 et de l'oracle combo que le journal cite |
 
-`origin/main` et `origin/cfr-pivot` sont l'ancien projet RL, hors sujet.
+**Le 19/08/2026, `moteur-conforme` a pris la place de `main`.** L'ancien `main` est devenu
+`old_version`, et les cinq branches d'agents des phases 1 et 2 ont été supprimées après
+fusion — leurs commits sont tous dans `main`, rien n'est perdu.
+
+Les prompts déjà utilisés (`prompts/03`, `prompts/08`, `prompts/09`) parlent encore de
+`moteur-conforme`. **C'est volontaire** : ce sont des documents historiques, et les réécrire
+falsifierait le compte rendu de ce qui a été fait. C'est la même branche, sous son ancien nom.
+
+`old_version` et `cfr-pivot` sont l'ancien projet RL, hors sujet du jeu Courtisans.
 
 **`uv` exige `UV_LINK_MODE=copy` sur ce dépôt** — OneDrive refuse les liens durs (os error 396).
 
 **Le piège de la base.** Les cinq agents lancés jusqu'ici ont **tous** créé leur worktree sur
-`main`, où le paquet `courtisans/` n'existe pas. Le contrôle est dans les prompts depuis la
+l'ancien `main`, où le paquet `courtisans/` n'existait pas. Le contrôle est dans les prompts depuis la
 phase 2 : `git merge-base --is-ancestor 68a5c16 HEAD` doit réussir.
 
 ## 5. La phase 2 est close, et ce qui reste ouvert
 
 **VERDICT FINAL : ACCEPTÉ**, au troisième tour d'audit. L'entrée est au journal, à la date du
-19/08/2026 — **lis-la, tout y est**. Les deux branches sont fusionnées dans `moteur-conforme`.
+19/08/2026 — **lis-la, tout y est**. Les deux branches sont fusionnées dans `main`.
 
 Trois tours, 75 contrôles hostiles, cinq défauts trouvés dont un bloquant, 977 tests verts.
 
