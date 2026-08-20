@@ -434,10 +434,19 @@ population d'un agent contre deux greedys.** La phase 3 mesure donc σ(gain) et 
 composition**, en pré-inscription, et en déduit son nombre de parties — c'est l'étape 4 de la
 boucle du §2, et le §0.2 l'exige.
 
-**Garde-fou de la règle 2.** Si après 2 h d'entraînement l'agent, mis à la place du greedy dans
-la composition **un contre deux aléatoires**, n'a pas dépassé la part de victoire fractionnée du
-greedy dans cette même composition — **86,52 %**, mesurée en phase 2 — on arrête : l'agent
-n'apprend pas, et rallonger ne dira rien de plus. La comparaison est licite parce que la
+**Garde-fou de la règle 2.** À **chaque checkpoint de 15 minutes**, l'agent est mis à la place du
+greedy dans la composition **un contre deux aléatoires** et comparé à la part de victoire
+fractionnée du greedy dans cette même composition — **86,52 %**, mesurée en phase 2. S'il ne l'a
+pas dépassée au dernier checkpoint du run, on arrête : l'agent n'apprend pas, et rallonger ne dira
+rien de plus.
+
+> **Corrigé le 20/08/2026, sur remontée de la conversation n° 6.** Ce garde-fou disait « **si après
+> 2 h d'entraînement** », dans une section dont le plafond d'exécution est **2 h**. Il se
+> déclenchait donc exactement au moment où le run était fini, et **n'arrêtait jamais rien** — un
+> garde-fou qui ne garde de rien. Le défaut venait du texte d'origine ; le pilote l'a recopié en
+> réécrivant cette phase, et a même posé le plafond de 2 h trois paragraphes plus bas sans voir la
+> contradiction. C'est la règle du §0.2 appliquée à qui l'a écrite : **on relit ce qui a été écrit
+> en dernier.** La comparaison est licite parce que la
 composition est **identique** et que seul l'agent au siège mesuré change.
 
 > **Ce 86,52 % est une moyenne sur les trois sièges**, agrégée sur les 10 002 parties de la
