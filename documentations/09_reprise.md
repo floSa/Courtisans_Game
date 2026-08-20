@@ -117,14 +117,32 @@ traiter au début de la phase 3 :
 4. une cellule « voir `B4-departage` » dans une table dont le texte dit qu'elle ne se lit qu'en
    juxtaposant deux nombres.
 
-**Cinq trous du protocole expérimental** sont nommés dans l'entrée de journal et **ne sont pas
-corrigés** dans [05_protocole_experimental.md](05_protocole_experimental.md). C'est un travail de
-pilote, pas d'agent.
+~~**Cinq trous du protocole expérimental** sont nommés dans l'entrée de journal et **ne sont pas
+corrigés**.~~ **Corrigés le 20/08/2026 par le pilote.**
+[05_protocole_experimental.md](05_protocole_experimental.md) porte désormais :
+
+- un **§0 normatif** — le format d'une entrée de journal, et les **règles d'écriture d'un chiffre**
+  tirées des fautes réelles des phases 0 à 2. Le journal renvoyait à ce §0 depuis le début ; **il
+  n'existait pas**. C'était un sixième trou, celui-là non recensé ;
+- un **erratum sur la phase 1** qui définit enfin ses trois termes chiffrés — « retournement » =
+  R2, « distribution non dégénérée » = D1 à D4, « refuser de tuer est possible » = les nœuds de
+  ciblage à `len(legal_actions()) ≥ 2` — et qui ajoute que **D1 à D4 ne discriminent presque
+  rien** : D2 est franchi dès 12 parties, D1 et D3 dès 3, D4 dès 1 ;
+- un **erratum sur la phase 2** qui nomme les cinq défauts de son propre texte, dont le seuil de
+  38 % que **les trois sièges franchissent à la fois** sous sa lecture littérale — 38,47 %,
+  38,16 % et 38,90 % chez l'auditeur — avec un avantage de siège nul ;
+- la correction du §1, où l'affirmation « l'appariement divise par cinq à dix le nombre de
+  parties » est remplacée par ce qui est mesuré, **ρ = +0,0066 sous jeu aléatoire, moyenné sur trois sièges, facteur 1,01**,
+  et par l'interdiction d'emprunter un facteur de gain non mesuré sur sa propre population ;
+- les **seuils des phases 3, 4 et 5 réécrits**, le « > 55 % » étant une intuition de jeu à deux
+  joueurs alors qu'à trois la valeur nulle est 33,33 %.
 
 ### Phase 3 — pas de prompt
 
-C'est le prochain travail de fond du pilote. Trois choses doivent y figurer, décidées en
-phase 2 :
+C'est le prochain travail de fond du pilote. Le seuil est désormais écrit au protocole, et
+**l'ancien « > 55 % » ne doit pas être recollé dans le prompt** : le juge est le gain moyen, borne
+basse de l'IC 99 % strictement positive, sur une composition nommée — un agent contre deux
+greedys. Trois choses doivent y figurer, décidées en phase 2 :
 
 - **Aucune durée citée sur un seul chronométrage.** Sur cette machine, cinq passes du même
   code donnent un rapport max/min de **2,93 à 3,00** par campagne, de façon **non monotone**.

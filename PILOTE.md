@@ -5,7 +5,7 @@
 Corpus de référence, pour toi et pour les agents :
 [documentations/00_index.md](documentations/00_index.md).
 
-Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants.
+Mis à jour le 20/08/2026, après la clôture de la phase 2 et le bouchage des trous du protocole.
 
 ---
 
@@ -13,55 +13,72 @@ Mis à jour le 16/08/2026, après audit croisé par deux auditeurs indépendants
 
 | | |
 |---|---|
-| Étape en cours | **Phase 1 CLOSE le 18/08, audit croisé compris.** L'instance `entrainement-3j` — 4 familles, 5 rôles, 2 exemplaires, 3 joueurs, 40 cartes, **4 tours** — est validée. Les trois go/no-go : 1 000/1 000 parties à `(4, 4, 4)` tours, 10/10 critères de non-dégénérescence, retournement R2 dans **96,00 % (960/1 000), IC99 [94,12 % ; 97,42 %]** contre un seuil de 33,3 %. 648 tests verts. Verdict de l'auditeur : **REJETÉ** au premier tour — un chiffre annoncé « 0 sur 1 000 » qui ne mesurait pas sa propre phrase — puis **ACCEPTÉ SOUS RÉSERVE** après correction |
-| Prochaine action | **Phase 2 — mesurer le jeu avant d'y jouer**, sur `entrainement-3j` : avantage de siège sur 10 000 parties appariées (seuil < 38 %), variance du score, winrate du greedy contre l'aléatoire, et ligne de base des comportements B1–B7. Coller [prompts/08_phase2_construction.md](prompts/08_phase2_construction.md) dans une conversation neuve, puis [prompts/09_phase2_audit.md](prompts/09_phase2_audit.md) dans une autre. **Les deux prompts sont écrits.** Trois trous du protocole y sont signalés : le greedy n'existe pas dans ce dépôt, B1–B7 ne sont pas mesurables en l'état, et le seuil de 38 % est à 9,9 erreurs-type de l'attendu — il ne discrimine rien |
-| Réserves de la phase 1 | Deux, mineures, à traiter quand on rouvrira `mesure/` : **(1)** rien ne relie la définition unique de l'instance dans `mesure/instance.py` à la description indépendante de `tests/outils.py` — une dérive resterait muette ; **(2)** la section 6 du rapport ne répète pas le **grain** sur ses deux blocs de comptage, si bien qu'un lecteur qui reconstruit 2 078 familles au grain fin au lieu de 2 075 au grain tour ne peut pas savoir laquelle des deux lectures est la sienne |
-| À corriger dans le protocole | [05_protocole_experimental.md](documentations/05_protocole_experimental.md) ne définit ni « retournement », ni « distribution non dégénérée », ni « situations où refuser de tuer est possible » — les trois sont chiffrés dans le go/no-go de la phase 1, et la troisième a une lecture littérale **vide** (refuser est toujours légal). Les définitions du constructeur ont tenu deux tours d'audit : leur place est dans le document |
-| À trancher avant | ~~Le libellé des cartes cachées~~ — **tranché le 17/08** : un dos n'est jamais nommé, il est situé dans sa zone et numéroté par son rang. Voir `rules.rang_public_dans_zone` |
+| Étape en cours | **Phase 2 CLOSE le 19/08, verdict ACCEPTÉ au troisième tour d'audit.** Trois tours, **75 contrôles hostiles**, cinq défauts trouvés dont un **bloquant**, **977 tests verts, 0 rouge** — recomptés par le pilote le 20/08, c'est bien 977. Les quatre lignes de base du jeu sont établies et citables : avantage de siège **33,50 %** en part fractionnée pour le siège le plus favorisé, σ(gain) = **0,6652**, greedy contre deux aléatoires à **86,52 %** et **+0,7978** de gain moyen, et dix-sept compteurs de comportement |
+| Prochaine action | **Écrire les prompts de la phase 3**, construction et audit, puis les lancer dans deux conversations neuves et distinctes. Le premier agent entraîné, mesuré contre le greedy |
+| Ce que la phase 3 doit corriger en entrant | **Quatre mineurs de la phase 2** restés hors du périmètre re-vérifié, plus une réserve de la phase 1. Le plus sérieux : **`vue_du_joueur` ne valide pas son argument** et rend une vue n'appartenant à aucun siège — réouverture du défaut 2 de la phase 0 sur une entrée neuve, et **tout agent en dépend**. Les autres : le rapport généré est en **cp1252** quand les quatre autres documents sont en UTF-8 ; deux des douze directions annoncées sont comptées comme tenues alors que la pré-inscription les déclare **nulles par construction** ; une cellule « voir `B4-departage` » figure dans une table dont le texte dit qu'elle ne se lit qu'en juxtaposant deux nombres |
+| Réserve de la phase 1, mesurée le 20/08 | Elle disait que **rien ne relie** `mesure/instance.py` à la description indépendante de `tests/outils.py`, si bien qu'une dérive resterait muette. **Vérifié en injectant la dérive** — `familles=4` passé à `5` : **21 tests tombent**, donc elle n'est pas muette. Mais **aucun des 21 ne dit que l'instance a dérivé** : ils échouent tous sur des nombres calculés à la main dans `tests/mesure/test_parties_construites.py`, `tests/mesure/test_comportements.py` et `tests/audit/test_echelle_de_l_invisible.py`, dont le message est « son chiffre doit se reproduire ». Le garde-fou existe **par accident, pas par intention**, et `tests/outils.py::ENTRAINEMENT_3J` — la description censée servir d'oracle — n'est pas ce qui l'attrape. À fermer par **un** test qui le dit |
+| Le protocole | **Bouché le 20/08.** [05_protocole_experimental.md](documentations/05_protocole_experimental.md) porte un **§0 normatif** — le journal y renvoyait depuis le début, il n'existait pas —, un **erratum sur la phase 1** qui définit « retournement », « distribution non dégénérée » et « refuser de tuer est possible », un **erratum sur la phase 2** qui nomme les cinq défauts de son propre texte, et les **seuils des phases 3, 4 et 5 réécrits** |
 | Bloquant | **Rien.** Deux reports assumés, écrits dans le README : canonicalisation et encodage par cible. |
 
-**L'audit croisé a servi, deux phases de suite.** En phase 0 il a rejeté une première fois —
-six défauts — puis, après correction, en a trouvé deux de plus, dont un qui bloquait
-`deep_cfr` et le calcul d'exploitabilité. Neuf défauts au total, tous corrigés, chacun tenu
-par un test **et** par une mutation. Détail au
-[journal](documentations/06_journal_decisions.md), entrée du 17/08.
+### Les trois décisions de la phase 2 que la phase 3 doit porter
 
-En phase 1 il a trouvé une faute d'un genre nouveau, sur des **chiffres** et non sur du code :
-un nombre juste, reproductible au bit près, dont la phrase ne décrivait pas le calcul. Le
-rapport annonçait « 0 sur 1 000 retournements invisibles des trois joueurs » ; le calcul
-agrégeait les quatre familles avant de comparer les vues, et le cas survient en réalité dans
-**une partie sur treize à dix-huit**. Le propre test du constructeur le démontrait déjà, dans
-le même livrable. L'auditeur avait réimplémenté toute la mesure depuis le texte des règles et
-écrit seize contrôles hostiles ; il a commis deux fois la même faute que celle qu'il
-reprochait, et l'a inscrite à son nom. Détail au
-[journal](documentations/06_journal_decisions.md), entrée du 18/08, et verdict complet dans
-`audit/verdict_phase_1.md`.
+- **Aucune durée ne se cite sur un seul chronométrage.** Sur cette machine, cinq passes du même
+  code donnent un rapport max/min de **2,93 à 3,00** par campagne, **de façon non monotone**. Le
+  temps mural mesure l'état de la machine, pas le coût du code. Trois passes minimum, avec
+  l'étendue.
+- **`agents/greedy.py` est la ligne de base de toutes les phases suivantes et ne porte aucune
+  mutation.** `outillage/mutation.py` ne cible que `courtisans/` — vérifié.
+- **`B4-tout-dos` et `B5-renfort` ne sont pas comparables entre compositions.** Leurs taux publiés,
+  **3,89 %** et **20,41 %**, bougeront sous trois agents entraînés pour une raison qui n'est pas
+  l'habileté de l'agent.
 
-> **La leçon transférable aux phases 2 et 3, où tout sera chiffré :** un taux dont le sujet
-> grammatical n'est pas l'unité comptée doit publier son dénominateur, et tout chiffre doit
-> porter son échantillon — seeds, politique, grain. Un zéro absolu se confronte à un cas
-> construit à la main avant d'être écrit.
+### Le seuil de la phase 3 a été réécrit, et il ne faut pas coller l'ancien
+
+L'ancien seuil était **« > 55 % contre le greedy sur 1 000 parties appariées »**, avec une bande
+45–55 % et un plancher à 45 %. **Ces trois nombres sont des intuitions de jeu à deux joueurs.** À
+trois joueurs la part de victoire fractionnée vaut **33,33 %** au neutre : un agent à 45 % est très
+au-dessus du hasard, pas en dessous. Le nouveau seuil juge le **gain moyen**, dont la valeur nulle
+est exactement 0,0000, et demande que la **borne basse de son IC 99 % soit strictement positive**,
+sur une composition nommée — **un agent contre deux greedys**, sièges permutés.
+
+**Et son budget ne s'emprunte pas.** Le seul écart de gain détectable mesuré, **+0,1013 à
+1 000 parties appariées**, l'a été **sous jeu uniformément aléatoire**. La phase 3 mesure σ(gain) et
+ρ sur sa propre composition avant de lancer.
+
+### Ce que l'audit croisé a rapporté, trois phases de suite
+
+**En phase 0**, il a rejeté une première fois — six défauts — puis, après correction, en a trouvé
+deux de plus, dont un qui bloquait `deep_cfr` et le calcul d'exploitabilité. Neuf défauts au total,
+tous corrigés, chacun tenu par un test **et** par une mutation.
+
+**En phase 1**, il a trouvé une faute d'un genre nouveau, sur des **chiffres** et non sur du code :
+un nombre juste, reproductible au bit près, dont la phrase ne décrivait pas le calcul. Le rapport
+annonçait « 0 sur 1 000 retournements invisibles des trois joueurs » ; le calcul agrégeait les
+quatre familles avant de comparer les vues, et le cas survient en réalité dans **une partie sur
+treize à dix-huit**. Le propre test du constructeur le démontrait déjà, dans le même livrable.
+
+**En phase 2**, la même faute est sortie **cinq fois dans une seule phase** — un chiffre exact sur
+une population que sa phrase ne nomme pas — chez le constructeur, chez l'auditeur, chez le pilote,
+et jusque dans l'entrée de journal qui nommait la faute quatre fois. Le défaut le plus instructif,
+un facteur trois indu dans six budgets, avait **survécu à deux vérifications réussies** : la formule
+de contrôle recevait le même dénominateur erroné que le générateur.
+
+> **Les leçons transférables sont désormais normatives**, au §0.2 de
+> [05_protocole_experimental.md](documentations/05_protocole_experimental.md), et non plus seulement
+> racontées au journal. Les trois qui comptent le plus pour la phase 3 : **l'unité se reconstruit
+> avant la valeur, et séparément** ; **un compte n'est pas une liste de noms** ; et **on relit ce qui
+> a été écrit en dernier, pas ce qui a été mesuré en premier** — la correction est le lieu du défaut
+> suivant.
 
 Le dépôt est poussé sur la branche `main` (nommée `moteur-conforme` jusqu'au 19/08/2026) de
 [floSa/Courtisans_Game](https://github.com/floSa/Courtisans_Game), avec un historique
-indépendant de `main` et de `cfr-pivot` : c'est un moteur neuf, pas une correction de
+indépendant de `old_version` et de `cfr-pivot` : c'est un moteur neuf, pas une correction de
 l'ancien.
 
-**Mis à jour le 16/08 après l'étape 1.** Trois arbitrages ont été rendus en cours de route :
-les instances historiques ne sont plus reproduites (elles violent les règles), le compteur
-« Espions morts non révélés » est supprimé (une carte tuée est révélée), et les nœuds de
-chance sont explicites dans l'adaptateur OpenSpiel, pas dans le cœur. Cinq erreurs de
-documentation ont été corrigées au passage — détail en fin de ce document.
-
-**Ce qui vient de se passer.** Deux auditeurs indépendants ont relu les règles et le vecteur
-d'état, sans voir le raisonnement qui les avait produits. Ils ont trouvé **onze défauts dans
-les règles** dont six bloquants, et **six défauts dans le vecteur d'état** dont deux qui
-rendaient la phase de ciblage tout simplement injouable. Tout est corrigé, sauf quatre points
-qui demandent ta décision.
-
-Le protocole d'audit croisé vient donc de prouver son utilité avant même d'avoir servi sur du
-code.
-
+**Les actions 1 à 5 ci-dessous sont celles de la phase 0.** Elles sont conservées parce que leur
+forme se répète à chaque phase — un prompt de construction, un prompt d'audit, une entrée de
+journal écrite par l'auditeur — et parce que les tableaux « renvoie-le au travail si » de
+l'action 3 et « irrecevable si » de l'action 4 servent encore tels quels.
 ---
 
 ## Action 1 — Relire les règles (fait, mais relis)
@@ -179,19 +196,29 @@ Les actions 3 à 5 se répètent, une paire de conversations par phase. Détail 
 hypothèses, seuils chiffrés et critères go/no-go dans
 [documentations/05_protocole_experimental.md](documentations/05_protocole_experimental.md).
 
-| Phase | Objet | Exécution machine |
-|---|---|---|
-| 0 | Moteur conforme, tests en premier | tests < 1 min |
-| 1 | Générateur d'instances paramétré | < 1 min |
-| 2 | Encodage de l'état + vérification des invariants | quelques minutes |
-| 3 | Premier agent entraîné, mesuré contre le greedy | ~1 h |
-| 4 | Itérations sur l'algorithme | ~2 h par run |
+*Cette table nommait la phase 1 « générateur d'instances paramétré » et la phase 2 « encodage de
+l'état », ce qui ne correspondait à aucune des deux. Corrigée le 20/08 sur le §3 du protocole,
+seule source.*
 
-Les durées sont des **temps d'exécution machine** seulement. Aucune estimation de temps de
-développement : elles ne seraient pas fondées.
+| Phase | Objet | Budget machine | État |
+|---|---|---|---|
+| 0 | Moteur conforme, tests en premier | < 1 min | **close** |
+| 1 | L'instance d'entraînement, `entrainement-3j` | quelques min | **close** |
+| 2 | Mesurer le jeu avant d'y jouer | ~1 h | **close** |
+| 3 | Premier agent entraîné, mesuré contre le greedy | plafond 2 h par run | **ouverte** |
+| 4 | Itérations sur l'algorithme, une variable à la fois | plafond 2 h par run | — |
+| 5 | Le jeu complet, 90 cartes | à établir | — |
+| 6 | 2 et 4 joueurs | à établir | — |
 
-Les prompts des phases 1 et suivantes seront écrits au fur et à mesure, sur le modèle des
-deux premiers — **un prompt de construction, un prompt d'audit**.
+Ces durées sont des **plafonds de budget machine**, pas des mesures : **aucune durée mesurée ne se
+publie sur un seul chronométrage**. Aucune estimation de temps de développement n'est donnée :
+elle ne serait pas fondée.
+
+Les prompts sont écrits phase par phase, sur le modèle des deux premiers — **un prompt de
+construction, un prompt d'audit**. Ceux des phases 0, 1 et 2 sont dans `prompts/` et **ne sont pas
+réécrits** : ce sont des documents historiques, et les corriger falsifierait le compte rendu de ce
+qui a été fait. Ils parlent encore de la branche `moteur-conforme`, qui est l'actuelle `main` sous
+son ancien nom.
 
 ---
 
@@ -207,7 +234,7 @@ Relevées pendant l'étape 1, corrigées dans les documents concernés.
 | 4 | Compteur « Espions morts non révélés », fondé sur une Q2 dite non tranchée | [03](documentations/03_specification_moteur.md) §4.2 | **Supprimé** : le §11 de [01](documentations/01_regles.md) tranche que la carte tuée est révélée et la défausse publique. |
 | 5 | « Deux cartes chez le même adversaire » présenté comme non tranché | [00_index](documentations/00_index.md) §7, [03](documentations/03_specification_moteur.md) §8 | **Fermé : non**, par le §3.2 et R1. |
 | 6 | Plancher noté « familles ≥ 3 » | [01](documentations/01_regles.md) §10bis | C'est **familles > joueurs**, comme au §8. |
-| 7 | Tableau de l'invariant I2 cassé par un `|` non échappé | [03](documentations/03_specification_moteur.md) §5 | Écrit `nb_roles`. |
+| 7 | Tableau de l'invariant I2 cassé par un `\|` non échappé | [03](documentations/03_specification_moteur.md) §5 | Écrit `nb_roles`. |
 
 **Tranché le 16/08 après l'étape 1 :** `tours` n'est **pas** un paramètre de `GameConfig`.
 Il est dérivé — `nb_cartes // (3 × joueurs)` — et la construction lève si le résultat est

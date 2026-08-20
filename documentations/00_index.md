@@ -2,7 +2,7 @@
 
 **Point d'entrée du projet. Où on en est, ce qui est vrai, ce qu'on fait ensuite, et dans quel document c'est écrit.**
 
-Mis à jour le 19/08/2026.
+Mis à jour le 20/08/2026.
 
 > **Tu reprends le projet sur une autre machine ou un autre compte ?** Lis
 > **[09_reprise.md](09_reprise.md)** avant ce document. Il contient ce qui n'est écrit nulle
@@ -174,8 +174,21 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    qu'**aucun** siège ne voit — ~7 % des parties — est un **plafond de ce que B1 peut
    mesurer**, et la ligne de base doit être lue en la retranchant.
 
-6. **Lancer la phase 2.** Deux conversations neuves et distinctes, construction puis
-   audit.
+6. ~~Lancer la phase 2~~ — **fait. La phase 2 est close le 19/08, verdict ACCEPTÉ au
+   troisième tour d'audit.** Trois tours, 75 contrôles hostiles, cinq défauts trouvés dont
+   un bloquant, **977 tests verts, 0 rouge**. Les quatre lignes de base sont établies et
+   citables par les phases suivantes, à trois conditions écrites dans le rapport lui-même.
+   Voir l'entrée du 19/08 au [journal](06_journal_decisions.md).
+7. ~~Boucher les trous du protocole~~ — **fait le 20/08.**
+   [05_protocole_experimental.md](05_protocole_experimental.md) porte désormais un **§0
+   normatif** — format d'une entrée de journal, et les règles d'écriture d'un chiffre tirées
+   des fautes réelles des phases 0 à 2 —, un **erratum sur la phase 1** qui définit enfin
+   « retournement », « distribution non dégénérée » et « refuser de tuer est possible », un
+   **erratum sur la phase 2** qui nomme les cinq défauts de son propre texte, et des **seuils
+   de phases 3, 4 et 5 réécrits** : le « > 55 % » était une intuition de jeu à deux joueurs,
+   alors qu'à trois la valeur nulle est 33,33 %.
+8. **Écrire les prompts de la phase 3**, puis la lancer. Deux conversations neuves et
+   distinctes, construction puis audit.
 
 ---
 
