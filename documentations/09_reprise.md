@@ -32,6 +32,13 @@ Il s'est fâché deux fois pour la même raison : le manque de clarté.
   `origin/cfr-pivot` uniquement, hors lignée.
 - **Une preuve différée revient nommée, pas agrégée en un compte.** Si on annonce « tel test
   tombera », il faut dire *lequel*, pas « trois tests sont tombés ».
+- **Tout ce qu'il doit donner à un agent porte un numéro ET un nom**, et vient avec **un
+  endroit** : soit le chemin du fichier, soit le prompt écrit directement dans la conversation.
+  L'un ou l'autre, jamais ni l'un ni l'autre. Exemple : « conversation n° 6 — Construction de la
+  phase 3, le prompt est dans `prompts/10_phase3_construction.md` ».
+- **Le dépôt se pousse sous ses identifiants perso.** `floSa <florian.horellou@gmail.com>`, via
+  le remote `git@github.com-perso:floSa/Courtisans_Game.git`. Vérifier avant de pousser, pas
+  après.
 
 ## 2. Le rôle du pilote
 
