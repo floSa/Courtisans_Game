@@ -5,3 +5,22 @@ __pycache__/
 .ruff_cache/
 .coverage
 htmlcov/
+
+# Residus de la campagne precedente, abandonnee -- ni produits ni cites par les phases 0
+# a 3. Ils sont ignores et NON supprimes : ce sont les traces de trois mois de travail,
+# et rien de ce depot ne les remplace. Ils sont ignores parce que
+# `outillage/mutation.py` refuse de tourner sur un depot sale -- il restaure les fichiers
+# avec `git checkout` --, donc 38 fichiers non suivis interdisaient l'outil que toute
+# modification de `courtisans/` doit rejouer.
+train_*.log
+bc_greedy.log
+bc_greedy_dataset.npz
+confirm_*.log
+cross_table_*.log
+dagger_greedy.log
+discriminator*.log
+q3_results.log
+remeasure_*.log
+training_graph.png
+cfr/
+models/

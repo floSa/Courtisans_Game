@@ -279,6 +279,32 @@ MUTATIONS: tuple[Mutation, ...] = (
             "au lieu de 7 (defaut 6 de l'audit)"
         ),
     ),
+    # ---------------------------------------------------------------------------------
+    # Ajoutee le 20/08, avec la fermeture de l'obstacle A de la phase 3.
+    #
+    # Elle ne remet pas « une validation absente » : elle remet le **contournement d'une
+    # parade existante**. `observation-sans-joueur` ci-dessus casse le controle lui-meme,
+    # dans `engine.py` ; celle-ci le laisse intact et fait simplement en sorte que
+    # `vue_du_joueur` ne l'appelle plus -- exactement l'etat du depot avant le 20/08, et
+    # exactement la facon dont le defaut 2 de la phase 0 est revenu.
+    #
+    # Les deux sont necessaires et aucune ne remplace l'autre : un correctif qui
+    # reecrirait le controle dans `infoset` au lieu de l'appeler survivrait a celle-ci et
+    # tomberait sur l'autre, et un correctif qui appelle la parade sans qu'aucun test ne
+    # l'exerce survivrait a celle-ci seule.
+    # ---------------------------------------------------------------------------------
+    Mutation(
+        nom="vue-du-joueur-contourne-la-parade",
+        fichier="courtisans/infoset.py",
+        avant="    etat._joueur_observe(joueur)\n    vue = etat.vue_privilegiee()",
+        apres="    vue = etat.vue_privilegiee()",
+        vise=(
+            "`vue_du_joueur` n'appelle plus la parade de la phase 0 : `tenseur(etat, -1)` "
+            "-- or JOUEUR_HASARD vaut -1 -- rend 205 flottants qui ne sont le tenseur "
+            "d'aucun siege, et rien ne leve (obstacle A de la phase 3, reouverture du "
+            "defaut 2 de l'audit de la phase 0)"
+        ),
+    ),
 )
 
 
