@@ -256,8 +256,25 @@ def section_m2(lignes: list[str], resultat: phase2.ResultatVariance) -> None:
     ]
 
 
-def section_m3(lignes: list[str], resultats: Sequence[phase2.ResultatGreedy]) -> None:
-    """M3 : le winrate du greedy, compositions et variantes."""
+def section_m3(
+    lignes: list[str],
+    resultats: Sequence[phase2.ResultatGreedy],
+    b4_departage: comp.Compte,
+) -> None:
+    """M3 : le winrate du greedy, compositions et variantes.
+
+    `b4_departage` est **passe**, et c'est le defaut mineur 4 de la phase 2 qui l'exige.
+    La table du departage porte deux nombres a juxtaposer, et son texte le dit -- « elle ne
+    se lit qu'en juxtaposant les deux nombres ». L'une des deux cellules contenait
+    « voir `B4-departage` », un renvoi vers une section qui vient **plus loin** : le lecteur
+    n'avait pas les deux nombres sous les yeux, donc il ne pouvait pas faire ce que le texte
+    lui demandait. Une table qui renvoie ailleurs pour la moitie de son propos ne se lit pas.
+
+    Le renvoi n'est pas remplace par un nombre recopie a la main -- ce serait un second site
+    de calcul, et ils finiraient par diverger. Le compteur lui-meme traverse, depuis
+    `rapport()` qui le detient deja pour la section 5 : **un seul site**, deux lieux
+    d'affichage.
+    """
     lignes.append(_titre("4. M3 -- winrate du greedy contre l'aleatoire"))
     lignes += [
         "**Les deux niveaux neutres, a nouveau, parce que c'est ici que la confusion coute le "
@@ -345,15 +362,19 @@ def section_m3(lignes: list[str], resultats: Sequence[phase2.ResultatGreedy]) ->
         demi = (haute - basse) / 2
         lignes += [
             "",
-            "### Le departage change 61 % des refus et ne change pas le gain",
+            # Le titre porte le taux **calcule**, pas un 61 % ecrit a la main : un nombre
+            # en dur dans un titre survit a la mesure qui le contredit.
+            f"### Le departage change {_pct(b4_departage.taux())} des refus et ne change "
+            f"pas le gain",
             "",
             "**Ce n'est pas un doublon, c'est une mesure de consequence nulle**, et elle ne se "
             "lit qu'en juxtaposant les deux nombres :",
             "",
             "| | |",
             "|---|---:|",
-            "| part des refus du greedy que le **departage** decide (section 5) | "
-            "voir `B4-departage` |",
+            f"| part des refus du greedy que le **departage** decide "
+            f"(`B4-departage`, section 5) | **{_pct(b4_departage.taux())}** "
+            f"({b4_departage.succes}/{b4_departage.total}) |",
             f"| ecart de gain entre departage aleatoire et deterministe | **{ecart:+.4f}** |",
             f"| demi-largeur de l'IC 99 % du gain de reference | {demi:.4f} |",
             f"| l'ecart, en demi-largeurs | **{abs(ecart) / demi:.2f}** |",
@@ -1075,7 +1096,7 @@ def rapport(donnes_a: int, donnes_b: int, avec_variantes: bool = True) -> str:
         f"bloc de controle, seeds {phase2.DEPART_A_CONTROLE}+",
     )
     section_m2(lignes, resultat_m2)
-    section_m3(lignes, resultats_m3)
+    section_m3(lignes, resultats_m3, greedy["B4-departage"])
     section_coherence(lignes, incoherence)
     section_m4(
         lignes,

@@ -32,7 +32,9 @@ victoire le serait.
 from __future__ import annotations
 
 import argparse
+import pathlib
 import random
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import fmean, pstdev
@@ -794,24 +796,70 @@ def mesurer_b6_concurrente(groupes: Sequence[Groupe]) -> dict[str, float | None]
 
 
 def main(argv: Sequence[str] | None = None) -> int:
-    """Joue les campagnes et ecrit le rapport sur la sortie standard."""
+    """Joue les campagnes et ecrit le rapport, **en UTF-8 quelle que soit la console**.
+
+    Defaut mineur 2 de la phase 2, ferme le 20/08/2026
+    ---------------------------------------------------
+    Le rapport livre etait le seul des cinq documents de `mesure/` a n'etre pas en UTF-8 :
+    il portait 36 « et 36 », 16 œ et 3 e accent grave encodes en **cp1252**. La cause n'est
+    pas dans le texte, elle est dans le CHEMIN : le rapport partait sur la sortie standard
+    et c'est la redirection du shell qui l'ecrivait, avec l'encodage par defaut de la
+    console -- cp1252 sur Windows. Le generateur ne decidait pas de son encodage, donc il
+    ne pouvait pas le garantir.
+
+    **La parade, et pourquoi ce n'est pas une conversion.** Le fichier a ete converti une
+    fois, a texte identique ; ca ne l'empeche pas de rederiver a la prochaine
+    regeneration. Ce qui l'en empeche est ici, en deux temps :
+
+    - `--sortie` ecrit le fichier **depuis Python**, avec `encoding="utf-8"` explicite et
+      `newline="\n"` : l'encodage cesse d'etre une propriete de la console de celui qui
+      lance la commande ;
+    - a defaut de `--sortie`, la sortie standard est **reconfiguree** en UTF-8 avant le
+      premier caractere, pour que la redirection historique donne le meme resultat.
+
+    `tests/audit_phase2/test_reverification.py` exige desormais que le fichier livre se
+    decode en UTF-8, la ou son lecteur tolerait les deux encodages -- une tolerance qui
+    aurait laisse la derive revenir sans rien dire.
+    """
     analyseur = argparse.ArgumentParser(description=__doc__)
     analyseur.add_argument("--donnes-a", type=int, default=dim.DONNES_CAMPAGNE_A)
     analyseur.add_argument("--donnes-b", type=int, default=dim.DONNES_CAMPAGNE_B)
     analyseur.add_argument("--sans-variantes", action="store_true")
+    analyseur.add_argument(
+        "--sortie",
+        type=pathlib.Path,
+        default=None,
+        help=(
+            "ecrire le rapport dans ce fichier, en UTF-8. Sans cette option le rapport "
+            "part sur la sortie standard, elle aussi forcee en UTF-8."
+        ),
+    )
     arguments = analyseur.parse_args(argv)
 
     from mesure.rapport_phase2 import rapport
 
     debut = perf_counter()
-    print(
-        rapport(
-            donnes_a=arguments.donnes_a,
-            donnes_b=arguments.donnes_b,
-            avec_variantes=not arguments.sans_variantes,
-        )
+    texte = rapport(
+        donnes_a=arguments.donnes_a,
+        donnes_b=arguments.donnes_b,
+        avec_variantes=not arguments.sans_variantes,
     )
-    print(f"\n<!-- duree totale : {perf_counter() - debut:.1f} s -->")
+    texte += f"\n\n<!-- duree totale : {perf_counter() - debut:.1f} s -->"
+
+    if arguments.sortie is not None:
+        # Le saut de ligne final n'est pas cosmetique : sans lui `diff` annonce
+        # « \\ No newline at end of file » sur la derniere ligne, ce qui la fait passer pour
+        # modifiee a chaque comparaison de deux regenerations.
+        arguments.sortie.write_text(texte + "\n", encoding="utf-8", newline="\n")
+        return 0
+
+    # Sans `--sortie`, la redirection du shell decide de l'encodage : on le lui retire.
+    # `reconfigure` existe sur tout `TextIOWrapper` ; le `getattr` couvre une sortie
+    # standard remplacee par un objet qui n'en est pas un, cas courant sous pytest.
+    reconfigurer = getattr(sys.stdout, "reconfigure", None)
+    if reconfigurer is not None:
+        reconfigurer(encoding="utf-8")
+    print(texte)
     return 0
 
 

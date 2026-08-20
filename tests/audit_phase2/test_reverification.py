@@ -89,13 +89,93 @@ def test_p1_le_rapport_ne_porte_plus_les_cinq_ecarts_fabriques():
     assert "grain" in section.lower(), "le paragraphe 6 doit nommer ce qui n'est pas comparable"
 
 
+#: Le rapport livre. Nomme une fois : les cas ci-dessous et celui de l'encodage doivent
+#: parler du meme fichier, sinon l'un pourrait garantir l'encodage d'un autre.
+RAPPORT_LIVRE = pathlib.Path("mesure/resultats/phase2.md")
+
+
 def _rapport() -> str:
-    """Le rapport livre, decode selon son encodage reel."""
-    octets = pathlib.Path("mesure/resultats/phase2.md").read_bytes()
-    try:
-        return octets.decode("utf-8")
-    except UnicodeDecodeError:
-        return octets.decode("cp1252")
+    """Le rapport livre, decode en UTF-8 -- et **seulement** en UTF-8.
+
+    Ce lecteur tolerait les deux encodages : il essayait UTF-8 puis retombait sur cp1252.
+    C'etait un contournement du defaut mineur 2, pas une parade, et il avait un effet que
+    personne n'avait voulu -- **il rendait la derive muette**. Un rapport regenere depuis une
+    console cp1252 se serait relu sans bruit, et les 75 controles de l'audit auraient passe
+    au vert sur un fichier qui n'etait pas dans l'encodage des quatre autres.
+
+    La tolerance est retiree le 20/08/2026, en meme temps que le fichier est converti et que
+    le generateur cesse de laisser la console decider (`mesure.phase2.main`, `--sortie`).
+    """
+    return RAPPORT_LIVRE.read_text(encoding="utf-8")
+
+
+def test_le_rapport_livre_est_en_utf8_comme_les_quatre_autres_documents():
+    """Defaut mineur 2 de la phase 2. Le cas qui **dit** la derive au lieu de la subir.
+
+    Il ne se contente pas de decoder : decoder reussirait sur un rapport **purement
+    ASCII**, qui n'etablirait rien -- cp1252 et UTF-8 coincident sur l'ASCII. Il exige donc
+    qu'au moins un caractere non-ASCII soit present et se decode, ce qui distingue
+    reellement les deux encodages. Les caracteres en cause sont MESURES : 36 `«`, 36 `»`,
+    16 `œ` et 3 `è`.
+    """
+    octets = RAPPORT_LIVRE.read_bytes()
+    texte = octets.decode("utf-8")  # leve si le rapport a rederive en cp1252
+
+    non_ascii = [c for c in texte if ord(c) > 127]
+    assert non_ascii, (
+        "le rapport est purement ASCII : ce cas ne separe plus UTF-8 de cp1252, parce que "
+        "les deux encodages coincident sur l'ASCII. Il faut le relire avant de le croire."
+    )
+    assert "«" in texte and "œ" in texte, (
+        f"les caracteres attendus ont disparu du rapport : {sorted(set(non_ascii))}"
+    )
+
+
+#: Les documents de `mesure/`, **nommes**. Le releve du defaut mineur 2 disait « les quatre
+#: autres documents » : il y en a **CINQ** en plus du rapport, et ce mecompte a ete trouve
+#: par ce cas meme, en tombant a l'ecriture. C'est la faute que la phase 2 a commise cinq
+#: fois -- un compte a la place d'une liste de noms -- et le releve du defaut la reproduisait.
+DOCUMENTS_DE_MESURE: tuple[str, ...] = (
+    "mesure/hypothese_et_instrument.md",
+    "mesure/phase2_corrections_audit.md",
+    "mesure/phase2_definitions_et_concurrentes.md",
+    "mesure/phase2_entree_de_journal.md",
+    "mesure/phase2_hypothese_et_instrument.md",
+    # Ajoutee le 20/08/2026 : la pre-inscription de la phase 3. Elle est inscrite ici par son
+    # NOM au moment ou elle est ecrite, ce qui est precisement ce que la liste sert a forcer.
+    "mesure/phase3_hypothese_et_instrument.md",
+    "mesure/resultats/phase2.md",
+)
+
+
+def test_les_sept_documents_de_mesure_sont_dans_le_meme_encodage():
+    """« Les quatre autres sont en UTF-8 » est un compte : ce cas ecrit les NOMS.
+
+    Deux assertions, et elles ne disent pas la meme chose. La premiere : **tout** document
+    Markdown de `mesure/` se decode en UTF-8, y compris un document ajoute demain -- c'est
+    la garantie. La seconde : la liste nommee ci-dessus est **exhaustive** -- c'est ce qui
+    oblige celui qui ajoute un document a l'y inscrire, au lieu de laisser un compte se
+    perimer en silence, comme le « quatre » du releve.
+    """
+    trouves = sorted(
+        str(chemin)
+        for chemin in list(pathlib.Path("mesure").rglob("*.md"))
+    )
+
+    fautifs = []
+    for document in trouves:
+        try:
+            pathlib.Path(document).read_bytes().decode("utf-8")
+        except UnicodeDecodeError as erreur:
+            fautifs.append(f"{document} : {erreur}")
+    assert not fautifs, "documents qui ne sont pas en UTF-8 :\n  " + "\n  ".join(fautifs)
+
+    assert trouves == sorted(DOCUMENTS_DE_MESURE), (
+        f"la liste nommee de `mesure/` n'est plus exhaustive.\n"
+        f"  sur le disque : {trouves}\n"
+        f"  dans la liste : {sorted(DOCUMENTS_DE_MESURE)}\n"
+        f"Inscris le document manquant par son NOM. Un compte se perime, une liste non."
+    )
 
 
 # ---------------------------------------------------------------------------------

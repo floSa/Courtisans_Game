@@ -45,7 +45,11 @@ calcul **binomial exact**, contrôlé à l'unité contre `scipy.stats`. **894 te
 
 **Résultat.** Détail décomposé dans `mesure/resultats/phase2.md` ; les sept définitions et leurs
 concurrentes chiffrées dans `mesure/phase2_definitions_et_concurrentes.md`. **Douze des treize
-concurrentes annoncées d'avance sont chiffrées ; onze des douze sens annoncés tiennent.**
+concurrentes annoncées d'avance sont chiffrées ; sur les douze sens annoncés, dix sont
+falsifiables — neuf tiennent, un est infirmé — et deux sont des contrôles nuls par
+construction, vérifiés.** *Corrigé le 20/08/2026, défaut mineur 3 : ce texte disait « onze des
+douze sens annoncés tiennent », en comptant comme tenus les deux zéros que la pré-inscription
+déclare impossibles à infirmer au §6.4.*
 
 - **M1 — H1 non infirmée, et le seuil du protocole ne servait à rien.** Parts de victoire
   fractionnées **33,42 / 33,50 / 33,08 %** (niveau neutre exact **33,3333 %**), maximum à
@@ -273,7 +277,9 @@ Une direction annoncée d'avance et **infirmée** par la mesure :
     est **beaucoup plus petite** : **34,89 %** contre **68,32 %**. Le raisonnement était faux, et
     d'une façon qui se voit d'avance : une pose place **trois** cartes, une seule au banquet, donc
     la part des Assassins au banquet est bornée par la mécanique du coup, autour d'un tiers.
-    C'est le seul des douze sens annoncés que la mesure contredise.
+    C'est le seul des **dix sens falsifiables** que la mesure contredise. Les douze énoncés
+    annoncés comptent en effet deux **contrôles** nuls par construction — voir le §0 de
+    `mesure/phase2_definitions_et_concurrentes.md`, défaut mineur 3 corrigé le 20/08/2026.
 
 **Décision.** **PROPOSÉE : go**, sous **trois** réserves — la deuxième est fermée —, **et après
 re-vérification par l'audit des quatre corrections et de la population à trois greedys**. La décision n'est pas la mienne et
