@@ -12,7 +12,10 @@ Trois mesures, dans l'ordre ou elles doivent etre lues :
    impredictible ».
 """
 from __future__ import annotations
-import random, statistics, sys
+import os, random, statistics, sys
+
+#: Hors de la plage d'entrainement [100000, 1586336) -- surchargeable pour la comparer.
+DEPART = int(os.environ.get("DEPART_AUDIT", 5_000_000))
 import torch
 from agents import reseau as reseau_module
 from agents.politique_reseau import charger
@@ -34,7 +37,7 @@ def jouer_depuis(etat, modele, alea):
     return e.returns()
 
 
-def collecter(modele, donnes, graine=700_000):
+def collecter(modele, donnes, graine=5_000_000):
     """Les nœuds d'un self-play a trois copies : (profondeur, siege, etat clone, retour)."""
     noeuds = []
     for d in donnes:
@@ -61,7 +64,7 @@ if __name__ == "__main__":
     n_donnes = int(sys.argv[1]) if len(sys.argv) > 1 else 200
     rejeux = int(sys.argv[2]) if len(sys.argv) > 2 else 24
 
-    noeuds = collecter(modele, range(700_000, 700_000 + n_donnes))
+    noeuds = collecter(modele, range(DEPART, DEPART + n_donnes))
     retours = [r for _, _, _, r in noeuds]
     var_noeuds = statistics.pvariance(retours)
     print(f"nœuds collectes            : {len(noeuds)} sur {n_donnes} parties de self-play a 3 copies")
