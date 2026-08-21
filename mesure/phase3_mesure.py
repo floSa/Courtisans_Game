@@ -505,15 +505,27 @@ def main(argv: list[str] | None = None) -> int:
         if not controle.passe:
             print(f"  !! CONTROLE EN ECHEC -- {controle.code} {controle.intitule}", flush=True)
 
+    # --- 6. Les durees, ACCUMULEES sur les passes ------------------------------------
+    #
+    # Le paragraphe 0.2 exige au moins TROIS passes avec leur etendue. Une passe unique ne se
+    # cite pas -- c'est le cinquieme defaut mineur que j'ai releve dans le rapport de la
+    # phase 2, et le repeter dans le mien serait la faute que ce projet nomme le plus souvent :
+    # la correction est le lieu du defaut suivant.
+    #
+    # Chaque passe ajoute une ligne au journal des durees ; le rapport lit **toutes** les
+    # lignes et publie l'etendue. Trois lancements de cette commande suffisent donc, sans
+    # qu'aucun chiffre ne soit recopie a la main.
+    chemin_durees = arguments.dossier / "durees.jsonl"
+    with chemin_durees.open("a", encoding="utf-8") as fichier:
+        fichier.write(json.dumps(dict(durees), ensure_ascii=False) + "\n")
+    passes = [
+        json.loads(x)
+        for x in chemin_durees.read_text(encoding="utf-8").splitlines()
+        if x.strip()
+    ]
+
     texte = rapport_phase3.rapport(contre_greedys, pool, comparaisons, jalons, controles)
-    texte += "\n## 8. Duree machine\n\n| Etape | Duree |\n|---|---:|\n"
-    for nom, duree in durees:
-        texte += f"| {nom} | {duree:.1f} s |\n"
-    texte += (
-        "\n*Une seule passe. Le paragraphe 0.2 interdit de citer une duree sur un seul "
-        "chronometrage : ces valeurs sont donnees pour reproduire l'ordre de grandeur du "
-        "cout, et **aucune conclusion n'en est tiree**.*\n"
-    )
+    texte += rapport_phase3.section_durees(passes)
     rapport_phase3.ecrire(texte, arguments.sortie)
     print(f"# Rapport ecrit en {arguments.sortie}", flush=True)
     return 0

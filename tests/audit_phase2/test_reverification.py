@@ -141,14 +141,18 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     "mesure/phase2_definitions_et_concurrentes.md",
     "mesure/phase2_entree_de_journal.md",
     "mesure/phase2_hypothese_et_instrument.md",
-    # Ajoutee le 20/08/2026 : la pre-inscription de la phase 3. Elle est inscrite ici par son
-    # NOM au moment ou elle est ecrite, ce qui est precisement ce que la liste sert a forcer.
+    # Ajoutes les 20 et 21/08/2026 : les trois documents de la phase 3. Ils sont inscrits ici
+    # par leur NOM au moment ou ils sont ecrits, ce qui est precisement ce que la liste sert a
+    # forcer -- le releve du defaut mineur 2 disait « les quatre autres documents » quand il y
+    # en avait cinq, et c'est ce cas qui l'a trouve, en tombant a l'ecriture.
+    "mesure/phase3_entree_de_journal.md",
     "mesure/phase3_hypothese_et_instrument.md",
     "mesure/resultats/phase2.md",
+    "mesure/resultats/phase3.md",
 )
 
 
-def test_les_sept_documents_de_mesure_sont_dans_le_meme_encodage():
+def test_les_neuf_documents_de_mesure_sont_dans_le_meme_encodage():
     """« Les quatre autres sont en UTF-8 » est un compte : ce cas ecrit les NOMS.
 
     Deux assertions, et elles ne disent pas la meme chose. La premiere : **tout** document
