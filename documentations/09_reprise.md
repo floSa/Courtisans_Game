@@ -53,7 +53,7 @@ Le pilote **n'écrit pas le code des phases**. Il :
 
 **Deux règles de vérification apprises à leurs frais.**
 
-- Après tout changement dans `courtisans/`, revérifier que les **19 motifs** de
+- Après tout changement dans `courtisans/`, revérifier que les **20 motifs** de
   `outillage/mutation.py` s'appliquent encore. Une mutation qui cesse de s'appliquer ne
   mesure plus rien, et rien ne le signale.
 - **Vérifier qu'une branche d'agent est poussée avant de la croire sauvée.** C'est arrivé
@@ -115,7 +115,8 @@ la cinquième fois dans l'entrée de journal qui nommait la faute quatre fois. D
 **Quatre mineurs du tour 1 restent ouverts**, hors du périmètre re-vérifié, et ils sont à
 traiter au début de la phase 3 :
 
-1. le rapport généré est en cp1252 quand les quatre autres documents sont en UTF-8 ;
+1. le rapport généré est en cp1252 quand les **cinq** autres documents de `mesure/` sont en
+   UTF-8 — le relevé de la phase 2 écrivait « quatre » ; **corrigé en phase 3** ;
 2. **`vue_du_joueur`, rendue publique par cette phase, ne valide pas son argument** et rend une
    vue n'appartenant à aucun siège — c'est la réouverture du défaut 2 de la phase 0 sur une
    entrée neuve, et c'est le plus sérieux des quatre puisque tout agent en dépend ;

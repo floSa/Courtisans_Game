@@ -130,6 +130,16 @@ l'exploitabilité — un nombre absolu. Ici, **le juge est relatif**.
 > **L'appariement reste obligatoire** : il ne coûte rien et il supprime une variance réelle.
 > Ce qui est interdit, c'est de **dimensionner un budget** sur un facteur de gain qu'on n'a pas
 > mesuré sur sa propre population. Toute phase qui veut s'en servir mesure d'abord son ρ.
+>
+> **Et la phase 3 a fourni le contre-exemple, le 21/08/2026 : il existe un appariement qui
+> économise vraiment.** Ce ρ-ci n'est pas le même objet que celui ci-dessus — celui de la phase 2
+> est mesuré entre **réplicats de politique** sur une donne, celui de la phase 3 entre
+> **assignations de siège** sur une donne. Mesuré sur « un greedy contre deux greedys »,
+> 2 000 donnes, seeds 20000–21999 : **ρ = −0,1400**, effet de plan **0,7200** — la permutation des
+> sièges **fait gagner 28 % de variance**. Elle est négative *par structure* : la somme des trois
+> sièges vaut zéro dans une partie, donc ce qu'un siège gagne, les autres le perdent.
+> **Conséquence : « l'appariement n'économise rien » est vrai du ρ de la phase 2 et faux de
+> celui-là. Nommer lequel des deux on parle fait partie du chiffre.**
 
 ### La mesure secondaire : les comportements B1 à B7
 
@@ -434,11 +444,28 @@ population d'un agent contre deux greedys.** La phase 3 mesure donc σ(gain) et 
 composition**, en pré-inscription, et en déduit son nombre de parties — c'est l'étape 4 de la
 boucle du §2, et le §0.2 l'exige.
 
-**Garde-fou de la règle 2.** À **chaque checkpoint de 15 minutes**, l'agent est mis à la place du
-greedy dans la composition **un contre deux aléatoires** et comparé à la part de victoire
-fractionnée du greedy dans cette même composition — **86,52 %**, mesurée en phase 2. S'il ne l'a
-pas dépassée au dernier checkpoint du run, on arrête : l'agent n'apprend pas, et rallonger ne dira
-rien de plus.
+**Garde-fou de la règle 2.** Il **teste la prémisse qu'il nomme**, et rien d'autre : *l'agent
+n'apprend pas.* À chaque checkpoint de 15 minutes, l'agent est mis à la place du greedy dans la
+composition **un contre deux aléatoires** et sa part de victoire fractionnée est mesurée, agrégée
+sur les trois sièges. Il se déclenche si, sur **trois checkpoints consécutifs**, cette part n'a pas
+progressé — intervalles à 99 % qui se recouvrent d'un checkpoint au suivant.
+
+**Il ne se déclenche PAS parce que l'agent n'a pas atteint le niveau du greedy.** Les **86,52 %**
+du greedy dans cette composition sont la **cible** de la phase, pas un test d'apprentissage. Un
+agent peut apprendre franchement sans les atteindre, et c'est exactement ce qui est arrivé.
+
+> **Troisième correction de ce même garde-fou, le 21/08/2026.** Il en a porté trois défauts
+> successifs, et les trois étaient des confusions différentes. **Un :** le texte d'origine écrivait
+> « si après 2 h d'entraînement », dans une section dont le plafond est 2 h — il se déclenchait
+> quand le run était fini. **Deux :** la correction du pilote l'évaluait à chaque checkpoint, donc
+> il se déclenchait au premier, avant que quoi que ce soit ait pu être appris. **Trois :** sa
+> prémisse était fausse. Il concluait « l'agent n'apprend pas » d'un agent qui n'atteignait pas le
+> greedy, et la phase 3 fournit le contre-exemple mesuré — part fractionnée contre deux aléatoires
+> **57,33 → 59,52 → 61,77 → 63,22 → 65,06 → 67,56 → 69,27 → 70,13 %**, croissance monotone sans
+> exception sur huit checkpoints, encore en progression au dernier, et pourtant loin des 86,52 %.
+>
+> **Un garde-fou doit tester la phrase qu'il écrit.** Les trois défauts venaient de ce qu'il n'en
+> testait pas une seule.
 
 > **Corrigé le 20/08/2026, sur remontée de la conversation n° 6.** Ce garde-fou disait « **si après
 > 2 h d'entraînement** », dans une section dont le plafond d'exécution est **2 h**. Il se
@@ -473,7 +500,8 @@ entre compositions différentes**.
 **Quatre défauts mineurs hérités de la phase 2 se traitent au début de cette phase**, avant toute
 mesure :
 
-1. le rapport généré est écrit en **cp1252** quand les quatre autres documents sont en UTF-8 ;
+1. le rapport généré est écrit en **cp1252** quand les **cinq** autres documents de `mesure/`
+   sont en UTF-8 — le relevé de la phase 2 écrivait « quatre », il y en a cinq ;
 2. **`vue_du_joueur` ne valide pas son argument** et rend une vue n'appartenant à aucun siège —
    c'est la réouverture du défaut 2 de la phase 0 sur une entrée neuve, et c'est le plus sérieux
    des quatre puisque **tout agent en dépend** ;
