@@ -24,3 +24,8 @@ remeasure_*.log
 training_graph.png
 cfr/
 models/
+
+# Checkpoints de la phase 3. Binaires, regenerables par `agents.campagne`, et le journal
+# `journal.jsonl` du run est lui aussi ecrit la -- il est recopie dans `mesure/resultats/`
+# quand il devient un livrable.
+models/phase3/

@@ -32,10 +32,17 @@ Il s'est fâché deux fois pour la même raison : le manque de clarté.
   `origin/cfr-pivot` uniquement, hors lignée.
 - **Une preuve différée revient nommée, pas agrégée en un compte.** Si on annonce « tel test
   tombera », il faut dire *lequel*, pas « trois tests sont tombés ».
-- **Tout ce qu'il doit donner à un agent porte un numéro ET un nom**, et vient avec **un
-  endroit** : soit le chemin du fichier, soit le prompt écrit directement dans la conversation.
-  L'un ou l'autre, jamais ni l'un ni l'autre. Exemple : « conversation n° 6 — Construction de la
-  phase 3, le prompt est dans `prompts/10_phase3_construction.md` ».
+- **Un seul bloc, à la fin, quand tout est vérifié.** Pas de commentaire d'avancement, pas de
+  « je te reviens quand ». Le bloc final dit, pour **chaque** conversation ouverte, ce qu'elle
+  doit recevoir — ou explicitement qu'elle n'attend rien. Il se termine par **TÂCHE FINIE** ou
+  par la consigne suivante. Un message qui n'est ni l'un ni l'autre le laisse sans rien à faire.
+- **Tout ce qu'il doit donner à un agent porte un numéro ET un nom.** Exemple : « conversation
+  n° 6 — Construction de la phase 3 ».
+- **Le texte à coller est TOUJOURS écrit en entier dans la conversation**, dans un bloc de code,
+  prêt à Ctrl+A / Ctrl+C. Le chemin du fichier se donne **en plus**, comme référence — jamais à
+  la place. Il n'a pas le temps d'aller chercher dans le dépôt quel morceau il faut copier, et un
+  chemin seul le laisse deviner. Vrai même quand le fichier vient d'être écrit ou modifié : le
+  morceau exact revient dans la conversation.
 - **Le dépôt se pousse sous ses identifiants perso.** `floSa <florian.horellou@gmail.com>`, via
   le remote `git@github.com-perso:floSa/Courtisans_Game.git`. Vérifier avant de pousser, pas
   après.

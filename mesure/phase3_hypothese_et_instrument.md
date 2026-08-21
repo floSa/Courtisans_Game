@@ -536,22 +536,46 @@ pour que deux checkpoints se comparent sur les mêmes donnes.
    > texte qui consigne la leçon.
 
    **La règle pré-inscrite préserve donc l'arrêt anticipé, et corrige les regards multiples
-   plutôt que de les supprimer :**
+   plutôt que de les supprimer.** L'IC est corrigé de **Bonferroni pour 8 regards** :
+   `z = 3,2272` au lieu de 2,5758, soit une demi-largeur de **2,60 pt** à 1 800 parties contre
+   2,07 pt sans correction. Le prix est payé du bon côté — un arrêt tardif coûte des minutes de
+   machine, un faux arrêt coûte un run entier et une conclusion fausse.
 
-   - le garde-fou **peut déclencher dès le 3ᵉ checkpoint** (45 min) — les deux premiers sont
-     rapportés mais ne déclenchent pas, un réseau initialisé au hasard n'ayant encore rien à
-     dire ;
-   - il déclenche quand la **borne haute** de l'IC 99 % de la part fractionnée de l'agent est
-     **encore sous 86,52 %**, l'IC étant **corrigé de Bonferroni pour 8 regards** :
-     `z = 3,2272` au lieu de 2,5758, soit une demi-largeur de **2,60 pt** à 1 800 parties
-     contre 2,07 pt sans correction ;
-   - déclencher sur la **borne haute** et non sur la moyenne est ce qui rend l'arrêt sûr : on
-     n'arrête que quand on est confiant que l'agent est **sous** le greedy, jamais sur du bruit.
-
-   **Ce que ça coûte, chiffré** : la correction de Bonferroni élargit l'IC de 0,53 pt, donc
-   l'arrêt survient un peu plus tard qu'il ne le pourrait. C'est le prix des huit regards, et
-   il est payé du bon côté — un arrêt tardif coûte des minutes de machine, un faux arrêt coûte
-   un run entier et une conclusion fausse.
+> **Amendé le 20/08/2026, AVANT le premier entraînement et avant toute mesure d'agent. La règle
+> ci-dessus, telle que je l'avais écrite, tuait un agent qui apprend.**
+>
+> Ma rédaction initiale déclenchait dès le 3ᵉ checkpoint « quand la borne haute est encore sous
+> 86,52 % ». **C'est un seuil TERMINAL appliqué à un instant INTERMÉDIAIRE.** Le protocole écrit
+> « si **après 2 h** d'entraînement l'agent n'a pas dépassé 86,52 % » : c'est le critère de fin
+> de budget, et 86,52 % est le niveau du greedy. L'appliquer à 45 minutes confond deux choses
+> qui n'ont rien à voir — **« l'agent n'a pas encore atteint la barre »** et **« l'agent
+> n'apprend pas »**.
+>
+> **MESURÉ sur un run d'essai de 2 minutes**, 25 088 parties, 3 checkpoints, garde-fou réduit à
+> 60 donnes : l'entropie de la politique tombe de **2,089 à 1,646** — l'agent apprend,
+> visiblement — et ma règle l'arrêtait quand même. Une règle qui tue un apprenant sain n'est pas
+> un garde-fou, c'est une panne.
+>
+> **La règle en vigueur sépare les deux critères :**
+>
+> - **arrêt anticipé**, possible dès le 3ᵉ checkpoint, et il exige **deux conditions à la
+>   fois** — que la part fractionnée **stagne**, `part(k) ≤ part(k−2)`, donc aucun progrès sur
+>   une demi-heure, **et** que l'agent soit **loin**, borne haute encore sous 86,52 %. *Stagner
+>   loin de la barre* est le symptôme d'un agent qui n'apprend pas ; *être loin en progressant*
+>   ne l'est pas ;
+> - **critère terminal**, inchangé et celui du protocole : à la fin des 2 h, la part fractionnée
+>   a-t-elle dépassé **86,52 %** ? C'est ce qui se rapporte, quel que soit le chemin ;
+> - les deux premiers checkpoints sont **rapportés mais ne déclenchent jamais** : `part(k−2)`
+>   n'existe pas avant le troisième.
+>
+> **Ce garde-fou est testé par ses DEUX erreurs**, pas par une seule —
+> `tests/agents/test_campagne.py` : un agent qui progresse loin de la barre n'est pas arrêté
+> (le faux positif que ma première version commettait), un agent qui stagne loin l'est, et un
+> agent qui stagne **au-dessus** de la barre ne l'est pas.
+>
+> C'est la troisième fois que ce garde-fou porte un défaut : le protocole le déclenchait quand
+> le run était fini, ma correction le déclenchait trop tôt. **La correction est le lieu du
+> défaut suivant**, et celui-ci a été trouvé avant d'avoir coûté un run.
 
 ---
 
@@ -580,6 +604,22 @@ de la phase 3 ». **Mon budget en compte 6 000.** Recopier les marqueurs serait 
 faute que ce projet paie : un chiffre exact sur une population — ici un budget — que la phrase
 ne nomme pas.
 
+> **L'ORDRE DANS LEQUEL C'EST ARRIVÉ, parce qu'un lecteur va me soupçonner et il aura raison
+> de le faire.** Un périmètre qui s'élargit juste assez pour qu'une ligne devienne mesurable
+> est exactement la liberté que la pré-inscription existe pour supprimer. Voici la
+> chronologie, et elle est vérifiable dans l'historique git :
+>
+> 1. `σ = 0,6494` et `ρ = −0,1400` sont mesurés sur la composition de l'hypothèse nulle,
+>    **pour l'estimand du GAIN** — pas pour un compteur de comportement ;
+> 2. le budget de **6 000 parties** en est déduit, par la formule du §2.1, et **pré-inscrit** ;
+> 3. **seulement ensuite** les marqueurs de M4 sont recalculés à ce budget, parce qu'un
+>    marqueur qui dépend du budget doit suivre le budget.
+>
+> **Que `B7` devienne séparable est une CONSÉQUENCE du budget, jamais un motif de l'avoir
+> choisi.** Aucun chiffre de comportement n'est entré dans le choix du budget, et aucun
+> n'aurait pu : le budget est fixé par `σ(gain)` et `ρ(gain)`, qui ne dépendent d'aucun
+> compteur B1–B7.
+
 **MESURÉ le 20/08/2026**, en repassant les 34 compteurs du rapport livré par
 `phase2.budget_d_un_compteur`, la fonction unique que l'audit du tour 2 a imposée :
 
@@ -598,9 +638,26 @@ requises), `B1-collectif` (5 868), `B2-contestee` (1 806), `B2-contestee-publiqu
 `B2-destination/domaine propre` (2 532), `B4-tout-dos` (3 360), `B5-pire-cas` (3 846),
 `B7-lumiere` (2 255). Les noms sont écrits, pas comptés.
 
-**Et `B7` cesse d'être aveugle par le bas** : `B7-gaspillage` passe d'un écart détectable de
-0,30 % à **0,12 %** pour un taux de 0,15 % (61/40008), `B7-gaspillage-vraie` de 0,35 % à
-**0,14 %** pour 0,20 % (82/40008). **À 6 000 parties, un agent à zéro exact en EST séparable.**
+**Deux lignes cessent d'être aveugles par le bas, et ce sont** `B7-gaspillage` — écart
+détectable de 0,30 % → **0,12 %** pour un taux de 0,15 % (61/40008) — **et**
+`B7-gaspillage-vraie` — 0,35 % → **0,14 %** pour 0,20 % (82/40008). **À 6 000 parties, un agent
+à zéro exact en EST séparable.**
+
+> **SÉPARABLE NE VEUT PAS DIRE INTERPRÉTABLE, et la marge est mince.** Un écart détectable de
+> 0,12 % pour un taux de 0,15 % laisse **0,03 point** de marge : la ligne sort de l'aveuglement,
+> elle n'en sort pas confortablement. **Tout écart publié sur B7 vient donc avec son IC**, et
+> avec ce qu'il ne dit pas :
+>
+> - `B7-occasions` vaut **1,22 %** des poses au banquet (488/40008) : sur cette instance à
+>   4 tours, une famille devient rarement hors d'atteinte avant la fin. **B7 n'a presque pas
+>   l'occasion de se manifester**, et un taux bas se lit sur ce fond-là ;
+> - l'écart greedy–hasard observé vaut **−0,02 pt** et demanderait **320 163 parties** :
+>   `B7-gaspillage` reste **hors budget** pour cet écart-là à 6 000 parties. Les deux critères
+>   sont indépendants — une ligne peut être séparable par le bas et hors budget pour l'écart
+>   qu'elle montre ;
+> - `_poids_de_bascule_disponible` est une **proposition**, jamais démontrée minimale
+>   (réserve 1 de la phase 2), donc `B7-gaspillage` est un **plancher** du gaspillage, pas le
+>   gaspillage.
 
 > **C'est un écart avec l'instruction reçue, et il est remonté au pilote plutôt qu'appliqué en
 > silence.** Le prompt de cette phase dit « n'annonce aucune différence sur ces lignes », et
