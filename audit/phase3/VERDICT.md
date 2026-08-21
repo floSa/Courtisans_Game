@@ -48,10 +48,10 @@ Il ECHOUE depuis `main`, qui porte `b5e4228` et ne contient pas la phase 3.
 |---|---|---|---|---|
 | 1 | **bloquant** | « il progressait encore au dernier » n'est pas etabli, et ma remesure lui donne le signe oppose | `phase3_entree_de_journal.md`, rapport §4 | MESURE ci-dessous |
 | 2 | **bloquant** | le garde-fou reecrit sur cette phrase tuerait ce run au 3e checkpoint | `documentations/05` sur `main` (`b5e4228`) | MESURE : 7/7 |
-| 3 | majeur | « chacun des dix est verifie capable d'echouer » : faux pour 4, impossible pour 2 | `mesure/phase3_audit.py:186,206` | MESURE : tests 14-16 |
-| 4 | majeur | R4 declare « 0 valeur extreme » pendant que le rapport publie deux zeros absolus | `mesure/phase3_audit.py:185-201` | MESURE : test 15 |
-| 5 | majeur | deux populations differentes publiees sous le **meme nom** | `phase3_mesure.py:413` / `campagne.py:152` | MESURE : 1500 vs 1800 parties |
-| 6 | majeur | la regle « hors budget », pre-inscrite avec ses 8 noms, est du code mort et n'a pas ete appliquee | `phase3_mesure.py:284-291` | MESURE : test 17 |
+| 3 | majeur | « chacun des dix est verifie capable d'echouer » : faux pour 4, impossible pour 2 | `mesure/phase3_audit.py:200,231` | MESURE : tests 14-16 |
+| 4 | majeur | R4 declare « 0 valeur extreme » pendant que le rapport publie deux zeros absolus | `mesure/phase3_audit.py:185-203` | MESURE : test 15 |
+| 5 | majeur | deux populations differentes publiees sous le **meme nom** | `phase3_mesure.py:413` / `campagne.py:154` | MESURE : 1500 vs 1800 parties |
+| 6 | majeur | la regle « hors budget », pre-inscrite avec ses 8 noms, est du code mort et n'a pas ete appliquee | `phase3_mesure.py:284-290` | MESURE : test 17 |
 | 7 | mineur | la marge de 10 % pre-inscrite portait sur la demi-largeur, pas sur `sigma` — et elle n'est pas franchie | pre-inscription §3, rapport §2 | MESURE : −1,1 % |
 | 8 | mineur | l'ecart detectable suppose des denominateurs egaux ; 5 lignes ne les ont pas | `phase2.ecart_de_taux_detectable` | MESURE : 0 ligne bascule |
 | 9 | mineur | le tableau central du rapport ne se rend pas comme un tableau | `rapport_phase3.py:362-377` | MESURE : rendu GFM |
