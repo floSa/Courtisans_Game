@@ -266,7 +266,7 @@ def section_comportements(
 
 def section_ce_qui_n_est_pas_etabli(lignes: list[str]) -> None:
     """Pre-inscrite au paragraphe 10, recopiee ici pour que le rapport soit autoportant."""
-    lignes.append(_titre("6. Ce que ces chiffres n'etablissent PAS"))
+    lignes.append(_titre("7. Ce que ces chiffres n'etablissent PAS"))
     lignes += [
         "**Ecrit avant la mesure**, paragraphe 10 de la pre-inscription.",
         "",
@@ -293,11 +293,49 @@ def section_ce_qui_n_est_pas_etabli(lignes: list[str]) -> None:
     ]
 
 
+def section_audit(lignes: list[str], controles: Sequence) -> None:
+    """L'auto-audit, **ecrit avant le resultat** et joue sur lui.
+
+    Un controle ecrit apres avoir vu un chiffre est un controle que le chiffre a passe par
+    construction. Ceux-ci sont dans `mesure/phase3_audit.py`, commite avant l'entrainement.
+    """
+    lignes.append(_titre("6. L'audit de ce resultat, par ses propres controles"))
+    lignes += [
+        "**Ces controles sont ecrits et commites AVANT que l'agent ne soit mesure** -- "
+        "`mesure/phase3_audit.py`. Un controle ecrit apres avoir vu un chiffre est un controle "
+        "que le chiffre a passe par construction.",
+        "",
+        "Ils portent sur des **unites**, des **denominateurs** et des **populations**, jamais "
+        "sur des valeurs : reproduire un nombre ne le valide pas, et un facteur trois indu a "
+        "survecu a deux verifications reussies en phase 2 pour cette raison.",
+        "",
+        "| Question | Controle | Verdict | Preuve |",
+        "|---|---|---|---|",
+    ]
+    for controle in controles:
+        etat = "concluant" if controle.passe else "**ECHOUE**"
+        lignes.append(
+            f"| {controle.code} | {controle.intitule} | {etat} | {controle.preuve} |"
+        )
+    echoues = [c for c in controles if not c.passe]
+    lignes += [
+        "",
+        (
+            f"**{len(echoues)} controle(s) en echec : "
+            + ", ".join(c.intitule for c in echoues)
+            + ". Aucun chiffre de ce rapport ne vaut tant qu'ils ne sont pas expliques.**"
+            if echoues
+            else f"**{len(controles)} controles, aucun en echec.**"
+        ),
+    ]
+
+
 def rapport(
     contre_greedys: phase3_mesure.Mesure,
     pool: Sequence[phase3_mesure.Mesure],
     comparaisons: Sequence[phase3_mesure.Comparaison],
     jalons: Sequence[dict],
+    controles: Sequence,
 ) -> str:
     """Assemble le rapport complet en Markdown."""
     lignes: list[str] = [
@@ -321,6 +359,7 @@ def rapport(
     section_pool(lignes, pool)
     section_garde_fou(lignes, jalons)
     section_comportements(lignes, comparaisons, contre_greedys.nb_parties)
+    section_audit(lignes, controles)
     section_ce_qui_n_est_pas_etabli(lignes)
     return "\n".join(lignes) + "\n"
 

@@ -57,11 +57,39 @@ from mesure import phase2, phase3
 #: ligne de base qui bouge pour une seconde raison.
 DECALAGE_TROIS_GREEDYS = phase2.DECALAGE_POLITIQUE_3_GREEDYS
 
-#: Les donnes de la campagne finale. **Disjointes des `20000-21999` du dimensionnement**, des
-#: `40000+` du garde-fou et des `100000+` de l'entrainement. Dimensionner et juger sur le meme
-#: echantillon le reutiliserait deux fois ; juger sur les donnes d'entrainement donnerait a
-#: l'agent un avantage qui n'est pas de l'habilete.
-DEPART_CAMPAGNE_FINALE = 30_000
+#: Les donnes de la campagne finale, et les deux decalages des compositions du pool.
+#:
+#: **TROUVE PAR MON PROPRE CONTROLE D'AUDIT, avant la mesure.** La premiere version partait a
+#: `30000` et decalait les compositions du pool de `+100 000` et `+200 000`, ce qui les placait
+#: a `130000` et `230000+` -- **dans la plage d'entrainement**. L'entrainement part a `100 000`
+#: et, a 229 parties par seconde pendant 7 200 secondes, consomme jusqu'a environ `1 749 000`.
+#: La mesure contre deux aleatoires et celles contre les checkpoints auraient donc juge l'agent
+#: sur des donnes qu'il avait vues, ce qui lui aurait donne un avantage qui n'est pas de
+#: l'habilete -- et le chiffre aurait ete juste sur une population que sa phrase ne nomme pas.
+#:
+#: Les quatre plages sont desormais **toutes sous 100 000**, la ou l'entrainement ne va jamais :
+#:
+#:   dimensionnement  20 000 - 21 999   (2 000 donnes)
+#:   garde-fou        40 000 - 40 599   (600 donnes, les memes a chaque checkpoint)
+#:   verdict          60 000 - 61 999   (2 000 donnes, un agent contre deux greedys)
+#:   pool aleatoire   70 000 - 70 499   (500 donnes)
+#:   pool checkpoints 80 000 + 1 000 x i (500 donnes chacun, jusqu'a 8 checkpoints)
+#:   entrainement    100 000 +           (jamais en dessous)
+DEPART_CAMPAGNE_FINALE = 60_000
+
+#: Le decalage de la composition contre deux aleatoires.
+DECALAGE_POOL_ALEATOIRE = 10_000
+
+#: Le decalage du premier checkpoint, puis 1 000 par checkpoint suivant.
+DECALAGE_POOL_CHECKPOINTS = 20_000
+PAS_ENTRE_CHECKPOINTS = 1_000
+
+#: Le decalage de la variante **deterministe** de l'agent. Rapportee a cote de la mesure de
+#: reference, **jamais a sa place** -- exactement le statut du greedy a departage deterministe
+#: en phase 2. L'indice d'une action de pose encode l'assignation, la position au banquet et
+#: l'adversaire vise, donc une preference stable pour l'action la plus probable peut fabriquer
+#: un artefact dans B2, B3 et B6. Son ecart avec la reference est un chiffre, pas un doublon.
+DECALAGE_VARIANTE_DETERMINISTE = 30_000
 
 
 @dataclass(frozen=True)
@@ -75,6 +103,14 @@ class Mesure:
         comportements: les dix-sept compteurs, aux deux grains.
         nb_donnes: le nombre de donnes.
         nb_parties: le nombre de parties. `nb_donnes x 3`.
+        campagne: les parties brutes.
+
+    **La campagne brute est gardee**, et ce n'est pas un oubli de nettoyage : c'est le
+    **support** de tout ce qui precede. Sans elle, « la somme des gains vaut-elle zero dans
+    chaque partie ? » et « chaque siege est-il occupe une fois par donne ? » ne sont plus des
+    questions verifiables -- il ne reste que des agregats qui se confirment eux-memes. La
+    phase 2 liberait ses campagnes pour tenir en memoire ; a 6 000 parties ce n'est pas
+    necessaire, et l'auditabilite vaut mieux.
     """
 
     intitule: str
@@ -83,6 +119,7 @@ class Mesure:
     comportements: dict[str, comp.Compte]
     nb_donnes: int
     nb_parties: int
+    campagne: phase3.Campagne
 
 
 def groupes_pour_m4(campagne: phase3.Campagne) -> list[phase2.Groupe]:
@@ -143,6 +180,7 @@ def mesurer(
         comportements=comportements,
         nb_donnes=len(campagne.donnes),
         nb_parties=campagne.nb_parties,
+        campagne=campagne,
     )
 
 
@@ -373,11 +411,37 @@ def main(argv: list[str] | None = None) -> int:
                 adversaire=phase3.uniforme,
                 donnes=arguments.donnes_pool,
                 intitule="1 agent entraine contre 2 aleatoires (garde-fou)",
-                depart=DEPART_CAMPAGNE_FINALE + 100_000,
+                depart=DEPART_CAMPAGNE_FINALE + DECALAGE_POOL_ALEATOIRE,
                 decalage_adversaire=phase3.DECALAGE_UNIFORME,
             ),
         )
     )
+    from agents.politique_reseau import charger, politique_reseau_deterministe
+    from courtisans.engine import Engine
+    from courtisans.infoset import tenseur
+
+    etat_zero = Engine(phase3.CONFIG).reset(0)
+    modele_final = charger(
+        str(final),
+        taille_observation=len(tenseur(etat_zero, 0)),
+        nb_actions=6 * 2 * (phase3.CONFIG.joueurs - 1),
+    )
+    pool.append(
+        chronometre(
+            "1 agent DETERMINISTE contre 2 greedys",
+            lambda: mesurer(
+                agent=lambda _alea: politique_reseau_deterministe(modele_final),
+                adversaire=phase3.greedy_de_reference,
+                donnes=arguments.donnes,
+                intitule=(
+                    "1 agent entraine, variante DETERMINISTE, contre 2 greedys "
+                    "(robustesse -- jamais a la place de la reference)"
+                ),
+                depart=DEPART_CAMPAGNE_FINALE + DECALAGE_VARIANTE_DETERMINISTE,
+            ),
+        )
+    )
+
     checkpoints = sorted(arguments.dossier.glob("checkpoint_*.pt"))
     for indice, chemin in enumerate(checkpoints):
         fige = politique_de_checkpoint(str(chemin))
@@ -389,7 +453,11 @@ def main(argv: list[str] | None = None) -> int:
                     adversaire=fige,
                     donnes=arguments.donnes_pool,
                     intitule=f"1 agent entraine contre 2 copies de `{chemin.name}`",
-                    depart=DEPART_CAMPAGNE_FINALE + 200_000 + 10_000 * indice,
+                    depart=(
+                        DEPART_CAMPAGNE_FINALE
+                        + DECALAGE_POOL_CHECKPOINTS
+                        + PAS_ENTRE_CHECKPOINTS * indice
+                    ),
                 ),
             )
         )
@@ -415,8 +483,30 @@ def main(argv: list[str] | None = None) -> int:
         else []
     )
 
-    texte = rapport_phase3.rapport(contre_greedys, pool, comparaisons, jalons)
-    texte += "\n## 7. Duree machine\n\n| Etape | Duree |\n|---|---:|\n"
+    # --- 5. L'audit, joue SUR le resultat mais ecrit AVANT lui ------------------------
+    from mesure import phase3_audit
+
+    controles = chronometre(
+        "auto-audit",
+        lambda: phase3_audit.auditer(
+            mesure=contre_greedys,
+            campagne=contre_greedys.campagne,
+            pool=pool,
+            comparaisons=comparaisons,
+            base=base,
+            nb_parties_base=arguments.donnes * phase3.CONFIG.joueurs,
+            donnes_calibration=arguments.donnes,
+            donnes_pool=arguments.donnes_pool,
+            nb_checkpoints=len(checkpoints),
+            parties_entrainement=(jalons[-1]["parties"] if jalons else 0),
+        ),
+    )
+    for controle in controles:
+        if not controle.passe:
+            print(f"  !! CONTROLE EN ECHEC -- {controle.code} {controle.intitule}", flush=True)
+
+    texte = rapport_phase3.rapport(contre_greedys, pool, comparaisons, jalons, controles)
+    texte += "\n## 8. Duree machine\n\n| Etape | Duree |\n|---|---:|\n"
     for nom, duree in durees:
         texte += f"| {nom} | {duree:.1f} s |\n"
     texte += (
@@ -434,7 +524,11 @@ if __name__ == "__main__":
 
 
 __all__ = [
+    "DECALAGE_POOL_ALEATOIRE",
+    "DECALAGE_POOL_CHECKPOINTS",
+    "DECALAGE_VARIANTE_DETERMINISTE",
     "DEPART_CAMPAGNE_FINALE",
+    "PAS_ENTRE_CHECKPOINTS",
     "EXCLUS_PAR_LE_TEXTE",
     "Comparaison",
     "Mesure",
