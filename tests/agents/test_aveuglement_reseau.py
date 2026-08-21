@@ -392,3 +392,132 @@ def test_p3_le_tirage_a_graine_egale_separe_bien_deux_lois_differentes():
         == reseau_module.tirer(loi_a, random.Random(graine))
         for graine in range(200)
     )
+
+
+# ---------------------------------------------------------------------------------
+# Les memes preuves, rejouees sur le reseau ENTRAINE
+#
+# La docstring de ce module promet que l'invariance « est rejouee sur le reseau entraine en
+# fin de phase, par le meme code ». **Une promesse sans code n'est pas une preuve** : ces cas
+# la tiennent.
+#
+# Pourquoi ca ne va pas de soi. Les cas au-dessus tournent sur un reseau a l'initialisation,
+# dont la politique est quasi uniforme -- etendue relative mesuree a 0,1452 au plus. Un reseau
+# entraine est **pique** : ses logits sont grands, donc une meme perturbation de l'entree
+# deplace la loi bien plus, et un tirage a graine egale la separe bien plus facilement.
+# L'invariance y est donc **plus difficile a tenir**, pas moins.
+#
+# Ils SAUTENT si `models/phase3/final.pt` n'existe pas -- le fichier est ignore par git, et un
+# depot fraichement clone n'en a pas. Le saut est bruyant : il nomme le fichier manquant et la
+# commande qui le produit, plutot que de laisser croire que la preuve a ete faite.
+# ---------------------------------------------------------------------------------
+
+CHEMIN_AGENT_ENTRAINE = Path("models/phase3/final.pt")
+
+
+def _agent_entraine() -> reseau_module.ReseauPolitiqueValeur:
+    """Le reseau entraine, ou un saut bruyant qui nomme ce qui manque."""
+    if not CHEMIN_AGENT_ENTRAINE.exists():
+        pytest.skip(
+            f"{CHEMIN_AGENT_ENTRAINE} absent -- les preuves d'aveuglement n'ont PAS ete "
+            f"rejouees sur le reseau entraine. Le produire par "
+            f"`uv run python -m agents.campagne --dossier models/phase3`."
+        )
+    from agents.politique_reseau import charger
+
+    etat = Engine(CONFIG).reset(0)
+    return charger(
+        str(CHEMIN_AGENT_ENTRAINE),
+        taille_observation=len(tenseur(etat, 0)),
+        nb_actions=6 * 2 * (CONFIG.joueurs - 1),
+    )
+
+
+def test_l_agent_entraine_est_bien_PIQUE_donc_le_cas_suivant_est_plus_severe():
+    """Le fondement de la severite, verifie avant d'en tirer parti.
+
+    Si le reseau entraine etait reste quasi uniforme, rejouer P3 dessus ne serait pas plus
+    severe que sur un reseau neuf, et l'affirmation de la docstring serait fausse. Le cas
+    mesure l'etendue relative de sa politique et exige qu'elle depasse largement celle d'un
+    reseau a l'initialisation -- 0,1452 au plus, MESURE sur 10 graines x 20 etats.
+    """
+    modele = _agent_entraine()
+    # Une position avancee de huit coups, pour que le plateau porte des dos et que la
+    # politique ait de quoi discriminer. Un etat initial serait le cas le plus favorable.
+    etat = Engine(CONFIG).reset(0)
+    alea = random.Random(50_000)
+    for _ in range(8):
+        etat.apply(alea.choice(etat.legal_actions()))
+    legales = etat.legal_actions()
+    with torch.no_grad():
+        logits, _ = modele(
+            torch.tensor([tenseur(etat, etat.current_player())], dtype=torch.float32)
+        )
+    loi = reseau_module.probabilites(
+        logits, reseau_module.masque([legales], modele.nb_actions)
+    )
+    valeurs = [loi[0, a].item() for a in legales]
+    etendue = (max(valeurs) - min(valeurs)) * len(legales)
+    assert etendue > 0.30, (
+        f"l'agent entraine a une politique d'etendue relative {etendue:.4f}, du meme ordre "
+        f"qu'un reseau neuf : rejouer P3 dessus n'est pas plus severe, et la docstring de ce "
+        f"module doit etre relue avant d'etre crue."
+    )
+
+
+@pytest.mark.parametrize("seed", [0, 1, 2, 3, 4, 5, 6, 7])
+def test_p3_sur_l_agent_ENTRAINE(seed: int):
+    """P3, mot pour mot, sur le reseau qui a ete mesure. C'est celui-la qui compte."""
+    modele = _agent_entraine()
+    etat = Engine(CONFIG).reset(seed)
+    noeuds = 0
+    while not etat.is_terminal():
+        joueur = etat.current_player()
+        observation = tenseur(etat, joueur)
+        actions = etat.legal_actions()
+        action = reseau_module.choisir(modele, observation, actions, random.Random(1234))
+
+        perturbe = etat.clone()
+        brouilleur = random.Random(9_000 + seed + noeuds)
+        _permuter_espions_adverses(perturbe, joueur, brouilleur)
+        _permuter_la_pioche(perturbe, brouilleur)
+        _permuter_les_mains_adverses(perturbe, joueur, brouilleur)
+
+        observation_perturbee = tenseur(perturbe, joueur)
+        assert observation_perturbee == observation, (
+            f"seed {seed}, nœud {noeuds} : le TENSEUR a bouge sous une perturbation invisible "
+            f"du decideur. C'est l'encodage qui fuite, pas l'agent."
+        )
+        assert (
+            reseau_module.choisir(
+                modele, observation_perturbee, perturbe.legal_actions(), random.Random(1234)
+            )
+            == action
+        ), f"seed {seed}, nœud {noeuds} : la decision de l'agent ENTRAINE a change"
+        noeuds += 1
+        etat.apply(action)
+    assert noeuds > CONFIG.tours * CONFIG.joueurs
+
+
+def test_p2_sur_l_agent_ENTRAINE(monkeypatch):
+    """P2, mot pour mot, sur le reseau qui a ete mesure."""
+    modele = _agent_entraine()
+    vraie_vue = State.vue_privilegiee
+    appels = {"decisions": 0}
+
+    def vue_piegee(self):  # noqa: ANN001, ANN202 - signature imposee par le remplacement
+        raise AssertionError("l'agent entraine a lu vue_privilegiee() en decidant : il triche")
+
+    alea = random.Random(7)
+    etat = Engine(CONFIG).reset(0)
+    while not etat.is_terminal():
+        observation = tenseur(etat, etat.current_player())
+        actions = etat.legal_actions()
+        monkeypatch.setattr(State, "vue_privilegiee", vue_piegee)
+        try:
+            appels["decisions"] += 1
+            action = reseau_module.choisir(modele, observation, actions, alea)
+        finally:
+            monkeypatch.setattr(State, "vue_privilegiee", vraie_vue)
+        etat.apply(action)
+    assert appels["decisions"] >= CONFIG.tours * CONFIG.joueurs
