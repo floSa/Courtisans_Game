@@ -50,11 +50,15 @@ La pre-inscription mesure `sigma` et `rho` **sous l'hypothese nulle** -- le gree
 
 **Demi-largeur de l'IC 99 % du gain** : **0.0181** sur 6000 parties.
 
-> **Elle ne se compare pas telle quelle au 0,0183 de la pre-inscription**, et c'est la faute du projet appliquee a un budget plutot qu'a une population. Une demi-largeur depend de **deux** choses : `sigma`, propre a la composition, et `n`, propre au budget. Le 0,0183 est pre-inscrit **a 6 000 parties**. Le confronter a une demi-largeur mesuree sur un autre nombre de parties melangerait un effet de composition et un effet de budget.
+> **LA REGLE PRE-INSCRITE PORTE SUR LA DEMI-LARGEUR, PAS SUR `sigma`, ET ELLE N'EST PAS FRANCHIE.** Le paragraphe 3 de la pre-inscription ecrit : « la **demi-largeur** reelle sera remesuree sur la campagne finale et publiee a cote de celle-ci ; si **elle** en differe de plus de 10 %, c'est que `sigma` a bouge et il faudra le dire ». Le declencheur est donc la demi-largeur.
 >
-> **Ce qui se compare est `sigma`**, qui ne depend pas de `n` : **0.5710** ici contre **0,6494** sous l'hypothese nulle, soit **-12.1 %**. `sigma` a bouge de plus de 10 % : la pre-inscription le donnait comme SUPPOSE, et il faut donc le dire ici plutot que de laisser le budget se lire comme s'il n'avait pas bouge.
+> Mesuree : **0.0181** contre **0,0183** pre-inscrits, au **meme budget de 6 000 parties** -- soit **-1.1 %**. **Elle reste dans la marge de 10 %, donc le declencheur pre-inscrit n'est pas franchi.**
 >
-> Pour memoire, la demi-largeur **ramenee a 6 000 parties** vaut `0.0181 x sqrt(6000 / 6000)` = **0.0181**, et c'est **cette** valeur qui se lit contre 0,0183. La conversion suppose que l'effet de plan est le meme aux deux tailles, ce qui est vrai a `rho` constant.
+> **Et `sigma` a pourtant bouge de -12.1 %** -- 0.5710 contre 0,6494. Une premiere redaction de ce rapport declarait sur cette base « `sigma` a bouge de plus de 10 % », en attribuant a la marge une grandeur qu'elle ne surveillait pas ; l'audit l'a relevee, et le pilote avait propage l'erreur sans la voir. Le fait reste vrai, c'est la regle citee qui etait la mauvaise.
+>
+> **La regle etait aveugle au mouvement qu'elle pretendait detecter, et c'est le resultat interessant.** Une demi-largeur ne depend pas de `sigma` seul mais de `sigma x sqrt(effet de plan / n)`. Ici `sigma` a **chute** de 12.1 % pendant que l'effet de plan **montait** de 0,7200 a 0.8870 : `0,6494 x sqrt(0,7200)` = 0.5510 contre `0.5710 x sqrt(0.8870)` = 0.5377, soit -2.4 %. **Les deux mouvements se compensent dans la demi-largeur.** Une regle de surveillance posee sur un produit ne detecte pas le mouvement d'un seul de ses facteurs : c'est `sigma` qu'il fallait surveiller, et la pre-inscription surveillait le produit.
+>
+> Les deux grandeurs sont donc publiees separement, et c'est la lecon : `sigma` = **0.5710** (pre-inscrit 0,6494), effet de plan = **0.8870** (pre-inscrit 0,7200), demi-largeur = **0.0181** (pre-inscrite 0,0183).
 
 ## 3. Le pool -- chaque composition, nommee
 
@@ -63,7 +67,7 @@ La pre-inscription mesure `sigma` et `rho` **sous l'hypothese nulle** -- le gree
 | Composition | Parties | Gain moyen | IC 99 % | Part fractionnee | Neutre |
 |---|---:|---:|---|---:|---:|
 | 1 agent entraine contre 2 greedys, sieges permutes | 6000 | -0.1643 | [-0.1824 ; -0.1462] | 22.38 % | 33.33 % |
-| 1 agent entraine contre 2 aleatoires (garde-fou) | 1500 | +0.5505 | [+0.5070 ; +0.5937] | 70.03 % | 33.33 % |
+| 1 agent entraine FINAL contre 2 aleatoires, 500 donnes, seeds 70000+ (la composition du garde-fou, mesuree sur l'agent final) | 1500 | +0.5505 | [+0.5070 ; +0.5937] | 70.03 % | 33.33 % |
 | 1 agent entraine, variante DETERMINISTE, contre 2 greedys (robustesse -- jamais a la place de la reference) | 6000 | -0.1679 | [-0.1855 ; -0.1503] | 22.14 % | 33.33 % |
 | 1 agent entraine contre 2 copies de `checkpoint_01.pt` | 1500 | +0.2050 | [+0.1598 ; +0.2523] | 47.00 % | 33.33 % |
 | 1 agent entraine contre 2 copies de `checkpoint_02.pt` | 1500 | +0.1957 | [+0.1482 ; +0.2433] | 46.38 % | 33.33 % |
@@ -109,7 +113,9 @@ La pre-inscription annonce, au paragraphe 6, que **« un agent qui ecrase ses pr
 
 Le **86,52 %** est une **moyenne sur les trois sieges**, agregee sur les 10 002 parties de la campagne B de la phase 2, et il ne se compare qu'a une mesure agregee de la meme facon. La colonne ci-dessous l'est.
 
-Chaque checkpoint : 600 donnes x 3 sieges. IC corrige de **Bonferroni pour 8 regards**.
+Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, seeds 40000+ (garde-fou)**. Chaque checkpoint : 600 donnes x 3 sieges, **les memes donnes a chaque fois**. IC corrige de **Bonferroni pour 8 regards**.
+
+### Les niveaux -- et ils ne decident de rien
 
 | # | s | Parties d'entrainement | Entropie | Part fractionnee | IC (Bonferroni) | Gain moyen |
 |---:|---:|---:|---:|---:|---|---:|
@@ -122,64 +128,98 @@ Chaque checkpoint : 600 donnes x 3 sieges. IC corrige de **Bonferroni pour 8 reg
 | 7 | 6302 | 1303552 | 0.3091 | 69.27 % | [66.14 % ; 72.53 %] | +0.5390 |
 | 8 | 7201 | 1486336 | 0.3370 | 70.13 % | [67.05 % ; 73.19 %] | +0.5519 |
 
+> **Huit intervalles de NIVEAU ne disent pas si l'agent progresse, et une premiere redaction de ce rapport a conclu comme s'ils le disaient.** Elle ecrivait « croissance monotone sans exception » et « il progressait encore au dernier ». **Les deux sont retirees.** La monotonie de cette colonne est une propriete de ce tirage : une remesure sur les **memes donnes** avec un autre aleatoire de politique porte deux inversions, dont le dernier pas. Ce qui decide est en dessous.
+
+### Les ecarts -- et ce sont eux qui decident
+
+**Bootstrap apparie par donne, memes donnes des deux cotes, meme correction de Bonferroni.** Un ecart apparie ne coute pas une partie de plus : les donnes du garde-fou sont les memes a chaque checkpoint, la pre-inscription l'avait prevu, il ne manquait que de garder la serie.
+
+**Un ecart ne se lit pas au recouvrement de deux intervalles de niveau.** Ici 7 des 7 couples consecutifs se recouvrent, alors que l'ecart des extremes est etabli : le recouvrement ignore la correlation que l'appariement rend forte.
+
+| Ecart apparie | Valeur | IC (Bonferroni) | Etabli ? |
+|---|---:|---|---|
+| ckpt 1 -> 2 (portee 1) | +2.19 pt | [-1.58 pt ; +6.09 pt] | non -- dans le bruit |
+| ckpt 2 -> 3 (portee 1) | +2.25 pt | [-1.82 pt ; +6.30 pt] | non -- dans le bruit |
+| ckpt 3 -> 4 (portee 1) | +1.45 pt | [-2.69 pt ; +5.38 pt] | non -- dans le bruit |
+| ckpt 4 -> 5 (portee 1) | +1.83 pt | [-1.99 pt ; +5.56 pt] | non -- dans le bruit |
+| ckpt 5 -> 6 (portee 1) | +2.50 pt | [-1.41 pt ; +6.44 pt] | non -- dans le bruit |
+| ckpt 6 -> 7 (portee 1) | +1.71 pt | [-1.87 pt ; +5.40 pt] | non -- dans le bruit |
+| ckpt 7 -> 8 (portee 1) | +0.86 pt | [-2.83 pt ; +4.29 pt] | non -- dans le bruit |
+| ckpt 1 -> 4 (portee 3) | +5.89 pt | [+1.72 pt ; +10.36 pt] | **etabli** |
+| ckpt 2 -> 5 (portee 3) | +5.54 pt | [+1.31 pt ; +9.44 pt] | **etabli** |
+| ckpt 3 -> 6 (portee 3) | +5.79 pt | [+1.51 pt ; +9.81 pt] | **etabli** |
+| ckpt 4 -> 7 (portee 3) | +6.05 pt | [+2.56 pt ; +9.75 pt] | **etabli** |
+| ckpt 5 -> 8 (portee 3) | +5.07 pt | [+1.35 pt ; +8.69 pt] | **etabli** |
+| **ckpt 1 -> 8 (portee 7)** | **+12.80 pt** | [+8.33 pt ; +17.40 pt] | **ETABLI** |
+
+**Ce qui est etabli : l'agent apprend.** Du premier au dernier checkpoint, **+12.80 pt**, IC [+8.33 pt ; +17.40 pt], qui **exclut 0**. C'est la seule lecture de cette section qui tienne, et elle tient franchement.
+
+**Ce qui n'est PAS etabli : qu'il progressait ENCORE a la fin.** Aucun des 7 pas consecutifs n'est etabli, et le dernier -- ckpt 7 -> 8 -- vaut +0.86 pt, IC [-2.83 pt ; +4.29 pt], qui **contient 0**. Un quart d'heure de progres vaut environ +1.83 pt quand le budget du garde-fou en detecte **2,75** : **ce budget ne peut pas trancher un pas isole**, et aucune redaction ne le lui fera dire.
+
 **Critere terminal du protocole** : au dernier checkpoint, la part fractionnee vaut **70.13 %** contre **86,52 %**. **NON franchi.**
 
-**Arret anticipe** : non declenche : la condition de stagnation n'a jamais ete remplie.
+**Declencheur du garde-fou** -- l'ecart apparie de portee 3, a partir du checkpoint 4 : **non declenche** -- les 5 ecarts de portee 3 sont tous etablis.
 
-> **Le critere terminal n'est pas franchi, et la raison que le protocole lui prete est FAUSSE ici. C'est un resultat sur le protocole, pas sur l'agent.**
+> **Le critere terminal n'est pas franchi, et la raison que le protocole lui pretait etait fausse -- mais pas pour la raison que ce rapport donnait au premier tour.**
 >
-> Le protocole ecrit : « si apres 2 h l'agent n'a pas depasse 86,52 %, on arrete : **l'agent n'apprend pas**, et rallonger ne dira rien de plus ». La premisse est verifiable, et elle est contredite par la colonne ci-dessus : la part fractionnee **croit a chaque checkpoint sans exception**, de **57.33 %** a **70.13 %** sur 8 mesures, et l'agent progressait encore au dernier.
+> Le protocole ecrivait : « si apres 2 h l'agent n'a pas depasse 86,52 %, on arrete : **l'agent n'apprend pas**, et rallonger ne dira rien de plus ». La premisse est verifiable, et l'ecart des extremes la contredit : +12.80 pt, IC [+8.33 pt ; +17.40 pt]. **L'agent apprend.**
 >
-> Ce n'est donc pas un agent qui n'apprend pas : c'est un agent qui **n'a pas fini d'apprendre** dans le budget de 2 h. Le seuil de 86,52 % est le niveau du greedy, et rien ne disait qu'il serait atteint en 2 h -- le protocole le posait comme detecteur de panne, et il fonctionne ici comme mesure de distance restante.
+> **Ce qui ne suit pas, et que la premiere redaction en tirait :** « il n'a pas fini d'apprendre », donc « rallonger le budget ». Cette conclusion demandait que la courbe montre encore une pente a la fin, et **aucun ecart mesure ici ne le montre**. Ce que cette section etablit s'arrete a : l'agent a appris entre le premier et le dernier checkpoint. Ce qu'il ferait d'un quart d'heure de plus n'est pas mesure.
 >
-> **La distinction n'est pas rhetorique** : les deux lectures menent a des decisions opposees. « L'agent n'apprend pas » conduit a changer de methode ; « l'agent n'a pas fini » conduit a rallonger le budget, qui est le levier 1 de la phase 4. Le rapport ne tranche pas -- il etablit que la premisse du protocole ne tient pas, et remonte l'arbitrage.
+> Le garde-fou lui-meme a ete corrige une **quatrieme** fois sur cette section. Sa version du 21/08/2026 se declenchait sur trois checkpoints consecutifs a intervalles recouvrants -- or 7 des 7 couples se recouvrent ici, donc elle aurait arrete ce run au **checkpoint 3, a 45 minutes sur 120**. La regle generale qui manquait aux quatre versions : **un garde-fou ne peut chercher qu'un progres plus grand que l'ecart detectable a son propre budget.** D'ou la portee 3, et `agents.campagne.portee_minimale` qui la calcule.
 
 ## 5. Les comportements B1 a B7
 
-**La ligne de base est REGENEREE**, et ce n'est pas une commodite : ma composition est un agent contre deux greedys, un seul siege mesure. Sa ligne de base est donc **trois greedys, UN seul siege compte**, et elle n'existe pas dans le depot. Memes seeds, meme composition, meme decalage de graine `6000000` : seuls les sieges **comptes** changent.
+**La ligne de base est REGENEREE**, et ce n'est pas une commodite : ma composition est un agent contre deux greedys, un seul siege mesure. Sa ligne de base est donc **trois greedys, UN seul siege compte**, et elle n'existe pas dans le depot. Meme composition, meme decalage de graine `6000000`, memes seeds **que la phase 2** : seuls les sieges **comptes** changent.
+
+> **« Memes seeds » designe la phase 2, PAS la campagne de l'agent**, et une premiere redaction laissait croire le contraire. La ligne de base joue les donnes **0 a 1999** -- celles de `phase2.campagne_b`, `DEPART_B = 0` --, l'agent les donnes **60000 a 61999**. **Les deux echantillons ne partagent aucune donne, et la comparaison n'est donc PAS appariee** : c'est une comparaison entre deux echantillons independants, et l'ecart detectable ci-dessous en tient compte des deux cotes. Regenerer la ligne de base sur les donnes de l'agent aurait change la population de reference pour une seconde raison, et elle n'aurait plus ete celle de la phase 2.
 
 `comportements.ecart_de_taux` **leve** si les grains different. Elle est appelee plutot que contournee : une ligne dont le grain differe fait tomber la mesure au lieu de produire un nombre qu'il faudrait relire.
 
+**Le detectable est calcule sur les DEUX effectifs**, chacun avec son taux et son denominateur -- `phase3_mesure.ecart_detectable_deux_echantillons`. La formule de la phase 2 suppose deux echantillons de meme taille ; les denominateurs d'action n'y obeissent pas, et l'ecart pouvait atteindre 67 % sur `B4-strict`. **Aucune ligne ne change de statut**, mais le chiffre publie au premier tour etait faux.
+
 **Les exclusions sont recalculees au budget de 6000 parties**, jamais recopiees : ce sont des proprietes du couple `(ligne, budget)`. Voir `mesure/phase3_budget_des_comportements.py`.
+
+> **La regle « hors budget » de la pre-inscription ne s'applique pas ici, et il faut le dire plutot que de la laisser croire appliquee.** Le paragraphe 9.2 annoncait que les huit lignes hors budget a 6 000 parties ne seraient pas comparees, et les nommait ; ces huit noms sont calcules sur l'ecart **greedy contre hasard** de la phase 2, qui n'est pas l'ecart de cette phase. La branche qui les excluait etait par ailleurs **inatteignable** -- `ecart=None` rendait `hors_budget` toujours faux --, donc elle n'a jamais rien exclu : elle est retiree. Le critere qui s'exerce est `|ecart| > detectable`, **le meme critere** exprime sur l'ecart effectivement mesure, et la colonne « Separable ? » publie desormais le nombre de parties que chaque ligne non separable demanderait.
+
+> **Les lignes `-par-partie` portent ici les MEMES nombres que leur ligne au grain du couple, et ce n'est pas un defaut.** Un seul siege est mesure par partie, donc « au moins un des 1 sieges » et « le siege mesure » comptent exactement la meme chose. C'est deja le cas de la colonne a un siege de la phase 2. Les deux sont gardees pour que le grain reste lisible dans le libelle, et parce que `ecart_de_taux` leve si on les compare a une population qui en agrege trois.
 
 | Compteur | Agent | Ligne de base | Ecart | Detectable | Separable ? |
 |---|---|---|---:|---:|---|
-> **Les lignes `-par-partie` portent ici les MEMES nombres que leur ligne au grain du couple, et ce n'est pas un defaut.** Un seul siege est mesure par partie, donc « au moins un des 1 sieges » et « le siege mesure » comptent exactement la meme chose. C'est deja le cas de la colonne a un siege de la phase 2. Les deux sont gardees pour que le grain reste lisible dans le libelle, et parce que `ecart_de_taux` leve si on les compare a une population qui en agrege trois.
-
-| `B1-collectif` | 70.37 % (4222/6000) | 72.20 % (4332/6000) | -1.83 pt | 2.85 % | non separable a ce budget |
-| `B1-collectif-par-partie` | 70.37 % (4222/6000) | 72.20 % (4332/6000) | -1.83 pt | 2.85 % | non separable a ce budget |
-| `B1-motif` | 42.48 % (2549/6000) | 45.83 % (2750/6000) | -3.35 pt | 3.08 % | **separable** |
-| `B1-motif-par-partie` | 42.48 % (2549/6000) | 45.83 % (2750/6000) | -3.35 pt | 3.08 % | **separable** |
-| `B1-savoir-commun` | 43.13 % (2588/6000) | 46.28 % (2777/6000) | -3.15 pt | 3.09 % | **separable** |
-| `B1-savoir-commun-par-partie` | 43.13 % (2588/6000) | 46.28 % (2777/6000) | -3.15 pt | 3.09 % | **separable** |
-| `B1-strict` | 28.05 % (1683/6000) | 28.53 % (1712/6000) | -0.48 pt | 2.80 % | non separable a ce budget |
-| `B1-strict-par-partie` | 28.05 % (1683/6000) | 28.53 % (1712/6000) | -0.48 pt | 2.80 % | non separable a ce budget |
-| `B1-tentative` | 55.53 % (3332/6000) | 61.28 % (3677/6000) | -5.75 pt | 3.10 % | **separable** |
-| `B1-tentative-par-partie` | 55.53 % (3332/6000) | 61.28 % (3677/6000) | -5.75 pt | 3.10 % | **separable** |
-| `B2-banquet` | 30.56 % (4383/14340) | 36.70 % (5284/14399) | -6.13 pt | 1.86 % | **separable** |
-| `B2-cibles` | 79.18 % (11354/14340) | 82.65 % (11901/14399) | -3.47 pt | 1.64 % | **separable** |
-| `B2-contestee` | 68.36 % (9803/14340) | 74.26 % (10692/14399) | -5.89 pt | 1.88 % | **separable** |
-| `B2-contestee-publique` | 66.40 % (9522/14340) | 72.55 % (10447/14399) | -6.15 pt | 1.91 % | **separable** |
-| `B2-destination/banquet-Disgrace` | 18.15 % (2602/14340) | 15.76 % (2270/14399) | +2.38 pt | 1.56 % | **separable** |
-| `B2-destination/banquet-Estime` | 12.42 % (1781/14340) | 20.93 % (3014/14399) | -8.51 pt | 1.33 % | **separable** |
-| `B2-destination/domaine adverse` | 32.74 % (4695/14340) | 35.41 % (5099/14399) | -2.67 pt | 1.89 % | **separable** |
-| `B2-destination/domaine propre` | 36.69 % (5262/14340) | 27.89 % (4016/14399) | +8.80 pt | 1.95 % | **separable** |
-| `B2-fragile-2` | 77.11 % (11057/14340) | 81.81 % (11780/14399) | -4.71 pt | 1.70 % | **separable** |
-| `B3-expose` | 43.92 % (10542/24000) | 41.25 % (9899/24000) | +2.68 pt | 1.55 % | **separable** |
+| `B1-collectif` | 70.37 % (4222/6000) | 72.20 % (4332/6000) | -1.83 pt | 2.82 % | non separable a ce budget -- il en faudrait 14220 de chaque cote |
+| `B1-collectif-par-partie` | 70.37 % (4222/6000) | 72.20 % (4332/6000) | -1.83 pt | 2.82 % | non separable a ce budget -- il en faudrait 14220 de chaque cote |
+| `B1-motif` | 42.48 % (2549/6000) | 45.83 % (2750/6000) | -3.35 pt | 3.10 % | **separable** |
+| `B1-motif-par-partie` | 42.48 % (2549/6000) | 45.83 % (2750/6000) | -3.35 pt | 3.10 % | **separable** |
+| `B1-savoir-commun` | 43.13 % (2588/6000) | 46.28 % (2777/6000) | -3.15 pt | 3.10 % | **separable** |
+| `B1-savoir-commun-par-partie` | 43.13 % (2588/6000) | 46.28 % (2777/6000) | -3.15 pt | 3.10 % | **separable** |
+| `B1-strict` | 28.05 % (1683/6000) | 28.53 % (1712/6000) | -0.48 pt | 2.81 % | non separable a ce budget -- il en faudrait 202842 de chaque cote |
+| `B1-strict-par-partie` | 28.05 % (1683/6000) | 28.53 % (1712/6000) | -0.48 pt | 2.81 % | non separable a ce budget -- il en faudrait 202842 de chaque cote |
+| `B1-tentative` | 55.53 % (3332/6000) | 61.28 % (3677/6000) | -5.75 pt | 3.07 % | **separable** |
+| `B1-tentative-par-partie` | 55.53 % (3332/6000) | 61.28 % (3677/6000) | -5.75 pt | 3.07 % | **separable** |
+| `B2-banquet` | 30.56 % (4383/14340) | 36.70 % (5284/14399) | -6.13 pt | 1.90 % | **separable** |
+| `B2-cibles` | 79.18 % (11354/14340) | 82.65 % (11901/14399) | -3.47 pt | 1.58 % | **separable** |
+| `B2-contestee` | 68.36 % (9803/14340) | 74.26 % (10692/14399) | -5.89 pt | 1.82 % | **separable** |
+| `B2-contestee-publique` | 66.40 % (9522/14340) | 72.55 % (10447/14399) | -6.15 pt | 1.85 % | **separable** |
+| `B2-destination/banquet-Disgrace` | 18.15 % (2602/14340) | 15.76 % (2270/14399) | +2.38 pt | 1.51 % | **separable** |
+| `B2-destination/banquet-Estime` | 12.42 % (1781/14340) | 20.93 % (3014/14399) | -8.51 pt | 1.49 % | **separable** |
+| `B2-destination/domaine adverse` | 32.74 % (4695/14340) | 35.41 % (5099/14399) | -2.67 pt | 1.91 % | **separable** |
+| `B2-destination/domaine propre` | 36.69 % (5262/14340) | 27.89 % (4016/14399) | +8.80 pt | 1.88 % | **separable** |
+| `B2-fragile-2` | 77.11 % (11057/14340) | 81.81 % (11780/14399) | -4.71 pt | 1.63 % | **separable** |
+| `B3-expose` | 43.92 % (10542/24000) | 41.25 % (9899/24000) | +2.68 pt | 1.54 % | **separable** |
 | `B3-expose-vraie` | 48.80 % (11712/24000) | 46.48 % (11156/24000) | +2.32 pt | 1.56 % | **separable** |
-| `B3-simultane` | 6.73 % (1615/24000) | 9.60 % (2304/24000) | -2.87 pt | 0.78 % | **separable** |
-| `B4-brut` | 31.93 % (3814/11945) | 15.93 % (1967/12349) | +16.00 pt | 2.06 % | **separable** |
-| `B4-contre-nature` | 35.87 % (1368/3814) | 0.00 % (0/1967) | +35.87 pt | 3.75 % | **separable** |
-| `B4-departage` | 53.88 % (2055/3814) | 68.38 % (1345/1967) | -14.50 pt | 3.90 % | **separable** |
-| `B4-meurtre-couteux` | 3.66 % (298/8131) | 0.00 % (0/10382) | +3.66 pt | 1.01 % | **separable** |
-| `B4-strict` | 10.25 % (391/3814) | 31.62 % (622/1967) | -21.37 pt | 2.37 % | **separable** |
-| `B4-tout-dos` | 4.95 % (591/11945) | 3.63 % (448/12349) | +1.32 pt | 0.96 % | **non compare** : texte de la definition : elle ne nomme aucun autre joueur |
-| `B5-pire-cas` | 18.52 % (1647/8893) | 13.44 % (1219/9068) | +5.08 pt | 1.99 % | **separable** |
-| `B5-renfort` | 18.23 % (2270/12454) | 13.27 % (1746/13159) | +4.96 pt | 1.67 % | **non compare** : texte de la definition : elle ne nomme aucun autre joueur |
-| `B7-gaspillage` | 0.10 % (24/24000) | 0.08 % (19/24000) | +0.02 pt | 0.10 % | non separable a ce budget |
-| `B7-gaspillage-vraie` | 0.13 % (32/24000) | 0.10 % (24/24000) | +0.03 pt | 0.11 % | non separable a ce budget |
-| `B7-lumiere` | 10.27 % (2464/24000) | 9.60 % (2304/24000) | +0.67 pt | 0.95 % | non separable a ce budget |
-| `B7-occasions` | 0.81 % (195/24000) | 0.62 % (148/24000) | +0.20 pt | 0.28 % | non separable a ce budget |
+| `B3-simultane` | 6.73 % (1615/24000) | 9.60 % (2304/24000) | -2.87 pt | 0.85 % | **separable** |
+| `B4-brut` | 31.93 % (3814/11945) | 15.93 % (1967/12349) | +16.00 pt | 1.84 % | **separable** |
+| `B4-contre-nature` | 35.87 % (1368/3814) | 0.00 % (0/1967) | +35.87 pt | - | non separable a ce budget |
+| `B4-departage` | 53.88 % (2055/3814) | 68.38 % (1345/1967) | -14.50 pt | 4.52 % | **separable** |
+| `B4-meurtre-couteux` | 3.66 % (298/8131) | 0.00 % (0/10382) | +3.66 pt | - | non separable a ce budget |
+| `B4-strict` | 10.25 % (391/3814) | 31.62 % (622/1967) | -21.37 pt | 3.96 % | **separable** |
+| `B4-tout-dos` | 4.95 % (591/11945) | 3.63 % (448/12349) | +1.32 pt | 0.89 % | **non compare** : texte de la definition : elle ne nomme aucun autre joueur |
+| `B5-pire-cas` | 18.52 % (1647/8893) | 13.44 % (1219/9068) | +5.08 pt | 1.87 % | **separable** |
+| `B5-renfort` | 18.23 % (2270/12454) | 13.27 % (1746/13159) | +4.96 pt | 1.56 % | **non compare** : texte de la definition : elle ne nomme aucun autre joueur |
+| `B7-gaspillage` | 0.10 % (24/24000) | 0.08 % (19/24000) | +0.02 pt | 0.09 % | non separable a ce budget -- il en faudrait 120418 de chaque cote |
+| `B7-gaspillage-vraie` | 0.13 % (32/24000) | 0.10 % (24/24000) | +0.03 pt | 0.11 % | non separable a ce budget -- il en faudrait 61242 de chaque cote |
+| `B7-lumiere` | 10.27 % (2464/24000) | 9.60 % (2304/24000) | +0.67 pt | 0.93 % | non separable a ce budget -- il en faudrait 11754 de chaque cote |
+| `B7-occasions` | 0.81 % (195/24000) | 0.62 % (148/24000) | +0.20 pt | 0.26 % | non separable a ce budget -- il en faudrait 10802 de chaque cote |
 
 ## 6. B4 -- le piege de lecture, et pourquoi je refuse la lecture flatteuse
 
@@ -211,6 +251,8 @@ La meme reserve vaut pour `B4-meurtre-couteux`, `B4-strict` et `B4-departage`, d
 
 ## 7. L'audit de ce resultat, par ses propres controles
 
+**Les deux zeros absolus de la ligne de base -- `B4-contre-nature` 0,00 % et `B4-meurtre-couteux` 0,00 % -- sont confrontes a un cas construit a la main**, comme le paragraphe 0.2 l'exige, par quatre cas de `tests/mesure/test_comportements.py` : deux qui fabriquent le nœud et exigent que le compteur le classe, un qui retrouve les zeros sur de vraies parties, et **un contre-cas** ou une politique uniforme en produit -- sans lui, un compteur mort rendrait le meme zero. Le controle R4 les **liste** desormais : au premier tour il ne regardait que l'agent, et imprimait « aucune » pendant que le rapport en publiait deux.
+
 **Ces controles sont ecrits et commites AVANT que l'agent ne soit mesure** -- `mesure/phase3_audit.py`. Un controle ecrit apres avoir vu un chiffre est un controle que le chiffre a passe par construction.
 
 Ils portent sur des **unites**, des **denominateurs** et des **populations**, jamais sur des valeurs : reproduire un nombre ne le valide pas, et un facteur trois indu a survecu a deux verifications reussies en phase 2 pour cette raison.
@@ -223,16 +265,20 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 | Q2 | le bootstrap tire des donnes -- deux routes vers l'effet de plan concordent | concluant | effet bootstrap 0.8817, effet par analyse de variance 0.8870 ; un bootstrap qui tirerait des parties rendrait 1,0000 |
 | Q3 | les plages de donnes ne se chevauchent pas | concluant | dimensionnement [20000, 22000); entrainement [100000, 1586336); garde-fou [40000, 40600); pool aleatoire [70000, 70500); pool checkpoint 1 [80000, 80500); pool checkpoint 2 [81000, 81500); pool checkpoint 3 [82000, 82500); pool checkpoint 4 [83000, 83500); pool checkpoint 5 [84000, 84500); pool checkpoint 6 [85000, 85500); pool checkpoint 7 [86000, 86500); pool checkpoint 8 [87000, 87500); variante deterministe [90000, 92000); verdict [60000, 62000) ; disjointes |
 | R1 | le denominateur du verdict est `donnes x sieges` | concluant | 2000 donnes x 3 sieges = 6000, rapporte : 6000 |
-| R2 | chaque composition est nommee, et les noms sont distincts | concluant | 11 compositions, 11 noms distincts |
+| R2 | chaque composition est nommee, et les noms sont distincts | concluant | 12 compositions, 12 noms distincts |
 | R3 | les lignes comparees sont au meme grain | concluant | 32 lignes comparees sur 34, 0 a grains differents |
-| R4 | les zeros et les cent pour cent sont listes pour traitement individuel | concluant | 0 valeur(s) extreme(s) chez l'agent -- aucune |
-| R5 | l'unite -- observations par partie -- coincide, numerateurs non regardes | concluant | 5 compteur(s) dont l'unite differe de plus de 5 % : B4-contre-nature 0.636 vs 0.328, B4-departage 0.636 vs 0.328, B4-meurtre-couteux 1.355 vs 1.730, B4-strict 0.636 vs 0.328, B5-renfort 2.076 vs 2.193. Un ecart n'est pas fautif en soi -- un denominateur d'action depend de la politique -- mais il doit etre lu avant de comparer les taux. |
+| R4 | les zeros et les cent pour cent, des DEUX cotes, listes pour traitement individuel | *releve* -- il liste, il ne juge pas | 2 valeur(s) extreme(s) sur 34 lignes : B4-contre-nature [ligne de base] = 0/1967, B4-meurtre-couteux [ligne de base] = 0/10382 |
+| R5 | l'unite -- observations par partie -- relevee des deux cotes, numerateurs non regardes | *releve* -- il liste, il ne juge pas | 5 compteur(s) dont l'unite differe de plus de 5 % : B4-contre-nature 0.636 vs 0.328, B4-departage 0.636 vs 0.328, B4-meurtre-couteux 1.355 vs 1.730, B4-strict 0.636 vs 0.328, B5-renfort 2.076 vs 2.193. Un ecart n'est pas fautif en soi -- un denominateur d'action depend de la politique -- mais il doit etre lu avant de comparer les taux. |
 
-**10 controles, aucun en echec.**
+**8 controles eprouves, aucun en echec ; 2 releves, qui ne s'y comptent pas -- R4, R5.**
+
+> **Un controle qui ne peut pas echouer ne se compte pas parmi les concluants**, et c'est desormais une regle du paragraphe 0.2 du protocole. Une premiere redaction de ce rapport annoncait « dix controles, aucun en echec » alors que **deux** d'entre eux passaient un `True` **litteral** : ils listaient les zeros et les ecarts d'unite sans jamais pouvoir tomber. Le compte rendu affirmait par-dessus que **chacun** des dix etait verifie capable d'echouer, alors que le fichier de tests n'en cassait que six.
+>
+> Les deux constructeurs sont donc distincts -- `_epreuve` et `_releve` --, `tests/mesure/test_phase3_audit.py` **lit l'AST de `mesure/phase3_audit.py`** pour refuser qu'un booleen litteral soit passe a `_epreuve`, et les quatre controles qui n'etaient pas casses le sont, chacun par reinjection de la faute qu'il pretend attraper.
 
 ## 8. Ce que ces chiffres n'etablissent PAS
 
-**Ecrit avant la mesure**, paragraphe 10 de la pre-inscription.
+**Ecrit avant la mesure.** Les points 1 a 6 sont le paragraphe 10 de la pre-inscription, mot pour mot ; le point 7 vient de son paragraphe 9.2, et le point 8 du paragraphe 2.2. Une premiere redaction attribuait les sept au seul paragraphe 10, dont elle omettait par ailleurs un point -- celui sur `sigma`, ici rendu au 8.
 
 1. **B1 et B3 mesurent la frequence a laquelle un MOTIF apparait, jamais une planification.** Ecrire « l'agent planifie des retournements dans X % des parties » serait faux quel que soit X. Le chiffre s'intitule *frequence du motif*, jamais *frequence de planification*.
 2. **B1 est plafonne par les 7,40 % de parties portant une perte d'acquis qu'aucun siege ne pouvait voir**, mesures en phase 1. Ces retournements sont **invulnerables a toute planification, par n'importe quel agent** : c'est un plafond du mesurable, pas un defaut d'agent.
@@ -240,26 +286,33 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 4. **Rien ici ne se transporte a `complet-3j`** -- 6 familles, 90 cartes, 10 tours.
 5. **Le controle de collision de tenseurs est un echantillon, pas une preuve d'injectivite.**
 6. **Aucun resultat de cette phase ne valide le moteur.** Elle le suppose conforme ; c'est la phase 0 qui l'etablit, et elle est close.
-7. **B7 devient separable par le bas a ce budget, il ne devient pas informatif.** `B7-occasions` vaut 1,22 % des poses au banquet : l'occasion de se manifester est rare, et un taux bas se lit sur ce fond-la.
+7. **B7 devient separable par le bas a ce budget, il ne devient pas informatif.** `B7-occasions` vaut 1,22 % des poses au banquet : l'occasion de se manifester est rare, et un taux bas se lit sur ce fond-la. *(Paragraphe 9.2.)*
+8. **`sigma` est mesure sous l'hypothese nulle et SUPPOSE valoir sous l'agent.** Il est remesure au paragraphe 2, et il a bouge. *(Paragraphe 2.2.)*
 
-## 9. Duree machine -- 4 passe(s)
+**Trois limites de plus, que le premier tour n'ecrivait pas et que l'audit a etablies.**
 
-**4 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
+9. **La courbe du garde-fou n'etablit pas que l'agent progressait ENCORE a la fin.** Elle etablit qu'il a progresse du premier au dernier checkpoint. Aucun pas consecutif n'atteint l'ecart detectable de ce budget -- voir le paragraphe 4.
+10. **Les 20 mutations de `outillage/mutation.py` ne couvrent AUCUN fichier de cette phase.** Elles ciblent toutes `courtisans/`, ce que le paragraphe 0.3 du protocole impose -- `agents/greedy.py` est la ligne de base de toutes les phases et ne porte aucune mutation. « 20 mutations, toutes detectees » ne dit donc **rien** de `agents/reseau.py`, `agents/entrainement.py`, `agents/campagne.py` ni de `mesure/phase3*.py` : ce que ces fichiers ont, ce sont leurs tests, pas une preuve que ces tests mordent. **Etendre le perimetre des mutations est un arbitrage de perimetre, remonte au pilote et non decide ici.**
+11. **Les comportements comparent deux echantillons de donnes DISJOINTES** -- 0 a 1999 pour la ligne de base, 60000 a 61999 pour l'agent. La comparaison n'est pas appariee, et sa puissance est celle de deux echantillons independants.
+
+## 9. Duree machine -- 6 passe(s)
+
+**6 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
 
 | Etape | Minimum | Maximum | Rapport max/min |
 |---|---:|---:|---:|
-| 1 agent contre 2 greedys | 82.2 s | 86.2 s | 1.05 |
+| 1 agent contre 2 greedys | 81.2 s | 86.2 s | 1.06 |
 | 1 agent contre 2 aleatoires | 16.1 s | 16.7 s | 1.04 |
 | 1 agent DETERMINISTE contre 2 greedys | 82.8 s | 85.6 s | 1.03 |
 | 1 agent contre 2 x checkpoint_01.pt | 18.8 s | 19.5 s | 1.04 |
-| 1 agent contre 2 x checkpoint_02.pt | 21.5 s | 22.2 s | 1.03 |
-| 1 agent contre 2 x checkpoint_03.pt | 19.1 s | 19.6 s | 1.03 |
+| 1 agent contre 2 x checkpoint_02.pt | 21.3 s | 22.2 s | 1.04 |
+| 1 agent contre 2 x checkpoint_03.pt | 18.8 s | 19.6 s | 1.05 |
 | 1 agent contre 2 x checkpoint_04.pt | 19.1 s | 20.1 s | 1.05 |
 | 1 agent contre 2 x checkpoint_05.pt | 22.3 s | 23.0 s | 1.03 |
-| 1 agent contre 2 x checkpoint_06.pt | 19.1 s | 19.7 s | 1.03 |
+| 1 agent contre 2 x checkpoint_06.pt | 19.0 s | 19.7 s | 1.04 |
 | 1 agent contre 2 x checkpoint_07.pt | 18.9 s | 19.4 s | 1.03 |
 | 1 agent contre 2 x checkpoint_08.pt | 18.9 s | 19.5 s | 1.03 |
-| ligne de base : 3 greedys, 1 siege compte | 74.0 s | 74.9 s | 1.01 |
-| auto-audit | 82.3 s | 82.4 s | 1.00 |
+| ligne de base : 3 greedys, 1 siege compte | 73.2 s | 74.9 s | 1.02 |
+| auto-audit | 80.5 s | 82.4 s | 1.02 |
 
-Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s -- etendue 499.4-505.4 s, rapport 1.01.
+Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s, 493.7 s, 494.8 s -- etendue 493.7-505.4 s, rapport 1.02.

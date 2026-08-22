@@ -292,9 +292,18 @@ def controle_zeros(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Control
     pendant que le rapport en publiait deux, et la regle du paragraphe 0.2 n'etait exercee sur
     aucun des deux. Il scanne desormais **les deux cotes**, et nomme lequel.
 
-    Les deux zeros de la ligne de base sont confrontes a un cas construit a la main par
-    `tests/audit_phase3_corrections/test_zeros_de_la_ligne_de_base.py`, qui montre sur un nœud
-    fabrique que le greedy **ne peut pas** contredire son propre argmax.
+    **La confrontation a un cas construit a la main existe, et elle est nommee ici** plutot
+    que laissee a chercher -- c'est ce que la regle exige. Quatre cas de
+    `tests/mesure/test_comportements.py` la portent, et il faut les quatre :
+
+      - `test_b4_un_refus_contre_nature_est_bien_compte_quand_il_existe` fabrique le nœud a la
+        main -- un refus a valeur 1 quand un meurtre en valait 4 -- et exige que le compteur
+        le classe. Un zero qu'aucun cas ne fait bouger serait un compteur mort ;
+      - `test_b4_un_meurtre_couteux_est_compte_symetriquement` fait la meme chose pour l'autre ;
+      - `test_le_greedy_ne_produit_ni_refus_contre_nature_ni_meurtre_couteux` retrouve les deux
+        zeros sur de vraies parties ;
+      - `test_l_aleatoire_produit_lui_des_refus_contre_nature` est le contre-cas : une politique
+        uniforme en produit, donc les zeros du greedy viennent de son argmax et pas du compteur.
     """
     extremes: list[str] = []
     for comparaison in comparaisons:

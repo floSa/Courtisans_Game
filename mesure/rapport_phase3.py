@@ -154,7 +154,7 @@ def section_dimensionnement(lignes: list[str], mesure: phase3_mesure.Mesure) -> 
         f"> **La regle etait aveugle au mouvement qu'elle pretendait detecter, et c'est le "
         f"resultat interessant.** Une demi-largeur ne depend pas de `sigma` seul mais de "
         f"`sigma x sqrt(effet de plan / n)`. Ici `sigma` a **chute** de "
-        f"{(dim.sigma_gain / 0.6494 - 1) * 100:+.1f} % pendant que l'effet de plan **montait** "
+        f"{abs(dim.sigma_gain / 0.6494 - 1) * 100:.1f} % pendant que l'effet de plan **montait** "
         f"de 0,7200 a {dim.effet_de_plan:.4f} : "
         f"`0,6494 x sqrt(0,7200)` = {0.6494 * 0.72 ** 0.5:.4f} contre "
         f"`{dim.sigma_gain:.4f} x sqrt({dim.effet_de_plan:.4f})` = "
@@ -386,7 +386,8 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
         f"C'est la seule lecture de cette section qui tienne, et elle tient franchement.",
         "",
         f"**Ce qui n'est PAS etabli : qu'il progressait ENCORE a la fin.** "
-        f"{len(etablis)} des {len(consecutifs)} pas consecutifs sont etablis"
+        + ("Aucun des " if not etablis else f"{len(etablis)} des ")
+        + f"{len(consecutifs)} pas consecutifs n'est etabli"
         + (f" ({', '.join(f'ckpt {e.depuis}->{e.vers}' for e in etablis)})" if etablis else "")
         + f", et le dernier -- ckpt {consecutifs[-1].depuis} -> {consecutifs[-1].vers} -- vaut "
         f"{_pt(consecutifs[-1].moyenne)}, IC "
@@ -674,6 +675,15 @@ def section_audit(lignes: list[str], controles: Sequence) -> None:
     """
     lignes.append(_titre("7. L'audit de ce resultat, par ses propres controles"))
     lignes += [
+        "**Les deux zeros absolus de la ligne de base -- `B4-contre-nature` 0,00 % et "
+        "`B4-meurtre-couteux` 0,00 % -- sont confrontes a un cas construit a la main**, comme "
+        "le paragraphe 0.2 l'exige, par quatre cas de `tests/mesure/test_comportements.py` : "
+        "deux qui fabriquent le nœud et exigent que le compteur le classe, un qui retrouve les "
+        "zeros sur de vraies parties, et **un contre-cas** ou une politique uniforme en produit "
+        "-- sans lui, un compteur mort rendrait le meme zero. Le controle R4 les **liste** "
+        "desormais : au premier tour il ne regardait que l'agent, et imprimait « aucune » "
+        "pendant que le rapport en publiait deux.",
+        "",
         "**Ces controles sont ecrits et commites AVANT que l'agent ne soit mesure** -- "
         "`mesure/phase3_audit.py`. Un controle ecrit apres avoir vu un chiffre est un controle "
         "que le chiffre a passe par construction.",
@@ -706,8 +716,8 @@ def section_audit(lignes: list[str], controles: Sequence) -> None:
             if echoues
             else f"**{len(eprouves)} controles eprouves, aucun en echec"
             + (
-                f" ; {len(releves)} releve(s), qui ne s'y comptent pas : "
-                + ", ".join(c.code + " " + c.intitule for c in releves)
+                f" ; {len(releves)} releves, qui ne s'y comptent pas -- "
+                + ", ".join(c.code for c in releves)
                 + ".**"
                 if releves
                 else ".**"
