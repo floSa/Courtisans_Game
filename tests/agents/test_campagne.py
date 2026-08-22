@@ -137,18 +137,33 @@ def test_une_portee_de_UN_serait_indetectable_a_ce_budget():
     """**La regle generale que les quatre versions du garde-fou n'avaient pas.**
 
     *Un garde-fou ne peut chercher qu'un progres plus grand que l'ecart detectable a son
-    propre budget.* Le budget du garde-fou est de 1 800 parties par checkpoint, soit 2,75 pt
-    de detectable ; un quart d'heure de progres en vaut 1,83 sur le run de la phase 3. Une
-    portee de 1 chercherait donc un signal que le budget ne peut pas voir.
+    propre budget.*
+
+    **Et la grandeur a lui donner est le detectable d'un ECART APPARIE, pas celui d'un
+    NIVEAU.** La demi-largeur mesuree des sept ecarts apparies du run de la phase 3 vaut 3,83
+    point en moyenne -- de 3,56 a 4,06 --, quand la pre-inscription publie 2,75 pour un
+    niveau. Un quart d'heure de progres vaut 1,83.
+
+    Le cas fige les deux, parce que le choix de la grandeur **change la reponse** : avec la
+    bonne, la portee minimale est **3** et la portee retenue est donc minimale, pas
+    confortable ; avec celle du niveau, elle rendrait 2, et une portee de 2 chercherait 3,66
+    pour une barre de 3,83 -- **sous le seuil**. C'est la relecture finale du tour 2 qui l'a vu.
     """
-    detectable_pt, progres_par_checkpoint_pt = 2.75, 1.83
-    minimale = campagne.portee_minimale(detectable_pt, progres_par_checkpoint_pt)
-    assert minimale == 2, minimale
+    apparie_pt, niveau_pt, progres_pt = 3.83, 2.75, 1.83
+
+    minimale = campagne.portee_minimale(apparie_pt, progres_pt)
+    assert minimale == 3, minimale
     assert campagne.PORTEE_DU_GARDE_FOU >= minimale, (
         f"portee {campagne.PORTEE_DU_GARDE_FOU} alors qu'il en faut {minimale} pour que le "
-        f"progres cherche depasse le detectable de son propre budget"
+        f"progres cherche depasse le detectable apparie de son propre budget"
     )
-    assert campagne.portee_minimale(detectable_pt, detectable_pt * 2) == 1
+    # La mauvaise grandeur donnerait une portee insuffisante : le cas le fige pour que
+    # personne ne la reintroduise en croyant simplifier.
+    assert campagne.portee_minimale(niveau_pt, progres_pt) == 2
+    assert 2 * progres_pt < apparie_pt, (
+        "une portee de 2 chercherait un progres sous la barre : le contre-exemple a bouge"
+    )
+    assert campagne.PORTEE_DU_GARDE_FOU * progres_pt > apparie_pt
 
 
 def test_portee_minimale_refuse_un_progres_ou_un_detectable_nul():

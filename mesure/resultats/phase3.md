@@ -154,7 +154,9 @@ Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, 
 
 **Ce qui est etabli : l'agent apprend.** Du premier au dernier checkpoint, **+12.80 pt**, IC [+8.33 pt ; +17.40 pt], qui **exclut 0**. C'est la seule lecture de cette section qui tienne, et elle tient franchement.
 
-**Ce qui n'est PAS etabli : qu'il progressait ENCORE a la fin.** Aucun des 7 pas consecutifs n'est etabli, et le dernier -- ckpt 7 -> 8 -- vaut +0.86 pt, IC [-2.83 pt ; +4.29 pt], qui **contient 0**. Un quart d'heure de progres vaut environ +1.83 pt quand le budget du garde-fou en detecte **2,75** : **ce budget ne peut pas trancher un pas isole**, et aucune redaction ne le lui fera dire.
+**Ce qui n'est PAS etabli : qu'il progressait ENCORE a la fin.** Aucun des 7 pas consecutifs n'est etabli, et le dernier -- ckpt 7 -> 8 -- vaut +0.86 pt, IC [-2.83 pt ; +4.29 pt], qui **contient 0**. Un quart d'heure de progres vaut environ +1.83 pt, quand la demi-largeur des IC apparies ci-dessus va de +3.56 pt a +4.06 pt : **ce budget ne peut pas trancher un pas isole**, et aucune redaction ne le lui fera dire.
+
+> **La barre qui juge un ecart est la demi-largeur de SON PROPRE intervalle apparie, pas le 2,75 pt de la pre-inscription.** Ce 2,75 est un ecart detectable **iid sur un NIVEAU** a 1 800 parties ; les ecarts ci-dessus sont **apparies**, et leur precision reelle est celle que le bootstrap rend. Les deux mènent ici a la meme conclusion, mais les confondre serait comparer deux grandeurs qui ne portent pas sur la meme chose -- et une premiere redaction de ce paragraphe le faisait.
 
 **Critere terminal du protocole** : au dernier checkpoint, la part fractionnee vaut **70.13 %** contre **86,52 %**. **NON franchi.**
 
@@ -295,9 +297,9 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 10. **Les 20 mutations de `outillage/mutation.py` ne couvrent AUCUN fichier de cette phase.** Elles ciblent toutes `courtisans/`, ce que le paragraphe 0.3 du protocole impose -- `agents/greedy.py` est la ligne de base de toutes les phases et ne porte aucune mutation. « 20 mutations, toutes detectees » ne dit donc **rien** de `agents/reseau.py`, `agents/entrainement.py`, `agents/campagne.py` ni de `mesure/phase3*.py` : ce que ces fichiers ont, ce sont leurs tests, pas une preuve que ces tests mordent. **Etendre le perimetre des mutations est un arbitrage de perimetre, remonte au pilote et non decide ici.**
 11. **Les comportements comparent deux echantillons de donnes DISJOINTES** -- 0 a 1999 pour la ligne de base, 60000 a 61999 pour l'agent. La comparaison n'est pas appariee, et sa puissance est celle de deux echantillons independants.
 
-## 9. Duree machine -- 6 passe(s)
+## 9. Duree machine -- 7 passe(s)
 
-**6 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
+**7 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
 
 | Etape | Minimum | Maximum | Rapport max/min |
 |---|---:|---:|---:|
@@ -308,11 +310,11 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 | 1 agent contre 2 x checkpoint_02.pt | 21.3 s | 22.2 s | 1.04 |
 | 1 agent contre 2 x checkpoint_03.pt | 18.8 s | 19.6 s | 1.05 |
 | 1 agent contre 2 x checkpoint_04.pt | 19.1 s | 20.1 s | 1.05 |
-| 1 agent contre 2 x checkpoint_05.pt | 22.3 s | 23.0 s | 1.03 |
+| 1 agent contre 2 x checkpoint_05.pt | 22.2 s | 23.0 s | 1.04 |
 | 1 agent contre 2 x checkpoint_06.pt | 19.0 s | 19.7 s | 1.04 |
 | 1 agent contre 2 x checkpoint_07.pt | 18.9 s | 19.4 s | 1.03 |
-| 1 agent contre 2 x checkpoint_08.pt | 18.9 s | 19.5 s | 1.03 |
-| ligne de base : 3 greedys, 1 siege compte | 73.2 s | 74.9 s | 1.02 |
+| 1 agent contre 2 x checkpoint_08.pt | 18.8 s | 19.5 s | 1.03 |
+| ligne de base : 3 greedys, 1 siege compte | 73.0 s | 74.9 s | 1.03 |
 | auto-audit | 80.5 s | 82.4 s | 1.02 |
 
-Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s, 493.7 s, 494.8 s -- etendue 493.7-505.4 s, rapport 1.02.
+Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s, 493.7 s, 494.8 s, 493.9 s -- etendue 493.7-505.4 s, rapport 1.02.

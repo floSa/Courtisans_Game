@@ -393,9 +393,19 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
         f"{_pt(consecutifs[-1].moyenne)}, IC "
         f"[{_pt(consecutifs[-1].intervalle[0])} ; {_pt(consecutifs[-1].intervalle[1])}], qui "
         f"**contient 0**. Un quart d'heure de progres vaut environ "
-        f"{_pt((extremes.moyenne) / (len(jalons) - 1))} quand le budget du garde-fou en "
-        f"detecte **2,75** : **ce budget ne peut pas trancher un pas isole**, et aucune "
-        f"redaction ne le lui fera dire.",
+        f"{_pt((extremes.moyenne) / (len(jalons) - 1))}, quand la demi-largeur des IC apparies "
+        f"ci-dessus va de "
+        f"{_pt(min((e.intervalle[1] - e.intervalle[0]) / 2 for e in consecutifs))} a "
+        f"{_pt(max((e.intervalle[1] - e.intervalle[0]) / 2 for e in consecutifs))} : "
+        f"**ce budget ne peut pas trancher un pas isole**, et aucune redaction ne le lui fera "
+        f"dire.",
+        "",
+        "> **La barre qui juge un ecart est la demi-largeur de SON PROPRE intervalle apparie, "
+        "pas le 2,75 pt de la pre-inscription.** Ce 2,75 est un ecart detectable **iid sur un "
+        "NIVEAU** a 1 800 parties ; les ecarts ci-dessus sont **apparies**, et leur precision "
+        "reelle est celle que le bootstrap rend. Les deux mènent ici a la meme conclusion, mais "
+        "les confondre serait comparer deux grandeurs qui ne portent pas sur la meme chose -- "
+        "et une premiere redaction de ce paragraphe le faisait.",
         "",
         f"**Critere terminal du protocole** : au dernier checkpoint, la part fractionnee vaut "
         f"**{_pct(dernier['part_fractionnee'])}** contre **86,52 %**. "

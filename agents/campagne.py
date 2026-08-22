@@ -40,12 +40,16 @@ recouvrants**. Or les huit intervalles de ce run se recouvrent **7 fois sur 7** 
 tue le run au **checkpoint 3, a 45 minutes sur 120** -- plus tot que celle qu'elle remplacait.
 
 La cause est la meme a chaque fois, et elle a fini par s'ecrire : **un garde-fou ne peut
-chercher qu'un progres plus grand que l'ecart detectable a son propre budget.** Le budget du
-garde-fou est de 1 800 parties par checkpoint, soit **2,75 points** de detectable ; un quart
-d'heure de progres en vaut **1,83** sur ce run. Chercher un progres d'un seul checkpoint, c'est
-chercher un signal que le budget ne peut pas voir -- le garde-fou se declenche alors quoi que
-fasse l'agent. `portee_minimale` calcule cette borne, et un test la confronte a la portee
-retenue.
+chercher qu'un progres plus grand que l'ecart detectable a son propre budget.**
+
+**Et le detectable a prendre est celui d'un ECART APPARIE, pas celui d'un niveau** -- la
+demi-largeur mesuree des sept ecarts apparies de ce run va de **3,56 a 4,06 points**, quand la
+pre-inscription publie 2,75 pour un **niveau**. Un quart d'heure de progres vaut **1,83** :
+`(70,13 - 57,33) / 7`. Chercher un progres d'un seul checkpoint, c'est chercher un signal que
+le budget ne peut pas voir -- le garde-fou se declenche alors quoi que fasse l'agent.
+`portee_minimale` calcule cette borne, un test la confronte a la portee retenue, et il faut
+lui donner la bonne des deux grandeurs : avec 3,83 elle rend **3**, avec 2,75 elle rendrait 2,
+et une portee de 2 serait **insuffisante**.
 
 La regle en vigueur, la cinquieme, **eprouvee sur les donnees avant d'etre ecrite** :
 
@@ -121,12 +125,25 @@ CHECKPOINTS_ATTENDUS = 8
 #: **C'est la seule chose qui le rend utilisable, et les quatre versions precedentes l'ignoraient.**
 #: La regle generale, ecrite au paragraphe de la phase 3 du protocole depuis le 21/08/2026 :
 #: *un garde-fou ne peut chercher qu'un progres plus grand que l'ecart detectable a son propre
-#: budget.* Le budget du garde-fou est de 1 800 parties par checkpoint, soit un detectable de
-#: **2,75 points** ; un seul quart d'heure de progres en vaut environ **1,83** -- mesure sur ce
-#: run, `(70,13 - 57,33) / 7`. Comparer deux checkpoints voisins, c'est comparer deux nombres dont
-#: l'ecart est **par construction** sous le seuil de detection : un tel garde-fou se declenche
-#: toujours, quoi que fasse l'agent. C'est le defaut que la version du 21/08 portait, et il aurait
-#: tue ce run au checkpoint 3.
+#: budget.*
+#:
+#: **Et le detectable a prendre est celui d'un ECART APPARIE, pas celui d'un niveau.** La
+#: pre-inscription publie **2,75 points** : c'est un detectable **iid sur un niveau** a
+#: 1 800 parties, et ce n'est pas la grandeur qui juge un ecart. Les demi-largeurs reellement
+#: mesurees sur les sept ecarts apparies de ce run vont de **3,56 a 4,06 points**, Bonferroni
+#: pour 8 regards -- donc **3,83 en moyenne**. Un quart d'heure de progres en vaut environ
+#: **1,83**, mesure sur ce run : `(70,13 - 57,33) / 7`.
+#:
+#: `portee_minimale(3,83 ; 1,83)` rend donc **3**, et la portee retenue est **3** : elle est
+#: minimale, pas confortable. Avec le 2,75 du niveau elle aurait rendu 2, et une portee de 2
+#: aurait cherche un progres de 3,66 pour une barre de 3,83 -- sous le seuil. **Prendre la
+#: mauvaise des deux grandeurs faisait sortir une portee insuffisante**, et c'est la relecture
+#: finale du tour 2 qui l'a vu.
+#:
+#: Comparer deux checkpoints voisins -- portee 1 -- c'est comparer deux nombres dont l'ecart est
+#: **par construction** sous le seuil de detection : un tel garde-fou se declenche toujours,
+#: quoi que fasse l'agent. C'est le defaut que la version du 21/08 portait, et il aurait tue ce
+#: run au checkpoint 3.
 #:
 #: `portee_minimale` ci-dessous calcule la borne, et un test la confronte a cette valeur.
 PORTEE_DU_GARDE_FOU = 3

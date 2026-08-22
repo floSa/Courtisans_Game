@@ -37,8 +37,10 @@ encore à la fin.**
   négative. Part de victoire fractionnée **22,38 %** contre **33,3333 %** au neutre. L'effet
   vaut **sept fois** l'écart détectable remesuré (+0,0237). Ce n'est pas « non conclu au
   budget » : c'est « battu », au sens de la table go/no-go. **Trois implémentations
-  indépendantes concordent** — la mienne −0,1643, celle du pilote −0,1719, celle de l'auditeur
-  −0,1734 ; les trois IC se contiennent, les trois bornes hautes sont négatives.
+  indépendantes concordent, et chacune sur son échantillon nommé** — la mienne **−0,1643** sur
+  2 000 donnes × 3, seeds 60000–61999 ; celle du pilote **−0,1719** sur **400 donnes** × 3,
+  même départ ; celle de l'auditeur **−0,1734** sur 2 000 donnes × 3, mêmes seeds. Les trois
+  IC se contiennent mutuellement, les trois bornes hautes sont négatives.
 - **L'instrument est calibré sur les seeds exactes du verdict** : le greedy mis à la place de
   l'agent, seeds 60000–61999, rend **+0,0062**, IC 99 % **[−0,0124 ; +0,0255]**, qui contient 0.
   L'auditeur retrouve **+0,0152**, IC **[−0,0036 ; +0,0338]**.
@@ -52,8 +54,12 @@ encore à la fin.**
 - **« Croissance monotone sans exception » et « encore en progression au dernier » sont
   RETIRÉES.** Elles étaient dans le rapport du tour 1 et dans la décision. **Aucun des sept
   pas consécutifs n'est établi** : ils valent +2,19 / +2,25 / +1,45 / +1,83 / +2,50 / +1,71 /
-  **+0,86** point, pour un écart détectable que **ma propre pré-inscription** fixe à **2,75**,
-  et les sept intervalles appariés contiennent tous 0. La remesure de l'auditeur, **mêmes
+  **+0,86** point, et **les sept intervalles appariés contiennent tous 0**. *La barre qui les
+  juge est la demi-largeur de leur propre IC apparié — de **3,56 à 4,06 points**, Bonferroni
+  pour 8 regards —, et non les **2,75** de la pré-inscription, qui sont un détectable **iid sur
+  un NIVEAU** et non sur un écart apparié. Les deux disent la même chose ici, et le tour 1
+  citait le second comme s'il était le premier ; c'est la faute du projet, et elle est restée
+  jusqu'à la relecture finale du tour 2.* La remesure de l'auditeur, **mêmes
   donnes** et autre aléa de tirage, porte **deux inversions** et un dernier pas **négatif**,
   −0,53 pt, IC [−3,19 ; +2,23]. **La monotonie était une propriété de mon tirage, pas de mon
   agent.**
@@ -73,7 +79,9 @@ encore à la fin.**
   par analyse de variance, deux routes indépendantes.
 - **Le critique n'apprend pas, et ce n'est pas une propriété du jeu.** `perte_valeur` vaut
   0,3923 au premier checkpoint et 0,3908 au huitième, sans amélioration entre les deux.
-  *MESURÉ par l'audit*, `audit/phase3/critique.py` : variance des retours **0,4190**, MSE réelle
+  *MESURÉ par l'audit*, `audit/phase3/critique.py` **sur la branche `audit-phase-3`** — ce
+  fichier n'est pas sur celle-ci, et je n'ai pas refait cette mesure moi-même : variance des
+  retours **0,4190**, MSE réelle
   de `final.pt` **0,3809**, soit **`R² = +0,09`** ; plancher irréductible `E[Var(R | état)]`
   **0,1815**, donc un `R²` qui **plafonne à 0,57**. *Et ce plafond est une **borne**, pas une
   cible* : il est mesuré en rejouant le **même état complet**, donc pour un critique qui verrait
