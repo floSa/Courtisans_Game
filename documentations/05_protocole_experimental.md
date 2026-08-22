@@ -64,6 +64,14 @@ nommait quatre fois.*
   diffèrent, plutôt que de rendre un nombre qu'il faudrait relire.
 - **Un facteur de gain d'échantillonnage se mesure sur la population qui l'utilise.** L'appariement
   ne divise le budget que d'un facteur qu'il faut avoir mesuré ; voir le §1.
+- **Une courbe d'apprentissage se publie avec l'intervalle de ses ÉCARTS, pas seulement de ses
+  niveaux.** C'est un écart qui décide — « il progresse encore » —, jamais un niveau, et les écarts
+  appariés ne coûtent pas une partie de plus. La phase 3 a publié huit intervalles sur huit niveaux
+  et aucun sur les sept écarts ; sept des sept se recouvraient, et la phrase « monotone sans
+  exception, encore en progression au dernier » ne tenait sur aucun d'eux.
+- **Un contrôle qui ne peut pas échouer ne se compte pas parmi les contrôles concluants.** Deux des
+  dix contrôles de l'auto-audit de la phase 3 passaient un `True` littéral : ils sont *relevés*,
+  pas *concluants*, et le compte rendu affirmait pourtant que les dix étaient éprouvés.
 - **Aucune durée ne se cite sur un seul chronométrage.** Sur la machine du projet, cinq passes du
   même code donnent un rapport max/min de **2,93 à 3,00** par campagne, **de façon non monotone**.
   Le temps mural mesure l'état de la machine, pas le coût du code. Toute durée se cite sur au
@@ -447,15 +455,26 @@ boucle du §2, et le §0.2 l'exige.
 **Garde-fou de la règle 2.** Il **teste la prémisse qu'il nomme**, et rien d'autre : *l'agent
 n'apprend pas.* À chaque checkpoint de 15 minutes, l'agent est mis à la place du greedy dans la
 composition **un contre deux aléatoires** et sa part de victoire fractionnée est mesurée, agrégée
-sur les trois sièges. Il se déclenche si, sur **trois checkpoints consécutifs**, cette part n'a pas
-progressé — intervalles à 99 % qui se recouvrent d'un checkpoint au suivant.
+sur les trois sièges.
+
+**Il se déclenche si l'écart entre le checkpoint `k` et le checkpoint `k − 3` n'est pas établi** —
+intervalle à 99 % de cet **écart apparié** contenant 0 —, à partir de `k = 4`.
+
+**Sa portée est de trois checkpoints et non d'un seul, et c'est la seule chose qui le rend
+utilisable.** La règle générale, qui manquait aux quatre versions précédentes : *un garde-fou ne
+peut chercher qu'un progrès plus grand que l'écart détectable à son propre budget.* Ici le budget
+du garde-fou est de 1 800 parties par checkpoint, soit un détectable de **2,75 points**, quand un
+seul quart d'heure de progrès en vaut environ **2**. Comparer deux checkpoints voisins, c'est
+comparer deux nombres dont l'écart est **par construction** sous le seuil de détection : un tel
+garde-fou se déclenche toujours, quoi que fasse l'agent.
 
 **Il ne se déclenche PAS parce que l'agent n'a pas atteint le niveau du greedy.** Les **86,52 %**
 du greedy dans cette composition sont la **cible** de la phase, pas un test d'apprentissage. Un
 agent peut apprendre franchement sans les atteindre, et c'est exactement ce qui est arrivé.
 
-> **Troisième correction de ce même garde-fou, le 21/08/2026.** Il en a porté trois défauts
-> successifs, et les trois étaient des confusions différentes. **Un :** le texte d'origine écrivait
+> **Quatrième correction de ce même garde-fou, le 21/08/2026, sur remontée de l'audit.** Il en a
+> porté quatre défauts successifs, et les quatre étaient des confusions différentes. **Un :** le
+> texte d'origine écrivait
 > « si après 2 h d'entraînement », dans une section dont le plafond est 2 h — il se déclenchait
 > quand le run était fini. **Deux :** la correction du pilote l'évaluait à chaque checkpoint, donc
 > il se déclenchait au premier, avant que quoi que ce soit ait pu être appris. **Trois :** sa
@@ -464,8 +483,25 @@ agent peut apprendre franchement sans les atteindre, et c'est exactement ce qui 
 > **57,33 → 59,52 → 61,77 → 63,22 → 65,06 → 67,56 → 69,27 → 70,13 %**, croissance monotone sans
 > exception sur huit checkpoints, encore en progression au dernier, et pourtant loin des 86,52 %.
 >
-> **Un garde-fou doit tester la phrase qu'il écrit.** Les trois défauts venaient de ce qu'il n'en
-> testait pas une seule.
+> **Quatre :** la correction ci-dessus, écrite le matin même, se déclenchait sur **trois
+> checkpoints consécutifs à intervalles recouvrants** — et l'audit a mesuré que les huit
+> intervalles de ce run se recouvrent **7 fois sur 7**, donc qu'elle aurait tué le run au
+> **checkpoint 3, à 45 minutes sur 120**. Recalculé par le pilote sur `models/phase3/journal.jsonl` :
+> le déclenchement est confirmé. Le garde-fou réécrit pour ne pas tuer un agent qui apprend
+> l'aurait tué plus tôt que celui qu'il remplaçait.
+>
+> **Ce quatrième défaut est né dans le texte qui corrigeait le troisième**, écrit par le pilote
+> quelques heures plus tôt. C'est la cinquième fois dans ce projet que le défaut neuf naît dans la
+> correction du précédent.
+>
+> **Un garde-fou doit tester la phrase qu'il écrit, à un budget qui lui permette de la tester.**
+> Les quatre défauts venaient de là : trois ne testaient aucune phrase, le quatrième testait la
+> bonne phrase à un budget qui ne pouvait pas la trancher.
+>
+> **La version ci-dessus a été éprouvée sur les données avant d'être écrite** — ce que les quatre
+> précédentes n'avaient pas été. Sur les huit checkpoints de la phase 3, les cinq écarts de portée
+> trois valent **+5,89, +5,54, +5,79, +6,05 et +5,07 points** pour un détectable de 2,75 : aucun
+> ne déclenche, chez le constructeur comme dans la remesure de l'auditeur.
 
 > **Corrigé le 20/08/2026, sur remontée de la conversation n° 6.** Ce garde-fou disait « **si après
 > 2 h d'entraînement** », dans une section dont le plafond d'exécution est **2 h**. Il se
