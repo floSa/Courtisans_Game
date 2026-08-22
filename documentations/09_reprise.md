@@ -32,10 +32,25 @@ Il s'est fâché deux fois pour la même raison : le manque de clarté.
   `origin/cfr-pivot` uniquement, hors lignée.
 - **Une preuve différée revient nommée, pas agrégée en un compte.** Si on annonce « tel test
   tombera », il faut dire *lequel*, pas « trois tests sont tombés ».
-- **Tout ce qu'il doit donner à un agent porte un numéro ET un nom**, et vient avec **un
-  endroit** : soit le chemin du fichier, soit le prompt écrit directement dans la conversation.
-  L'un ou l'autre, jamais ni l'un ni l'autre. Exemple : « conversation n° 6 — Construction de la
-  phase 3, le prompt est dans `prompts/10_phase3_construction.md` ».
+- **Tout ce qu'il doit donner à un agent porte un numéro ET un nom.** Exemple : « conversation
+  n° 6 — Construction de la phase 3 ».
+- **Petit message : écrit en entier dans la conversation, dans un bloc de code.** Gros document :
+  dans `prompts/`, sous un nouveau numéro, et on lui donne le chemin. **L'un ou l'autre, jamais
+  les deux à moitié.** Il n'a pas le temps de chercher dans le dépôt quel morceau copier.
+- **Un seul bloc, à la fin, quand tout est vérifié.** Pas de commentaire d'avancement, pas de
+  « je te reviens quand ». Le bloc final dit, pour **chaque** conversation ouverte, ce qu'elle
+  doit recevoir — ou explicitement qu'elle n'attend rien. Il se termine par **TÂCHE FINIE** ou
+  par la consigne suivante. Un message qui n'est ni l'un ni l'autre le laisse sans rien à faire.
+- **Quand un agent dit qu'il fait un travail qu'on ne lui a pas donné, s'arrêter immédiatement.**
+  Le 21/08, la conversation d'audit a ouvert son compte rendu par « le §5 de `07` compte un
+  défaut corrigé par l'auditeur comme disqualifiant ; vous avez tranché et je corrige ». Le
+  prompt de corrections lui avait été collé par erreur à la place de la conversation de
+  construction. **Le pilote a lu la phrase et a continué**, et l'audit croisé a perdu son
+  indépendance pour tout un tour. Une phrase d'agent qui décrit un rôle qu'on ne lui a pas
+  attribué est une alerte, pas une formalité.
+- **Commiter une modification de document tout de suite.** Deux règles de cette liste ont été
+  écrites puis perdues, laissées non commitées et effacées par un `git reset --hard` sur une
+  branche d'agent. Un document du pilote se commite dans la foulée de son édition.
 - **Le dépôt se pousse sous ses identifiants perso.** `floSa <florian.horellou@gmail.com>`, via
   le remote `git@github.com-perso:floSa/Courtisans_Game.git`. Vérifier avant de pousser, pas
   après.
