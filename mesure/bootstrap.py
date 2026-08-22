@@ -63,6 +63,91 @@ class EffetDePlan:
         return self.variance_iid**0.5
 
 
+@dataclass(frozen=True)
+class EcartApparie:
+    """Ce qu'un bootstrap par donne rend sur un ECART entre deux mesures des MEMES donnes.
+
+    **Un ecart apparie ne coute pas une partie de plus**, et c'est un ecart qui decide -- « il
+    progresse encore », jamais un niveau. La phase 3 a publie huit intervalles sur huit niveaux
+    et aucun sur les sept ecarts ; sept des sept se recouvraient, et la phrase qu'ils devaient
+    soutenir ne tenait sur aucun d'eux. C'est desormais une regle du paragraphe 0.2 du
+    protocole.
+
+    **Il ne se lit pas comme le recouvrement de deux intervalles de niveaux.** Deux intervalles
+    qui se recouvrent n'impliquent pas un ecart non etabli : le recouvrement ignore la
+    correlation entre les deux mesures, que l'appariement rend justement forte.
+
+    Attributes:
+        moyenne: l'ecart moyen `apres - avant`, sur les donnes appariees.
+        nb_donnes: le nombre de donnes, identique des deux cotes par construction.
+        intervalle: l'intervalle de percentiles du bootstrap, au niveau demande.
+        etabli: vrai si l'intervalle **exclut** 0 -- donc si l'ecart est etabli, dans un sens
+            ou dans l'autre. C'est la seule lecture licite d'un ecart.
+    """
+
+    moyenne: float
+    nb_donnes: int
+    intervalle: tuple[float, float]
+
+    @property
+    def etabli(self) -> bool:
+        """L'intervalle exclut-il 0 ?"""
+        bas, haut = self.intervalle
+        return bas > 0.0 or haut < 0.0
+
+
+def bootstrap_apparie_par_donne(
+    avant: Sequence[float],
+    apres: Sequence[float],
+    repetitions: int,
+    alea: random.Random,
+    risque: float = 0.01,
+) -> EcartApparie:
+    """L'ecart `apres - avant`, rechantillonne **par donne**, sur les MEMES donnes.
+
+    Args:
+        avant: une valeur par donne, pour la premiere mesure.
+        apres: une valeur par donne, pour la seconde, **dans le meme ordre**.
+
+    L'appariement est ce qui rend cet intervalle utile : la variance de distribution des donnes
+    sort de la difference, alors qu'elle reste entiere dans chacun des deux niveaux.
+
+    Raises:
+        ValueError: si les deux series n'ont pas la meme longueur -- deux series de longueurs
+            differentes ne sont pas appariees, et les apparier au rang serait comparer deux
+            donnes differentes sans que rien ne le signale. Egalement si elles sont vides, si
+            `repetitions < 2`, ou si `risque` sort de `]0, 1[`.
+    """
+    if len(avant) != len(apres):
+        raise ValueError(
+            f"un ecart apparie suppose les MEMES donnes des deux cotes : {len(avant)} valeurs "
+            f"avant et {len(apres)} apres. Apparier au rang deux series de longueurs "
+            f"differentes comparerait deux donnes differentes sans rien signaler."
+        )
+    if not avant:
+        raise ValueError("aucune donne : un ecart apparie ne se fait pas sur du vide")
+    if repetitions < 2:
+        raise ValueError(f"il faut au moins 2 rechantillons, {repetitions} demande(s)")
+    if not 0 < risque < 1:
+        raise ValueError(f"un risque vaut strictement entre 0 et 1, {risque} recu")
+
+    differences = [b - a for a, b in zip(avant, apres, strict=True)]
+    nb_donnes = len(differences)
+    indices = range(nb_donnes)
+    moyennes: list[float] = []
+    for _ in range(repetitions):
+        tires = [alea.choice(indices) for _ in indices]
+        moyennes.append(math.fsum(differences[indice] for indice in tires) / nb_donnes)
+    moyennes.sort()
+    bas = int(risque / 2 * repetitions)
+    haut = min(repetitions - 1, int((1 - risque / 2) * repetitions))
+    return EcartApparie(
+        moyenne=fmean(differences),
+        nb_donnes=nb_donnes,
+        intervalle=(moyennes[bas], moyennes[haut]),
+    )
+
+
 def correlation_intra_donne(observations: Sequence[Sequence[float]]) -> float | None:
     """La correlation intra-donne, par decomposition de variance a un facteur.
 

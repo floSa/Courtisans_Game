@@ -47,9 +47,11 @@ reste exclu par le texte.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from mesure import comportements as comp
+from mesure import dimensionnement as dim
 from mesure import phase2, phase3
 
 #: Le decalage de graine de la troisieme population de la phase 2. **Recopie tel quel**, et
@@ -67,14 +69,26 @@ DECALAGE_TROIS_GREEDYS = phase2.DECALAGE_POLITIQUE_3_GREEDYS
 #: sur des donnes qu'il avait vues, ce qui lui aurait donne un avantage qui n'est pas de
 #: l'habilete -- et le chiffre aurait ete juste sur une population que sa phrase ne nomme pas.
 #:
-#: Les quatre plages sont desormais **toutes sous 100 000**, la ou l'entrainement ne va jamais :
+#: **Les SIX familles de plages de mesure sont desormais toutes sous 100 000**, la ou
+#: l'entrainement ne va jamais. Six familles, **treize plages** : les checkpoints du pool en
+#: comptent huit a eux seuls. Le compte annonce ici disait « quatre » et etait dementi par la
+#: liste qui le suivait -- un compte n'est pas une liste de noms, et le defaut etait dans le
+#: texte qui documentait la correction. Les noms, donc, et tous :
 #:
-#:   dimensionnement  20 000 - 21 999   (2 000 donnes)
-#:   garde-fou        40 000 - 40 599   (600 donnes, les memes a chaque checkpoint)
-#:   verdict          60 000 - 61 999   (2 000 donnes, un agent contre deux greedys)
-#:   pool aleatoire   70 000 - 70 499   (500 donnes)
-#:   pool checkpoints 80 000 + 1 000 x i (500 donnes chacun, jusqu'a 8 checkpoints)
-#:   entrainement    100 000 +           (jamais en dessous)
+#:   dimensionnement       20 000 -  21 999   (2 000 donnes)
+#:   garde-fou             40 000 -  40 599   (600 donnes, les memes a chaque checkpoint)
+#:   verdict               60 000 -  61 999   (2 000 donnes, un agent contre deux greedys)
+#:   pool aleatoire        70 000 -  70 499   (500 donnes)
+#:   pool checkpoints      80 000 + 1 000 x i (500 donnes chacune, HUIT plages)
+#:   variante deterministe 90 000 -  91 999   (2 000 donnes)
+#:
+#: et, au-dessus de la barre et seule a y etre :
+#:
+#:   entrainement         100 000 +           (jamais en dessous)
+#:
+#: La disjonction est verifiee **au niveau des donnes et pas des seuls seeds** : l'audit a
+#: hache les 14 600 pioches de mesure et les 1 486 336 pioches d'entrainement, et compte
+#: **0 collision**.
 DEPART_CAMPAGNE_FINALE = 60_000
 
 #: Le decalage de la composition contre deux aleatoires.
@@ -227,8 +241,13 @@ class Comparaison:
         agent: son compte chez l'agent.
         base: son compte chez la ligne de base, **au meme grain**.
         ecart: `taux(agent) - taux(base)`, ou `None` si l'un des deux n'a pas de taux.
-        detectable: l'ecart de taux detectable au budget de la campagne.
+        detectable: l'ecart de taux detectable au budget de la campagne, calcule sur les
+            **deux** effectifs -- voir `ecart_detectable_deux_echantillons`.
         separable: vrai si `|ecart| > detectable`.
+        parties_requises: pour une ligne **non separable**, le nombre de parties qu'il
+            faudrait de chaque cote pour separer l'ecart observe. `None` sinon. C'est la
+            regle « hors budget » de la pre-inscription, rendue lisible au lieu d'etre une
+            branche que rien ne pouvait atteindre.
         exclu: la raison de l'exclusion, ou `None` si la ligne est comparee.
     """
 
@@ -238,6 +257,7 @@ class Comparaison:
     ecart: float | None
     detectable: float | None
     separable: bool
+    parties_requises: int | None
     exclu: str | None
 
 
@@ -245,6 +265,110 @@ class Comparaison:
 #: est : la definition nomme-t-elle un autre joueur ? `B1-collectif` oui, ces deux-la non, et
 #: leurs taux bougent sous une autre composition pour une raison qui n'est pas l'habilete.
 EXCLUS_PAR_LE_TEXTE: tuple[str, ...] = ("B4-tout-dos", "B5-renfort")
+
+
+def ecart_detectable_deux_echantillons(
+    agent: comp.Compte,
+    nb_parties_agent: int,
+    base: comp.Compte,
+    nb_parties_base: int,
+    budget: int,
+) -> float | None:
+    """L'ecart de taux detectable entre DEUX echantillons dont les effectifs different.
+
+    **`phase2.ecart_de_taux_detectable` suppose deux echantillons de MEME effectif** -- son
+    erreur-type vaut `sqrt(2 p (1-p) / effectif)`, ou le facteur 2 est celui d'une difference
+    entre deux mesures de meme taille et de meme taux. C'est vrai des populations de la
+    phase 2 ; c'est faux ici, et l'audit du tour 1 l'a chiffre. Les denominateurs d'action
+    dependent de la politique : `B4-strict` compte **3 814** occasions chez l'agent contre
+    **1 967** dans la ligne de base, et son detectable publie valait **2,37 pt** quand la vraie
+    valeur est **3,96** -- une sous-estimation de 40 %. `B4-departage` 3,90 contre 4,52,
+    `B4-contre-nature` 3,75 contre 2,65, `B4-meurtre-couteux` 1,01 contre 0,71, `B5-renfort`
+    1,67 contre 1,56.
+
+    **Aucune des 34 lignes ne change de statut** -- l'audit l'a verifie ligne a ligne, et cette
+    fonction le refait. Mais un chiffre publie faux se corrige meme quand il ne renverse rien :
+    c'est celui-la qu'une phase suivante citera.
+
+    La variance est donc celle d'une difference de deux binomiales independantes,
+    `p_a q_a / n_a + p_b q_b / n_b`, chacune avec **son** taux et **son** effectif.
+
+    `phase2.ecart_de_taux_detectable` n'est pas modifiee : elle porte les chiffres d'un
+    livrable audite, et les deplacer deplacerait l'etalon de toutes les phases qui les citent.
+
+    Rend `None` dans les memes deux cas qu'elle, et pour la meme raison : un effectif attendu
+    sous 1, ou un taux exactement 0 ou 1 -- ou la variance binomiale est nulle, donc ou la
+    formule normale rendrait « tout est detectable », ce qui est exactement faux. Un zero
+    observe se traite par sa borne exacte.
+    """
+    taux_agent, taux_base = agent.taux(), base.taux()
+    if taux_agent is None or taux_base is None:
+        return None
+    effectif_agent = budget * phase2.observations_par_partie(agent, nb_parties_agent)
+    effectif_base = budget * phase2.observations_par_partie(base, nb_parties_base)
+    if effectif_agent < 1 or effectif_base < 1:
+        return None
+    if taux_agent <= 0.0 or taux_agent >= 1.0 or taux_base <= 0.0 or taux_base >= 1.0:
+        return None
+    variance = (
+        taux_agent * (1 - taux_agent) / effectif_agent
+        + taux_base * (1 - taux_base) / effectif_base
+    )
+    quantile = dim.quantile_bilateral(dim.RISQUE) + dim.quantile_de_puissance(dim.PUISSANCE)
+    return quantile * variance**0.5
+
+
+def parties_requises(
+    agent: comp.Compte,
+    nb_parties_agent: int,
+    base: comp.Compte,
+    nb_parties_base: int,
+    ecart: float,
+) -> int | None:
+    """Combien de parties il faudrait, **de chaque cote**, pour separer l'ecart observe.
+
+    **C'est ce que la regle « hors budget » de la pre-inscription voulait dire, et elle ne
+    pouvait pas le dire.** Le paragraphe 9.2 annoncait que les huit lignes hors budget a
+    6 000 parties ne seraient pas comparees, et les nommait ; mais `comparer` appelait
+    `phase2.budget_d_un_compteur` avec `ecart=None`, donc `parties` valait `None`, donc
+    `hors_budget` valait **toujours faux** et la branche qui excluait etait **inatteignable**.
+    Verifie a un budget d'une seule partie : aucune ligne n'en sortait.
+
+    Deux choses en decoulent, et il faut les separer.
+
+    **Un.** La branche morte est retiree. Un critere qui ne peut pas se declencher est pire que
+    pas de critere : il fait croire qu'un filtre s'exerce.
+
+    **Deux.** Les huit noms de la pre-inscription etaient calcules sur l'ecart **greedy contre
+    hasard** de la phase 2. Ce n'est pas l'ecart de cette phase, qui est **agent contre ligne
+    de base** : la liste ne se transporte pas, et l'appliquer telle quelle aurait exclu des
+    lignes sur la foi d'un ecart mesure sur une autre population -- la faute maison, encore.
+    Le critere qui s'exerce reellement ici est `|ecart| > detectable`, qui est **le meme
+    critere** exprime sur l'ecart effectivement mesure : `parties_requises(ecart) > budget`
+    equivaut a `|ecart| < detectable`. Cette fonction le rend **lisible** au lieu de le laisser
+    implicite, en publiant le nombre de parties que chaque ligne non separable demanderait.
+
+    Rend `None` si l'ecart est nul ou si l'un des taux est degenere.
+    """
+    if ecart == 0:
+        return None
+    taux_agent, taux_base = agent.taux(), base.taux()
+    if taux_agent is None or taux_base is None:
+        return None
+    if taux_agent <= 0.0 or taux_agent >= 1.0 or taux_base <= 0.0 or taux_base >= 1.0:
+        return None
+    par_partie_agent = phase2.observations_par_partie(agent, nb_parties_agent)
+    par_partie_base = phase2.observations_par_partie(base, nb_parties_base)
+    if par_partie_agent <= 0 or par_partie_base <= 0:
+        return None
+    quantile = dim.quantile_bilateral(dim.RISQUE) + dim.quantile_de_puissance(dim.PUISSANCE)
+    # `n` parties de chaque cote donnent une variance
+    # `p_a q_a / (n x u_a) + p_b q_b / (n x u_b)` : on resout en `n`.
+    facteur = (
+        taux_agent * (1 - taux_agent) / par_partie_agent
+        + taux_base * (1 - taux_base) / par_partie_base
+    )
+    return max(1, math.ceil((quantile / ecart) ** 2 * facteur))
 
 
 def comparer(
@@ -287,20 +411,25 @@ def comparer(
         exclu: str | None = None
         if nom in EXCLUS_PAR_LE_TEXTE:
             exclu = "texte de la definition : elle ne nomme aucun autre joueur"
-        elif budget_agent.hors_budget:
-            exclu = f"hors budget a {budget} parties"
         elif budget_agent.aveugle_par_le_bas:
             exclu = f"aveugle par le bas a {budget} parties"
 
         # `ecart_de_taux` LEVE si les grains different. On ne l'attrape pas : un grain qui
         # differe est un defaut a corriger, pas une cellule a remplir.
         ecart = comp.ecart_de_taux(compte_agent, compte_base)
-        detectable = budget_agent.detectable
+        detectable = ecart_detectable_deux_echantillons(
+            compte_agent, nb_parties_agent, compte_base, nb_parties_base, budget
+        )
         separable = (
             exclu is None
             and ecart is not None
             and detectable is not None
             and abs(ecart) > detectable
+        )
+        requises = (
+            None
+            if separable or exclu is not None or ecart is None or detectable is None
+            else parties_requises(compte_agent, nb_parties_agent, compte_base, nb_parties_base, ecart)
         )
         resultats.append(
             Comparaison(
@@ -310,6 +439,7 @@ def comparer(
                 ecart=ecart,
                 detectable=detectable,
                 separable=separable,
+                parties_requises=requises,
                 exclu=exclu,
             )
         )
@@ -410,7 +540,10 @@ def main(argv: list[str] | None = None) -> int:
                 agent=agent,
                 adversaire=phase3.uniforme,
                 donnes=arguments.donnes_pool,
-                intitule="1 agent entraine contre 2 aleatoires (garde-fou)",
+                intitule=(
+                    "1 agent entraine FINAL contre 2 aleatoires, 500 donnes, seeds 70000+ "
+                    "(la composition du garde-fou, mesuree sur l'agent final)"
+                ),
                 depart=DEPART_CAMPAGNE_FINALE + DECALAGE_POOL_ALEATOIRE,
                 decalage_adversaire=phase3.DECALAGE_UNIFORME,
             ),
@@ -475,10 +608,25 @@ def main(argv: list[str] | None = None) -> int:
         budget=contre_greedys.nb_parties,
     )
 
-    # --- 4. Le journal du run ----------------------------------------------------------
+    # --- 4. Le journal du run, complete de sa serie par donne ---------------------------
+    #
+    # `completer` rejoue l'evaluation du garde-fou de chaque checkpoint pour retrouver la part
+    # fractionnee **donne par donne**, et LEVE si les nombres deja journalises ne sont pas
+    # reproduits a l'identique. Ce n'est donc pas une nouvelle mesure : c'est la meme, dont on
+    # garde de quoi calculer un ECART APPARIE. Sans elle, la section 4 ne pourrait publier que
+    # des niveaux -- et c'est en lisant des niveaux comme des ecarts que le premier tour a
+    # conclu « il progressait encore au dernier ».
+    from agents import campagne as campagne_module
+    from mesure import phase3_courbe
+
     journal = arguments.dossier / "journal.jsonl"
     jalons = (
-        [json.loads(x) for x in journal.read_text(encoding="utf-8").splitlines() if x]
+        chronometre(
+            "courbe : serie par donne des checkpoints",
+            lambda: phase3_courbe.completer(
+                arguments.dossier, campagne_module.DONNES_GARDE_FOU
+            ),
+        )
         if journal.exists()
         else []
     )
@@ -499,6 +647,10 @@ def main(argv: list[str] | None = None) -> int:
             donnes_pool=arguments.donnes_pool,
             nb_checkpoints=len(checkpoints),
             parties_entrainement=(jalons[-1]["parties"] if jalons else 0),
+            # La composition du garde-fou est publiee au paragraphe 4 mais n'est pas dans le
+            # pool : sans elle, R2 ne voyait pas qu'elle portait le meme nom qu'une ligne du
+            # pool. Le nom vient de son site unique, il n'est pas recopie.
+            intitules_hors_pool=[campagne_module.intitule_du_garde_fou()],
         ),
     )
     for controle in controles:

@@ -4,29 +4,48 @@ Un garde-fou se teste par ses deux erreurs, pas par une seule :
 
 - **le faux negatif** -- il laisse tourner un agent qui n'apprend pas, et deux heures sont
   perdues. C'est l'erreur que le protocole voulait eviter ;
-- **le faux positif** -- il tue un agent qui apprend mais n'a pas encore atteint la barre.
-  C'est l'erreur que la premiere version de ce module commettait, et elle est plus couteuse :
-  elle rend un verdict « l'agent n'apprend pas » sur un agent qui apprenait.
+- **le faux positif** -- il tue un agent qui apprend. C'est l'erreur que les versions
+  precedentes commettaient, et elle est plus couteuse : elle rend un verdict « l'agent
+  n'apprend pas » sur un agent qui apprenait.
 
-Les cas ci-dessous eprouvent les deux, sur des suites de jalons construites a la main.
+**Et une troisieme condition, que les quatre premieres versions n'avaient pas** : la regle
+doit chercher un progres que son budget peut voir. Un garde-fou qui cherche un signal sous son
+propre seuil de detection se declenche quoi que fasse l'agent -- c'est le quatrieme defaut, et
+`test_une_portee_de_UN_serait_indetectable_a_ce_budget` le fige.
+
+Les cas ci-dessous eprouvent les trois, sur des series par donne construites a la main.
 """
 
 from __future__ import annotations
 
 import json
+import random
 from pathlib import Path
 
 import pytest
 import torch
 
 from agents import campagne, entrainement
+from mesure import bootstrap as boot
 from mesure import dimensionnement as dim
 
 APPAREIL = torch.device("cpu")
 
+#: Assez de donnes pour qu'un ecart de quelques points soit tranchable, comme au budget reel.
+DONNES = 600
 
-def _jalon(numero: int, part: float, haute: float | None = None) -> campagne.Jalon:
-    """Un jalon reduit a ce que la regle regarde : son numero, sa part, sa borne haute."""
+
+def _serie(part: float, bruit: float, graine: int) -> tuple[float, ...]:
+    """Une serie par donne de moyenne `part`, avec du bruit. Les donnes sont appariees d'une
+    serie a l'autre : c'est le rang qui apparie, comme dans la campagne reelle."""
+    alea = random.Random(graine)
+    brut = [part + alea.uniform(-bruit, bruit) for _ in range(DONNES)]
+    correction = part - sum(brut) / len(brut)
+    return tuple(x + correction for x in brut)
+
+
+def _jalon(numero: int, part: float, serie: tuple[float, ...] | None = None) -> campagne.Jalon:
+    """Un jalon reduit a ce que la regle regarde : son numero et sa serie par donne."""
     return campagne.Jalon(
         numero=numero,
         secondes=numero * 900.0,
@@ -38,74 +57,131 @@ def _jalon(numero: int, part: float, haute: float | None = None) -> campagne.Jal
         entropie=2.0,
         part_fractionnee=part,
         borne_basse=part - 0.02,
-        borne_haute=part + 0.02 if haute is None else haute,
+        borne_haute=part + 0.02,
         gain_moyen=0.0,
-    declenche=False,
+        parts_par_donne=serie if serie is not None else _serie(part, 0.35, numero),
+        ecart_de_portee=None,
+        declenche=False,
     )
 
 
-def _declencherait(jalons: list[campagne.Jalon], numero: int, part: float, haute: float) -> bool:
+def _declencherait(jalons: list[campagne.Jalon], numero: int, serie: tuple[float, ...]) -> bool:
     """La regle en vigueur, reimplementee ici depuis le TEXTE de la docstring du module.
 
     **Reimplementee, pas importee.** Appeler la fonction qu'on teste pour produire l'attendu
     ne verifierait rien -- c'est la faute que la phase 2 a payee, deux implementations qui
     partagent la meme hypothese fausse concordant parfaitement.
+
+    Le texte : *« il se declenche si l'ecart apparie entre part(k) et part(k - 3) n'est pas
+    etabli -- intervalle a 99 % corrige de Bonferroni contenant 0 --, a partir de k = 4 ».*
     """
     if numero < campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE:
         return False
-    precedent = jalons[numero - campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE]
-    stagne = part <= precedent.part_fractionnee
-    loin = haute < campagne.GARDE_FOU_GREEDY
-    return stagne and loin
+    reference = jalons[numero - campagne.PORTEE_DU_GARDE_FOU - 1]
+    ecart = boot.bootstrap_apparie_par_donne(
+        reference.parts_par_donne,
+        serie,
+        2_000,
+        random.Random(7),
+        risque=0.01 / campagne.CHECKPOINTS_ATTENDUS,
+    )
+    bas, haut = ecart.intervalle
+    return not (bas > 0.0 or haut < 0.0)
 
 
-def test_un_agent_qui_progresse_loin_de_la_barre_n_est_PAS_arrete():
-    """Le faux positif que la premiere version commettait, fige ici.
-
-    Part fractionnee 38 % -> 42 % -> 46 % -> 50 % : tres loin des 86,52 %, et en progres
-    constant. La premiere version arretait au 3e checkpoint parce que la borne haute restait
-    sous la barre. **MESURE sur un run d'essai** : l'entropie tombait de 2,089 a 1,646 pendant
-    ce temps -- l'agent apprenait.
-    """
-    jalons: list[campagne.Jalon] = []
-    for numero, part in enumerate([0.38, 0.42, 0.46, 0.50], start=1):
-        assert not _declencherait(jalons, numero, part, part + 0.02), (
-            f"checkpoint {numero} : un agent qui progresse a {part:.0%} est arrete"
+def test_un_agent_qui_progresse_n_est_PAS_arrete():
+    """Le faux positif, celui qui coute le plus cher : trois versions du garde-fou le
+    commettaient, la derniere en tuant ce run-ci au checkpoint 3."""
+    parts = [0.57, 0.59, 0.62, 0.63, 0.65, 0.68, 0.69, 0.70]
+    jalons = [_jalon(i + 1, p) for i, p in enumerate(parts)]
+    for numero in range(campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE, len(parts) + 1):
+        assert not _declencherait(jalons, numero, jalons[numero - 1].parts_par_donne), (
+            f"le checkpoint {numero} arrete un agent qui progresse de "
+            f"{100 * (parts[numero - 1] - parts[numero - 4]):.2f} pt sur trois quarts d'heure"
         )
-        jalons.append(_jalon(numero, part))
 
 
-def test_un_agent_qui_STAGNE_loin_de_la_barre_EST_arrete():
-    """Le vrai positif : aucun progres sur une demi-heure, et tres loin de la barre."""
-    jalons: list[campagne.Jalon] = []
-    parts = [0.35, 0.34, 0.35, 0.34]
-    declenchements = []
-    for numero, part in enumerate(parts, start=1):
-        declenchements.append(_declencherait(jalons, numero, part, part + 0.02))
-        jalons.append(_jalon(numero, part))
-    assert declenchements == [False, False, True, True], declenchements
+def test_un_agent_qui_STAGNE_EST_arrete():
+    """Le faux negatif : un agent qui ne bouge plus sur trois quarts d'heure doit tomber."""
+    parts = [0.57, 0.60, 0.63, 0.66, 0.662, 0.661, 0.663, 0.662]
+    jalons = [_jalon(i + 1, p) for i, p in enumerate(parts)]
+    declenchements = [
+        _declencherait(jalons, numero, jalons[numero - 1].parts_par_donne)
+        for numero in range(campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE, len(parts) + 1)
+    ]
+    assert declenchements[-1], "une stagnation sur trois quarts d'heure doit declencher"
+    assert any(declenchements), declenchements
 
 
-def test_un_agent_qui_stagne_AU_DESSUS_de_la_barre_n_est_pas_arrete():
-    """Stagner n'est un symptome que **loin** de la barre. Au-dessus, c'est une reussite.
-
-    Un agent a 90 % qui n'avance plus a atteint le niveau du greedy contre deux aleatoires :
-    l'arreter dirait « il n'apprend pas » d'un agent qui a franchi le critere terminal.
-    """
-    jalons: list[campagne.Jalon] = []
-    for numero, part in enumerate([0.90, 0.89, 0.90, 0.89], start=1):
-        assert not _declencherait(jalons, numero, part, part + 0.02)
-        jalons.append(_jalon(numero, part))
+def test_un_agent_qui_stagne_TRES_HAUT_est_arrete_aussi():
+    """**La distance a la barre du greedy n'entre plus dans la regle.** Elle y entrait dans les
+    versions 2 et 3, et c'est ce qui confondait « n'a pas atteint la barre » et « n'apprend
+    pas ». Un agent qui stagne au-dessus de 86,52 % n'apprend plus : rallonger ne dira rien."""
+    parts = [0.90, 0.90, 0.90, 0.90, 0.90]
+    jalons = [_jalon(i + 1, p) for i, p in enumerate(parts)]
+    assert _declencherait(jalons, 5, jalons[4].parts_par_donne)
+    assert _declencherait(jalons, 4, jalons[3].parts_par_donne)
 
 
-def test_les_deux_premiers_checkpoints_ne_declenchent_jamais():
-    """`part(k-2)` n'existe pas avant le troisieme, et un reseau quasi uniforme n'a rien a dire."""
-    jalons: list[campagne.Jalon] = []
-    for numero, part in enumerate([0.05, 0.02], start=1):
-        assert not _declencherait(jalons, numero, part, part + 0.001), (
+def test_les_TROIS_premiers_checkpoints_ne_declenchent_jamais():
+    """`part(k-3)` n'existe pas avant le quatrieme."""
+    jalons = [_jalon(i + 1, 0.5) for i in range(8)]
+    for numero in (1, 2, 3):
+        assert not _declencherait(jalons, numero, jalons[numero - 1].parts_par_donne), (
             f"le checkpoint {numero} declenche alors qu'il n'a pas de terme de comparaison"
         )
-        jalons.append(_jalon(numero, part))
+    assert campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE == 4
+
+
+def test_une_portee_de_UN_serait_indetectable_a_ce_budget():
+    """**La regle generale que les quatre versions du garde-fou n'avaient pas.**
+
+    *Un garde-fou ne peut chercher qu'un progres plus grand que l'ecart detectable a son
+    propre budget.* Le budget du garde-fou est de 1 800 parties par checkpoint, soit 2,75 pt
+    de detectable ; un quart d'heure de progres en vaut 1,83 sur le run de la phase 3. Une
+    portee de 1 chercherait donc un signal que le budget ne peut pas voir.
+    """
+    detectable_pt, progres_par_checkpoint_pt = 2.75, 1.83
+    minimale = campagne.portee_minimale(detectable_pt, progres_par_checkpoint_pt)
+    assert minimale == 2, minimale
+    assert campagne.PORTEE_DU_GARDE_FOU >= minimale, (
+        f"portee {campagne.PORTEE_DU_GARDE_FOU} alors qu'il en faut {minimale} pour que le "
+        f"progres cherche depasse le detectable de son propre budget"
+    )
+    assert campagne.portee_minimale(detectable_pt, detectable_pt * 2) == 1
+
+
+def test_portee_minimale_refuse_un_progres_ou_un_detectable_nul():
+    with pytest.raises(ValueError, match="strictement positives"):
+        campagne.portee_minimale(2.75, 0.0)
+    with pytest.raises(ValueError, match="strictement positives"):
+        campagne.portee_minimale(0.0, 1.83)
+
+
+def test_le_garde_fou_du_RUN_REEL_ne_declenche_sur_aucun_checkpoint():
+    """**Eprouve sur les donnees avant d'etre ecrit** -- ce que les quatre versions
+    precedentes n'avaient pas ete. Les cinq ecarts de portee trois du run de la phase 3."""
+    journal = Path("models/phase3/journal.jsonl")
+    if not journal.exists():
+        pytest.skip("le journal du run n'est pas dans le depot")
+    jalons = [json.loads(x) for x in journal.read_text(encoding="utf-8").splitlines() if x]
+    if not all(j.get("parts_par_donne") for j in jalons):
+        pytest.skip("journal sans serie par donne : lancer `mesure.phase3_courbe`")
+    from mesure import phase3_courbe
+
+    risque = 0.01 / campagne.CHECKPOINTS_ATTENDUS
+    ecarts = phase3_courbe.ecarts(jalons, campagne.PORTEE_DU_GARDE_FOU, risque)
+    assert len(ecarts) == 5, len(ecarts)
+    non_etablis = [f"ckpt {e.depuis}->{e.vers}" for e in ecarts if not e.etabli]
+    assert not non_etablis, (
+        f"le garde-fou declencherait sur {non_etablis} : la regle en vigueur tuerait le run "
+        f"de la phase 3, exactement comme celle qu'elle remplace"
+    )
+    # Et le contraste avec la portee 1, qui est le defaut fige.
+    voisins = phase3_courbe.ecarts(jalons, 1, risque)
+    assert not any(e.etabli for e in voisins), (
+        "a portee 1, un ecart est etabli : le contre-exemple qui justifie la portee 3 a bouge"
+    )
 
 
 def test_la_correction_de_bonferroni_est_bien_appliquee():
@@ -196,9 +272,14 @@ def test_le_run_ecrit_un_journal_relisible_et_des_checkpoints(tmp_path: Path):
     attendus = {
         "numero", "secondes", "vagues", "parties", "noeuds", "perte_politique",
         "perte_valeur", "entropie", "part_fractionnee", "borne_basse", "borne_haute",
-        "gain_moyen", "declenche",
+        "gain_moyen", "parts_par_donne", "ecart_de_portee", "declenche",
     }
     assert set(lignes[0]) == attendus, set(lignes[0]) ^ attendus
+    # La serie par donne est journalisee, et elle a la bonne longueur : sans elle, aucun ecart
+    # apparie n'est calculable et le rapport ne pourrait publier que des niveaux.
+    for ligne in lignes:
+        assert len(ligne["parts_par_donne"]) == 4, ligne["parts_par_donne"]
+    assert lignes[0]["ecart_de_portee"] is None, "le premier checkpoint n'a rien a comparer"
     # Les compteurs sont cumulatifs : un compteur qui reculerait serait un compteur remis a zero.
     for avant, apres in zip(lignes, lignes[1:], strict=False):
         assert apres["parties"] > avant["parties"]

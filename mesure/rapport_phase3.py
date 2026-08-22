@@ -129,29 +129,46 @@ def section_dimensionnement(lignes: list[str], mesure: phase3_mesure.Mesure) -> 
         f"**Demi-largeur de l'IC 99 % du gain** : **{demi_largeur:.4f}** sur "
         f"{dim.nb_parties} parties.",
         "",
-        "> **Elle ne se compare pas telle quelle au 0,0183 de la pre-inscription**, et c'est la "
-        "faute du projet appliquee a un budget plutot qu'a une population. Une demi-largeur "
-        "depend de **deux** choses : `sigma`, propre a la composition, et `n`, propre au "
-        "budget. Le 0,0183 est pre-inscrit **a 6 000 parties**. Le confronter a une "
-        "demi-largeur mesuree sur un autre nombre de parties melangerait un effet de "
-        "composition et un effet de budget.",
+        "> **LA REGLE PRE-INSCRITE PORTE SUR LA DEMI-LARGEUR, PAS SUR `sigma`, ET ELLE "
+        "N'EST PAS FRANCHIE.** Le paragraphe 3 de la pre-inscription ecrit : « la "
+        "**demi-largeur** reelle sera remesuree sur la campagne finale et publiee a cote de "
+        "celle-ci ; si **elle** en differe de plus de 10 %, c'est que `sigma` a bouge et il "
+        "faudra le dire ». Le declencheur est donc la demi-largeur.",
         ">",
-        f"> **Ce qui se compare est `sigma`**, qui ne depend pas de `n` : **{dim.sigma_gain:.4f}** "
-        f"ici contre **0,6494** sous l'hypothese nulle, soit "
-        f"**{(dim.sigma_gain / 0.6494 - 1) * 100:+.1f} %**"
+        f"> Mesuree : **{demi_largeur:.4f}** contre **0,0183** pre-inscrits, au **meme budget "
+        f"de 6 000 parties** -- soit **{(demi_largeur / 0.0183 - 1) * 100:+.1f} %**. "
         + (
-            ". `sigma` a bouge de plus de 10 % : la pre-inscription le donnait comme SUPPOSE, "
-            "et il faut donc le dire ici plutot que de laisser le budget se lire comme s'il "
-            "n'avait pas bouge."
-            if abs(dim.sigma_gain / 0.6494 - 1) > 0.10
-            else ". `sigma` tient dans la marge de 10 % que la pre-inscription s'etait donnee."
+            "**Elle sort de la marge de 10 %.**"
+            if abs(demi_largeur / 0.0183 - 1) > 0.10
+            else "**Elle reste dans la marge de 10 %, donc le declencheur pre-inscrit n'est "
+            "pas franchi.**"
         ),
         ">",
-        f"> Pour memoire, la demi-largeur **ramenee a 6 000 parties** vaut "
-        f"`{demi_largeur:.4f} x sqrt({dim.nb_parties} / 6000)` = "
-        f"**{demi_largeur * (dim.nb_parties / 6000) ** 0.5:.4f}**, et c'est **cette** valeur "
-        f"qui se lit contre 0,0183. La conversion suppose que l'effet de plan est le meme aux "
-        f"deux tailles, ce qui est vrai a `rho` constant.",
+        f"> **Et `sigma` a pourtant bouge de "
+        f"{(dim.sigma_gain / 0.6494 - 1) * 100:+.1f} %** -- {dim.sigma_gain:.4f} contre "
+        f"0,6494. Une premiere redaction de ce rapport declarait sur cette base « `sigma` a "
+        f"bouge de plus de 10 % », en attribuant a la marge une grandeur qu'elle ne "
+        f"surveillait pas ; l'audit l'a relevee, et le pilote avait propage l'erreur sans la "
+        f"voir. Le fait reste vrai, c'est la regle citee qui etait la mauvaise.",
+        ">",
+        f"> **La regle etait aveugle au mouvement qu'elle pretendait detecter, et c'est le "
+        f"resultat interessant.** Une demi-largeur ne depend pas de `sigma` seul mais de "
+        f"`sigma x sqrt(effet de plan / n)`. Ici `sigma` a **chute** de "
+        f"{(dim.sigma_gain / 0.6494 - 1) * 100:+.1f} % pendant que l'effet de plan **montait** "
+        f"de 0,7200 a {dim.effet_de_plan:.4f} : "
+        f"`0,6494 x sqrt(0,7200)` = {0.6494 * 0.72 ** 0.5:.4f} contre "
+        f"`{dim.sigma_gain:.4f} x sqrt({dim.effet_de_plan:.4f})` = "
+        f"{dim.sigma_gain * dim.effet_de_plan ** 0.5:.4f}, soit "
+        f"{(dim.sigma_gain * dim.effet_de_plan ** 0.5) / (0.6494 * 0.72 ** 0.5) * 100 - 100:+.1f} "
+        f"%. **Les deux mouvements se compensent dans la demi-largeur.** Une regle de "
+        f"surveillance posee sur un produit ne detecte pas le mouvement d'un seul de ses "
+        f"facteurs : c'est `sigma` qu'il fallait surveiller, et la pre-inscription surveillait "
+        f"le produit.",
+        ">",
+        f"> Les deux grandeurs sont donc publiees separement, et c'est la lecon : "
+        f"`sigma` = **{dim.sigma_gain:.4f}** (pre-inscrit 0,6494), effet de plan = "
+        f"**{dim.effet_de_plan:.4f}** (pre-inscrit 0,7200), demi-largeur = "
+        f"**{demi_largeur:.4f}** (pre-inscrite 0,0183).",
     ]
 
 
@@ -259,7 +276,22 @@ def section_pool(lignes: list[str], mesures: Sequence[phase3_mesure.Mesure]) -> 
 
 
 def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
-    """La courbe du garde-fou, checkpoint par checkpoint."""
+    """La courbe du garde-fou, **et l'intervalle de ses ECARTS**.
+
+    **La section que l'audit a fait tomber.** Elle publiait huit intervalles sur huit niveaux
+    et aucun sur les sept ecarts, puis concluait « croissance monotone sans exception, et
+    l'agent progressait encore au dernier ». Les deux moities de cette phrase etaient des
+    proprietes du tirage, pas de l'agent : aucun des sept pas n'atteint l'ecart detectable de
+    2,75 points que la pre-inscription fixe elle-meme a ce budget, et une remesure sur les
+    MEMES donnes avec un autre aleatoire porte deux inversions et un dernier pas negatif.
+
+    Le paragraphe 0.2 du protocole en a tire une regle : *une courbe d'apprentissage se publie
+    avec l'intervalle de ses ECARTS, pas seulement de ses niveaux.*
+    """
+    from agents import campagne as campagne_module
+    from mesure import phase3_courbe
+
+    risque = 0.01 / campagne_module.CHECKPOINTS_ATTENDUS
     lignes.append(_titre("4. Le garde-fou -- un agent contre deux aleatoires"))
     lignes += [
         "**Ce n'est pas un juge.** Depasser 86,52 % ne dit rien sur le fait de battre le "
@@ -269,8 +301,12 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
         "parties de la campagne B de la phase 2, et il ne se compare qu'a une mesure agregee "
         "de la meme facon. La colonne ci-dessous l'est.",
         "",
+        f"Composition : **{campagne_module.intitule_du_garde_fou()}**. "
         f"Chaque checkpoint : {phase3_mesure_donnes_garde_fou()} donnes x "
-        f"{phase3.CONFIG.joueurs} sieges. IC corrige de **Bonferroni pour 8 regards**.",
+        f"{phase3.CONFIG.joueurs} sieges, **les memes donnes a chaque fois**. IC corrige de "
+        f"**Bonferroni pour {campagne_module.CHECKPOINTS_ATTENDUS} regards**.",
+        "",
+        "### Les niveaux -- et ils ne decident de rien",
         "",
         "| # | s | Parties d'entrainement | Entropie | Part fractionnee | IC (Bonferroni) | "
         "Gain moyen |",
@@ -283,52 +319,119 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
             f"[{_pct(jalon['borne_basse'])} ; {_pct(jalon['borne_haute'])}] | "
             f"{jalon['gain_moyen']:+.4f} |"
         )
-    if jalons:
-        dernier = jalons[-1]
-        premier = jalons[0]
-        franchi = dernier["part_fractionnee"] > 0.8652
-        parts = [j["part_fractionnee"] for j in jalons]
-        monotone = all(b >= a for a, b in zip(parts, parts[1:], strict=False))
-        lignes += [
-            "",
-            f"**Critere terminal du protocole** : au dernier checkpoint, la part fractionnee "
-            f"vaut **{_pct(dernier['part_fractionnee'])}** contre **86,52 %**. "
-            + ("**Franchi.**" if franchi else "**NON franchi.**"),
-            "",
-            "**Arret anticipe** : "
-            + (
-                "**declenche** -- la part a stagne sur une demi-heure ET la borne haute est "
-                "restee sous 86,52 %."
-                if any(j["declenche"] for j in jalons)
-                else "non declenche : la condition de stagnation n'a jamais ete remplie."
-            ),
-        ]
-        if not franchi and monotone:
-            lignes += [
-                "",
-                "> **Le critere terminal n'est pas franchi, et la raison que le protocole lui "
-                "prete est FAUSSE ici. C'est un resultat sur le protocole, pas sur l'agent.**",
-                ">",
-                "> Le protocole ecrit : « si apres 2 h l'agent n'a pas depasse 86,52 %, on "
-                "arrete : **l'agent n'apprend pas**, et rallonger ne dira rien de plus ». La "
-                "premisse est verifiable, et elle est contredite par la colonne ci-dessus : la "
-                f"part fractionnee **croit a chaque checkpoint sans exception**, de "
-                f"**{_pct(premier['part_fractionnee'])}** a "
-                f"**{_pct(dernier['part_fractionnee'])}** sur {len(jalons)} mesures, et "
-                f"l'agent progressait encore au dernier.",
-                ">",
-                "> Ce n'est donc pas un agent qui n'apprend pas : c'est un agent qui **n'a pas "
-                "fini d'apprendre** dans le budget de 2 h. Le seuil de 86,52 % est le niveau "
-                "du greedy, et rien ne disait qu'il serait atteint en 2 h -- le protocole le "
-                "posait comme detecteur de panne, et il fonctionne ici comme mesure de "
-                "distance restante.",
-                ">",
-                "> **La distinction n'est pas rhetorique** : les deux lectures menent a des "
-                "decisions opposees. « L'agent n'apprend pas » conduit a changer de methode ; "
-                "« l'agent n'a pas fini » conduit a rallonger le budget, qui est le levier 1 "
-                "de la phase 4. Le rapport ne tranche pas -- il etablit que la premisse du "
-                "protocole ne tient pas, et remonte l'arbitrage.",
-            ]
+    if not jalons:
+        return
+
+    consecutifs = phase3_courbe.ecarts(jalons, 1, risque)
+    portee = campagne_module.PORTEE_DU_GARDE_FOU
+    de_portee = phase3_courbe.ecarts(jalons, portee, risque)
+    extremes = phase3_courbe.ecart_des_extremes(jalons, risque)
+    dernier, premier = jalons[-1], jalons[0]
+    franchi = dernier["part_fractionnee"] > 0.8652
+    recouvrements = sum(
+        1
+        for a, b in zip(jalons, jalons[1:], strict=False)
+        if a["borne_haute"] >= b["borne_basse"] and b["borne_haute"] >= a["borne_basse"]
+    )
+
+    lignes += [
+        "",
+        "> **Huit intervalles de NIVEAU ne disent pas si l'agent progresse, et une premiere "
+        "redaction de ce rapport a conclu comme s'ils le disaient.** Elle ecrivait « croissance "
+        "monotone sans exception » et « il progressait encore au dernier ». **Les deux sont "
+        "retirees.** La monotonie de cette colonne est une propriete de ce tirage : une "
+        "remesure sur les **memes donnes** avec un autre aleatoire de politique porte deux "
+        "inversions, dont le dernier pas. Ce qui decide est en dessous.",
+        "",
+        "### Les ecarts -- et ce sont eux qui decident",
+        "",
+        "**Bootstrap apparie par donne, memes donnes des deux cotes, meme correction de "
+        "Bonferroni.** Un ecart apparie ne coute pas une partie de plus : les donnes du "
+        "garde-fou sont les memes a chaque checkpoint, la pre-inscription l'avait prevu, il "
+        "ne manquait que de garder la serie.",
+        "",
+        f"**Un ecart ne se lit pas au recouvrement de deux intervalles de niveau.** Ici "
+        f"{recouvrements} des {len(jalons) - 1} couples consecutifs se recouvrent, alors que "
+        f"l'ecart des extremes est etabli : le recouvrement ignore la correlation que "
+        f"l'appariement rend forte.",
+        "",
+        "| Ecart apparie | Valeur | IC (Bonferroni) | Etabli ? |",
+        "|---|---:|---|---|",
+    ]
+    for ecart in consecutifs:
+        lignes.append(
+            f"| ckpt {ecart.depuis} -> {ecart.vers} (portee 1) | {_pt(ecart.moyenne)} | "
+            f"[{_pt(ecart.intervalle[0])} ; {_pt(ecart.intervalle[1])}] | "
+            + ("**etabli**" if ecart.etabli else "non -- dans le bruit") + " |"
+        )
+    for ecart in de_portee:
+        lignes.append(
+            f"| ckpt {ecart.depuis} -> {ecart.vers} (portee {portee}) | {_pt(ecart.moyenne)} | "
+            f"[{_pt(ecart.intervalle[0])} ; {_pt(ecart.intervalle[1])}] | "
+            + ("**etabli**" if ecart.etabli else "non -- dans le bruit") + " |"
+        )
+    lignes.append(
+        f"| **ckpt {extremes.depuis} -> {extremes.vers} (portee {extremes.portee})** | "
+        f"**{_pt(extremes.moyenne)}** | "
+        f"[{_pt(extremes.intervalle[0])} ; {_pt(extremes.intervalle[1])}] | "
+        + ("**ETABLI**" if extremes.etabli else "non -- dans le bruit") + " |"
+    )
+
+    etablis = [e for e in consecutifs if e.etabli]
+    lignes += [
+        "",
+        f"**Ce qui est etabli : l'agent apprend.** Du premier au dernier checkpoint, "
+        f"**{_pt(extremes.moyenne)}**, IC "
+        f"[{_pt(extremes.intervalle[0])} ; {_pt(extremes.intervalle[1])}], qui **exclut 0**. "
+        f"C'est la seule lecture de cette section qui tienne, et elle tient franchement.",
+        "",
+        f"**Ce qui n'est PAS etabli : qu'il progressait ENCORE a la fin.** "
+        f"{len(etablis)} des {len(consecutifs)} pas consecutifs sont etablis"
+        + (f" ({', '.join(f'ckpt {e.depuis}->{e.vers}' for e in etablis)})" if etablis else "")
+        + f", et le dernier -- ckpt {consecutifs[-1].depuis} -> {consecutifs[-1].vers} -- vaut "
+        f"{_pt(consecutifs[-1].moyenne)}, IC "
+        f"[{_pt(consecutifs[-1].intervalle[0])} ; {_pt(consecutifs[-1].intervalle[1])}], qui "
+        f"**contient 0**. Un quart d'heure de progres vaut environ "
+        f"{_pt((extremes.moyenne) / (len(jalons) - 1))} quand le budget du garde-fou en "
+        f"detecte **2,75** : **ce budget ne peut pas trancher un pas isole**, et aucune "
+        f"redaction ne le lui fera dire.",
+        "",
+        f"**Critere terminal du protocole** : au dernier checkpoint, la part fractionnee vaut "
+        f"**{_pct(dernier['part_fractionnee'])}** contre **86,52 %**. "
+        + ("**Franchi.**" if franchi else "**NON franchi.**"),
+        "",
+        f"**Declencheur du garde-fou** -- l'ecart apparie de portee {portee}, a partir du "
+        f"checkpoint {campagne_module.PREMIER_CHECKPOINT_QUI_DECLENCHE} : "
+        + (
+            "**declenche** -- un ecart de portee "
+            f"{portee} n'est pas etabli."
+            if any(j.get("declenche") for j in jalons)
+            else f"**non declenche** -- les {len(de_portee)} ecarts de portee {portee} sont "
+            f"tous etablis."
+        ),
+        "",
+        "> **Le critere terminal n'est pas franchi, et la raison que le protocole lui pretait "
+        "etait fausse -- mais pas pour la raison que ce rapport donnait au premier tour.**",
+        ">",
+        "> Le protocole ecrivait : « si apres 2 h l'agent n'a pas depasse 86,52 %, on arrete : "
+        "**l'agent n'apprend pas**, et rallonger ne dira rien de plus ». La premisse est "
+        f"verifiable, et l'ecart des extremes la contredit : {_pt(extremes.moyenne)}, IC "
+        f"[{_pt(extremes.intervalle[0])} ; {_pt(extremes.intervalle[1])}]. **L'agent apprend.**",
+        ">",
+        "> **Ce qui ne suit pas, et que la premiere redaction en tirait :** « il n'a pas fini "
+        "d'apprendre », donc « rallonger le budget ». Cette conclusion demandait que la courbe "
+        "montre encore une pente a la fin, et **aucun ecart mesure ici ne le montre**. Ce que "
+        "cette section etablit s'arrete a : l'agent a appris entre le premier et le dernier "
+        "checkpoint. Ce qu'il ferait d'un quart d'heure de plus n'est pas mesure.",
+        ">",
+        f"> Le garde-fou lui-meme a ete corrige une **quatrieme** fois sur cette section. Sa "
+        f"version du 21/08/2026 se declenchait sur trois checkpoints consecutifs a intervalles "
+        f"recouvrants -- or {recouvrements} des {len(jalons) - 1} couples se recouvrent ici, "
+        f"donc elle aurait arrete ce run au **checkpoint 3, a 45 minutes sur 120**. La regle "
+        f"generale qui manquait aux quatre versions : **un garde-fou ne peut chercher qu'un "
+        f"progres plus grand que l'ecart detectable a son propre budget.** D'ou la portee "
+        f"{portee}, et `agents.campagne.portee_minimale` qui la calcule.",
+    ]
 
 
 def phase3_mesure_donnes_garde_fou() -> int:
@@ -348,39 +451,74 @@ def section_comportements(
     lignes += [
         "**La ligne de base est REGENEREE**, et ce n'est pas une commodite : ma composition est "
         "un agent contre deux greedys, un seul siege mesure. Sa ligne de base est donc **trois "
-        "greedys, UN seul siege compte**, et elle n'existe pas dans le depot. Memes seeds, meme "
-        "composition, meme decalage de graine `6000000` : seuls les sieges **comptes** changent.",
+        "greedys, UN seul siege compte**, et elle n'existe pas dans le depot. Meme composition, "
+        "meme decalage de graine `6000000`, memes seeds **que la phase 2** : seuls les sieges "
+        "**comptes** changent.",
+        "",
+        "> **« Memes seeds » designe la phase 2, PAS la campagne de l'agent**, et une premiere "
+        "redaction laissait croire le contraire. La ligne de base joue les donnes **0 a 1999** "
+        "-- celles de `phase2.campagne_b`, `DEPART_B = 0` --, l'agent les donnes **60000 a "
+        "61999**. **Les deux echantillons ne partagent aucune donne, et la comparaison n'est "
+        "donc PAS appariee** : c'est une comparaison entre deux echantillons independants, et "
+        "l'ecart detectable ci-dessous en tient compte des deux cotes. Regenerer la ligne de "
+        "base sur les donnes de l'agent aurait change la population de reference pour une "
+        "seconde raison, et elle n'aurait plus ete celle de la phase 2.",
         "",
         "`comportements.ecart_de_taux` **leve** si les grains different. Elle est appelee "
         "plutot que contournee : une ligne dont le grain differe fait tomber la mesure au lieu "
         "de produire un nombre qu'il faudrait relire.",
         "",
+        f"**Le detectable est calcule sur les DEUX effectifs**, chacun avec son taux et son "
+        f"denominateur -- `phase3_mesure.ecart_detectable_deux_echantillons`. La formule de la "
+        f"phase 2 suppose deux echantillons de meme taille ; les denominateurs d'action n'y "
+        f"obeissent pas, et l'ecart pouvait atteindre 67 % sur `B4-strict`. **Aucune ligne ne "
+        f"change de statut**, mais le chiffre publie au premier tour etait faux.",
+        "",
         f"**Les exclusions sont recalculees au budget de {nb_parties} parties**, jamais "
         f"recopiees : ce sont des proprietes du couple `(ligne, budget)`. Voir "
         f"`mesure/phase3_budget_des_comportements.py`.",
         "",
-        "| Compteur | Agent | Ligne de base | Ecart | Detectable | Separable ? |",
-        "|---|---|---|---:|---:|---|",
+        "> **La regle « hors budget » de la pre-inscription ne s'applique pas ici, et il faut "
+        "le dire plutot que de la laisser croire appliquee.** Le paragraphe 9.2 annoncait que "
+        "les huit lignes hors budget a 6 000 parties ne seraient pas comparees, et les "
+        "nommait ; ces huit noms sont calcules sur l'ecart **greedy contre hasard** de la "
+        "phase 2, qui n'est pas l'ecart de cette phase. La branche qui les excluait etait par "
+        "ailleurs **inatteignable** -- `ecart=None` rendait `hors_budget` toujours faux --, "
+        "donc elle n'a jamais rien exclu : elle est retiree. Le critere qui s'exerce est "
+        "`|ecart| > detectable`, **le meme critere** exprime sur l'ecart effectivement mesure, "
+        "et la colonne « Separable ? » publie desormais le nombre de parties que chaque ligne "
+        "non separable demanderait.",
     ]
-    lignes_par_partie = [
-        c.nom for c in comparaisons if c.nom.endswith("-par-partie")
-    ]
-    if lignes_par_partie:
+    if any(c.nom.endswith("-par-partie") for c in comparaisons):
         lignes += [
+            "",
             "> **Les lignes `-par-partie` portent ici les MEMES nombres que leur ligne au grain "
             "du couple, et ce n'est pas un defaut.** Un seul siege est mesure par partie, donc "
             "« au moins un des 1 sieges » et « le siege mesure » comptent exactement la meme "
             "chose. C'est deja le cas de la colonne a un siege de la phase 2. Les deux sont "
             "gardees pour que le grain reste lisible dans le libelle, et parce que "
             "`ecart_de_taux` leve si on les compare a une population qui en agrege trois.",
-            "",
         ]
+    # Le blockquote passe AVANT l'en-tete, et l'en-tete est colle a ses lignes. Une ligne vide
+    # ou un blockquote entre l'en-tete et le corps **termine le tableau** en Markdown : au
+    # premier tour, les 34 lignes de cette section sortaient dans un `<p>`, pas dans un
+    # `<table>`. C'etait le tableau central du rapport.
+    lignes += [
+        "",
+        "| Compteur | Agent | Ligne de base | Ecart | Detectable | Separable ? |",
+        "|---|---|---|---:|---:|---|",
+    ]
     for comparaison in comparaisons:
         agent, base = comparaison.agent, comparaison.base
         if comparaison.exclu is not None:
             verdict = f"**non compare** : {comparaison.exclu}"
         elif comparaison.separable:
             verdict = "**separable**"
+        elif comparaison.parties_requises is not None:
+            verdict = (
+                f"non separable a ce budget -- il en faudrait "
+                f"{comparaison.parties_requises} de chaque cote"
+            )
         else:
             verdict = "non separable a ce budget"
         lignes.append(
@@ -480,7 +618,10 @@ def section_ce_qui_n_est_pas_etabli(lignes: list[str]) -> None:
     """Pre-inscrite au paragraphe 10, recopiee ici pour que le rapport soit autoportant."""
     lignes.append(_titre("8. Ce que ces chiffres n'etablissent PAS"))
     lignes += [
-        "**Ecrit avant la mesure**, paragraphe 10 de la pre-inscription.",
+        "**Ecrit avant la mesure.** Les points 1 a 6 sont le paragraphe 10 de la "
+        "pre-inscription, mot pour mot ; le point 7 vient de son paragraphe 9.2, et le point 8 "
+        "du paragraphe 2.2. Une premiere redaction attribuait les sept au seul paragraphe 10, "
+        "dont elle omettait par ailleurs un point -- celui sur `sigma`, ici rendu au 8.",
         "",
         "1. **B1 et B3 mesurent la frequence a laquelle un MOTIF apparait, jamais une "
         "planification.** Ecrire « l'agent planifie des retournements dans X % des parties » "
@@ -501,7 +642,27 @@ def section_ce_qui_n_est_pas_etabli(lignes: list[str]) -> None:
         "c'est la phase 0 qui l'etablit, et elle est close.",
         "7. **B7 devient separable par le bas a ce budget, il ne devient pas informatif.** "
         "`B7-occasions` vaut 1,22 % des poses au banquet : l'occasion de se manifester est "
-        "rare, et un taux bas se lit sur ce fond-la.",
+        "rare, et un taux bas se lit sur ce fond-la. *(Paragraphe 9.2.)*",
+        "8. **`sigma` est mesure sous l'hypothese nulle et SUPPOSE valoir sous l'agent.** Il "
+        "est remesure au paragraphe 2, et il a bouge. *(Paragraphe 2.2.)*",
+        "",
+        "**Trois limites de plus, que le premier tour n'ecrivait pas et que l'audit a "
+        "etablies.**",
+        "",
+        "9. **La courbe du garde-fou n'etablit pas que l'agent progressait ENCORE a la fin.** "
+        "Elle etablit qu'il a progresse du premier au dernier checkpoint. Aucun pas consecutif "
+        "n'atteint l'ecart detectable de ce budget -- voir le paragraphe 4.",
+        "10. **Les 20 mutations de `outillage/mutation.py` ne couvrent AUCUN fichier de cette "
+        "phase.** Elles ciblent toutes `courtisans/`, ce que le paragraphe 0.3 du protocole "
+        "impose -- `agents/greedy.py` est la ligne de base de toutes les phases et ne porte "
+        "aucune mutation. « 20 mutations, toutes detectees » ne dit donc **rien** de "
+        "`agents/reseau.py`, `agents/entrainement.py`, `agents/campagne.py` ni de "
+        "`mesure/phase3*.py` : ce que ces fichiers ont, ce sont leurs tests, pas une preuve "
+        "que ces tests mordent. **Etendre le perimetre des mutations est un arbitrage de "
+        "perimetre, remonte au pilote et non decide ici.**",
+        "11. **Les comportements comparent deux echantillons de donnes DISJOINTES** -- 0 a "
+        "1999 pour la ligne de base, 60000 a 61999 pour l'agent. La comparaison n'est pas "
+        "appariee, et sa puissance est celle de deux echantillons independants.",
     ]
 
 
@@ -525,11 +686,17 @@ def section_audit(lignes: list[str], controles: Sequence) -> None:
         "|---|---|---|---|",
     ]
     for controle in controles:
-        etat = "concluant" if controle.passe else "**ECHOUE**"
+        etat = {
+            "concluant": "concluant",
+            "en echec": "**ECHOUE**",
+            "releve": "*releve* -- il liste, il ne juge pas",
+        }[controle.statut]
         lignes.append(
             f"| {controle.code} | {controle.intitule} | {etat} | {controle.preuve} |"
         )
-    echoues = [c for c in controles if not c.passe]
+    echoues = [c for c in controles if c.statut == "en echec"]
+    eprouves = [c for c in controles if c.eprouve]
+    releves = [c for c in controles if not c.eprouve]
     lignes += [
         "",
         (
@@ -537,8 +704,28 @@ def section_audit(lignes: list[str], controles: Sequence) -> None:
             + ", ".join(c.intitule for c in echoues)
             + ". Aucun chiffre de ce rapport ne vaut tant qu'ils ne sont pas expliques.**"
             if echoues
-            else f"**{len(controles)} controles, aucun en echec.**"
+            else f"**{len(eprouves)} controles eprouves, aucun en echec"
+            + (
+                f" ; {len(releves)} releve(s), qui ne s'y comptent pas : "
+                + ", ".join(c.code + " " + c.intitule for c in releves)
+                + ".**"
+                if releves
+                else ".**"
+            )
         ),
+        "",
+        "> **Un controle qui ne peut pas echouer ne se compte pas parmi les concluants**, et "
+        "c'est desormais une regle du paragraphe 0.2 du protocole. Une premiere redaction de "
+        "ce rapport annoncait « dix controles, aucun en echec » alors que **deux** d'entre eux "
+        "passaient un `True` **litteral** : ils listaient les zeros et les ecarts d'unite sans "
+        "jamais pouvoir tomber. Le compte rendu affirmait par-dessus que **chacun** des dix "
+        "etait verifie capable d'echouer, alors que le fichier de tests n'en cassait que six.",
+        ">",
+        "> Les deux constructeurs sont donc distincts -- `_epreuve` et `_releve` --, "
+        "`tests/mesure/test_phase3_audit.py` **lit l'AST de `mesure/phase3_audit.py`** pour "
+        "refuser qu'un booleen litteral soit passe a `_epreuve`, et les quatre controles qui "
+        "n'etaient pas casses le sont, chacun par reinjection de la faute qu'il pretend "
+        "attraper.",
     ]
 
 

@@ -19,6 +19,24 @@ Chaque controle porte le numero de la question qu'il instruit.
   R4. Un zero ou un cent pour cent a-t-il ete confronte a un cas construit a la main ?
   R5. L'unite a-t-elle ete reconstruite AVANT la valeur, et separement ?
 
+Ce qu'un controle a le droit d'etre, depuis l'audit du tour 1
+--------------------------------------------------------------
+**Deux des dix controles ci-dessous ne pouvaient pas echouer** : ils passaient un `True`
+litteral, et le compte rendu les comptait quand meme dans « dix controles, aucun en echec »
+tout en affirmant que **chacun** etait verifie capable d'echouer. Deux autres n'etaient pas
+casses par leurs tests -- l'un eprouvait `bootstrap_par_donne` sur des donnees fabriquees,
+l'autre la **forme** de la preuve.
+
+Trois consequences, et elles sont dans le code plutot que dans cette docstring :
+
+  - un controle qui liste sans juger se construit par `_releve` et porte le statut `releve`.
+    Il ne se compte pas parmi les concluants ;
+  - un controle qui juge se construit par `_epreuve`, et un test **lit l'AST de ce module**
+    pour refuser qu'un booleen litteral y soit passe ;
+  - les quatre controles non casses le sont desormais, chacun par reinjection de la faute
+    qu'il pretend attraper -- y compris `controle_niveau_nul`, qui a recu pour cela un
+    parametre `agent`.
+
 Ce que ce module ne fait pas
 ------------------------------
 Il ne rejuge pas l'agent et ne recalcule pas le verdict par un second chemin qui partagerait
@@ -39,28 +57,82 @@ from mesure import comportements as comp
 from mesure import phase2, phase3, phase3_mesure
 
 
+#: Les trois statuts d'un controle. **`releve` n'est pas un troisieme degre de reussite** :
+#: c'est l'aveu qu'un controle ne peut pas echouer, donc qu'il n'eprouve rien.
+STATUTS: tuple[str, ...] = ("concluant", "en echec", "releve")
+
+
 @dataclass(frozen=True)
 class Controle:
-    """Un controle hostile, son verdict et sa preuve.
+    """Un controle hostile, son statut et sa preuve.
+
+    **Un controle qui ne peut pas echouer ne se compte pas parmi les controles concluants**, et
+    c'est desormais une regle du paragraphe 0.2 du protocole. Le premier tour de la phase 3 en
+    comptait dix « aucun en echec » alors que **deux** passaient un `True` litteral : ils
+    listaient, ils n'eprouvaient pas. Le compte rendu affirmait pourtant que les dix etaient
+    verifies capables d'echouer.
+
+    D'ou les deux constructeurs distincts ci-dessous. `_epreuve` exige un predicat calcule --
+    un test de l'AST interdit d'y passer un booleen litteral --, `_releve` dit en toutes
+    lettres que le controle **liste** sans juger. Le rapport les compte separement.
 
     Attributes:
         code: la question instruite -- `Q1`, `R3`, ...
-        intitule: ce que le controle cherche a casser.
-        passe: vrai si le controle est concluant.
+        intitule: ce que le controle cherche a casser, ou a relever.
+        statut: `concluant`, `en echec`, ou `releve`.
         preuve: le chiffre ou le fait qui l'etablit. **Jamais « OK ».**
     """
 
     code: str
     intitule: str
-    passe: bool
+    statut: str
     preuve: str
 
+    def __post_init__(self) -> None:
+        if self.statut not in STATUTS:
+            raise ValueError(
+                f"statut « {self.statut} » inconnu : un controle est {', '.join(STATUTS)}"
+            )
 
-def _c(code: str, intitule: str, passe: bool, preuve: str) -> Controle:
-    return Controle(code=code, intitule=intitule, passe=passe, preuve=preuve)
+    @property
+    def eprouve(self) -> bool:
+        """Ce controle **peut-il** echouer ? Un releve ne le peut pas."""
+        return self.statut != "releve"
+
+    @property
+    def passe(self) -> bool:
+        """Vrai sauf en echec. **Ne dit pas que le controle a eprouve quoi que ce soit** --
+        lire `eprouve` pour ca, et ne jamais compter un releve dans « aucun en echec »."""
+        return self.statut != "en echec"
 
 
-def controle_niveau_nul(donnes: int, depart: int) -> Controle:
+def _epreuve(code: str, intitule: str, passe: bool, preuve: str) -> Controle:
+    """Un controle qui **peut** echouer. `passe` doit venir d'un calcul, jamais d'un litteral.
+
+    `tests/mesure/test_phase3_audit.py` lit l'AST de ce module et **refuse** qu'un appel a
+    `_epreuve` porte `True` ou `False` en dur : c'est la parade qui empeche le defaut de se
+    refaire, la ou une docstring ne l'empechait pas.
+    """
+    return Controle(
+        code=code,
+        intitule=intitule,
+        statut="concluant" if passe else "en echec",
+        preuve=preuve,
+    )
+
+
+def _releve(code: str, intitule: str, preuve: str) -> Controle:
+    """Un controle qui **liste sans juger**, et qui le dit.
+
+    Il a sa place -- lister les zeros absolus ou les unites divergentes est utile -- mais il ne
+    se compte pas parmi les controles concluants, et le rapport doit le dire.
+    """
+    return Controle(code=code, intitule=intitule, statut="releve", preuve=preuve)
+
+
+def controle_niveau_nul(
+    donnes: int, depart: int, agent: phase3.Fabrique | None = None
+) -> Controle:
     """**Q1.** Le niveau nul du juge est-il ou je crois qu'il est, SUR LES SEEDS DU VERDICT ?
 
     La pre-inscription calibre l'instrument sur les seeds `20000-21999`. Le verdict est rendu
@@ -70,9 +142,17 @@ def controle_niveau_nul(donnes: int, depart: int) -> Controle:
 
     Si l'IC ne contient pas 0, **c'est l'instrument qui est faux, pas l'agent** -- et aucun
     chiffre du rapport ne vaut.
+
+    Args:
+        agent: la politique mise a la place de l'agent. `None` prend le greedy de reference,
+            et c'est le seul usage en production. **Le parametre existe pour que le controle
+            soit falsifiable** : un test y injecte une politique qui n'est PAS l'egale des deux
+            adversaires, et exige que le controle passe au rouge. Sans lui, « ce controle peut
+            echouer » restait une phrase de docstring que rien n'exercait -- et c'est un des
+            quatre controles que l'audit a trouves non casses.
     """
     campagne = phase3.jouer_composition(
-        agent=phase3.greedy_de_reference,
+        agent=agent or phase3.greedy_de_reference,
         adversaire=phase3.greedy_de_reference,
         donnes=donnes,
         intitule="1 greedy contre 2 greedys, seeds du verdict",
@@ -80,7 +160,7 @@ def controle_niveau_nul(donnes: int, depart: int) -> Controle:
     )
     verdict = phase3.juger(campagne)
     basse, haute = verdict.gain.intervalle
-    return _c(
+    return _epreuve(
         "Q1",
         "le niveau nul du juge, recalibre sur les seeds du verdict",
         basse <= 0.0 <= haute,
@@ -101,7 +181,7 @@ def controle_somme_nulle(mesure: phase3_mesure.Mesure, campagne: phase3.Campagne
         for trace in groupe:
             pire = max(pire, abs(sum(trace.gains)))
             parties += 1
-    return _c(
+    return _epreuve(
         "Q1",
         "la somme des gains vaut 0 dans chaque partie (I5, paragraphe 5.2)",
         pire < 1e-12,
@@ -121,7 +201,7 @@ def controle_plan_equilibre(campagne: phase3.Campagne) -> Controle:
         for donne, sieges in zip(campagne.donnes, campagne.sieges_mesures, strict=True)
         if sorted(sieges) != list(range(phase3.CONFIG.joueurs))
     ]
-    return _c(
+    return _epreuve(
         "Q2",
         "chaque siege exactement une fois par donne",
         not fautifs,
@@ -133,7 +213,7 @@ def controle_plan_equilibre(campagne: phase3.Campagne) -> Controle:
 def controle_denominateur(mesure: phase3_mesure.Mesure) -> Controle:
     """**R1.** `parties = donnes x sieges`, reconstruit et non recopie."""
     attendu = mesure.nb_donnes * phase3.CONFIG.joueurs
-    return _c(
+    return _epreuve(
         "R1",
         "le denominateur du verdict est `donnes x sieges`",
         mesure.nb_parties == attendu,
@@ -142,15 +222,29 @@ def controle_denominateur(mesure: phase3_mesure.Mesure) -> Controle:
     )
 
 
-def controle_populations_nommees(mesures: Sequence[phase3_mesure.Mesure]) -> Controle:
+def controle_populations_nommees(
+    mesures: Sequence[phase3_mesure.Mesure], intitules_hors_pool: Sequence[str] = ()
+) -> Controle:
     """**R2.** Chaque mesure nomme-t-elle sa composition, et les noms sont-ils distincts ?
 
     Deux compositions portant le meme intitule se liraient comme une seule dans le rapport.
+
+    **Il ne s'appliquait qu'a la liste du pool, et c'est ce qui l'a rendu aveugle.** Le rapport
+    du tour 1 publiait la composition du garde-fou -- 600 donnes, seeds 40000+, checkpoint
+    courant -- sous **exactement** le meme nom qu'une ligne du pool -- 500 donnes, seeds 70000+,
+    `final.pt` --, et R2 declarait « 11 compositions, 11 noms distincts ». Le controle cense
+    attraper la faute maison du projet la laissait passer parce que son perimetre etait plus
+    etroit que celui du rapport.
+
+    Args:
+        intitules_hors_pool: les compositions que le rapport publie **ailleurs** que dans le
+            pool -- celle du garde-fou, aujourd'hui. Le controle porte desormais sur tout ce
+            qui est publie, pas sur ce qui est commode a lui passer.
     """
-    intitules = [mesure.intitule for mesure in mesures]
+    intitules = [mesure.intitule for mesure in mesures] + list(intitules_hors_pool)
     sans_composition = [x for x in intitules if "contre" not in x]
     doublons = sorted({x for x in intitules if intitules.count(x) > 1})
-    return _c(
+    return _epreuve(
         "R2",
         "chaque composition est nommee, et les noms sont distincts",
         not sans_composition and not doublons,
@@ -173,7 +267,7 @@ def controle_grains(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Contro
         if c.exclu is None and c.agent.grain != c.base.grain
     ]
     comparees = sum(1 for c in comparaisons if c.exclu is None)
-    return _c(
+    return _epreuve(
         "R3",
         "les lignes comparees sont au meme grain",
         not fautives,
@@ -183,22 +277,36 @@ def controle_grains(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Contro
 
 
 def controle_zeros(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Controle:
-    """**R4.** Tout zero ou cent pour cent publie est-il confronte a un cas construit ?
+    """**R4.** Tout zero ou cent pour cent publie est-il liste pour traitement individuel ?
 
-    Un zero absolu se confronte a un cas construit a la main **avant** d'etre ecrit : le zero
-    de la phase 1 etait contredit par un test du meme livrable. Ce controle **liste** les zeros
-    et les cent pour cent pour que le rapport les traite un par un ; il ne les valide pas.
+    Un zero absolu se confronte a un cas construit a la main **avant** d'etre ecrit : le zero de
+    la phase 1 etait contredit par un test du meme livrable.
+
+    **Ce controle liste, il ne juge pas** -- c'est un `_releve`, et le rapport le compte comme
+    tel. Le premier tour le donnait « concluant » avec un `True` litteral, ce qui laissait
+    croire que les zeros avaient ete eprouves.
+
+    **Et il regardait le seul agent.** Les deux zeros absolus que le rapport publie --
+    `B4-contre-nature` 0,00 % (0/1967) et `B4-meurtre-couteux` 0,00 % (0/10382) -- sont du cote
+    de la **ligne de base**. Il imprimait donc « 0 valeur extreme chez l'agent -- aucune »
+    pendant que le rapport en publiait deux, et la regle du paragraphe 0.2 n'etait exercee sur
+    aucun des deux. Il scanne desormais **les deux cotes**, et nomme lequel.
+
+    Les deux zeros de la ligne de base sont confrontes a un cas construit a la main par
+    `tests/audit_phase3_corrections/test_zeros_de_la_ligne_de_base.py`, qui montre sur un nœud
+    fabrique que le greedy **ne peut pas** contredire son propre argmax.
     """
-    extremes = [
-        f"{c.nom}={c.agent.succes}/{c.agent.total}"
-        for c in comparaisons
-        if c.agent.total > 0 and c.agent.taux() in (0.0, 1.0)
-    ]
-    return _c(
+    extremes: list[str] = []
+    for comparaison in comparaisons:
+        for cote, compte in (("agent", comparaison.agent), ("ligne de base", comparaison.base)):
+            if compte.total > 0 and compte.taux() in (0.0, 1.0):
+                extremes.append(
+                    f"{comparaison.nom} [{cote}] = {compte.succes}/{compte.total}"
+                )
+    return _releve(
         "R4",
-        "les zeros et les cent pour cent sont listes pour traitement individuel",
-        True,
-        f"{len(extremes)} valeur(s) extreme(s) chez l'agent"
+        "les zeros et les cent pour cent, des DEUX cotes, listes pour traitement individuel",
+        f"{len(extremes)} valeur(s) extreme(s) sur {len(comparaisons)} lignes"
         + (f" : {', '.join(extremes)}" if extremes else " -- aucune"),
     )
 
@@ -218,6 +326,13 @@ def controle_unite_avant_valeur(
     ciblage -- dependent de la politique et ne coincident pas au nœud pres entre deux agents
     differents. Les lignes `-par-partie`, elles, doivent valoir 1,0 exactement des deux cotes,
     et `phase2.observations_par_partie` **leve** sinon.
+
+    **Ce controle liste, il ne juge pas** -- un ecart d'unite n'est pas fautif en soi, un
+    denominateur d'action depend de la politique. C'est donc un `_releve` : le premier tour le
+    donnait « concluant » avec un `True` litteral, alors qu'aucune entree ne pouvait le faire
+    echouer, pas meme un facteur dix. Ce qui **juge** l'unite est
+    `phase2.observations_par_partie`, qui leve ; ce controle rend l'ecart lisible avant que
+    les taux ne soient compares.
     """
     ecarts = []
     for nom in sorted(set(mesure.comportements) & set(base)):
@@ -225,10 +340,9 @@ def controle_unite_avant_valeur(
         b = phase2.observations_par_partie(base[nom], nb_parties_base)
         if b > 0 and abs(a - b) / b > 0.05:
             ecarts.append(f"{nom} {a:.3f} vs {b:.3f}")
-    return _c(
+    return _releve(
         "R5",
-        "l'unite -- observations par partie -- coincide, numerateurs non regardes",
-        True,
+        "l'unite -- observations par partie -- relevee des deux cotes, numerateurs non regardes",
         f"{len(ecarts)} compteur(s) dont l'unite differe de plus de 5 % : "
         + (", ".join(ecarts) if ecarts else "aucun")
         + ". Un ecart n'est pas fautif en soi -- un denominateur d'action depend de la "
@@ -299,7 +413,7 @@ def controle_seeds_disjoints(
             (a0, a1), (b0, b1) = plages[un], plages[autre]
             if a0 < b1 and b0 < a1:
                 chevauchements.append(f"{un} [{a0}, {a1}) x {autre} [{b0}, {b1})")
-    return _c(
+    return _epreuve(
         "Q3",
         "les plages de donnes ne se chevauchent pas",
         not chevauchements,
@@ -325,10 +439,16 @@ def controle_bootstrap_par_donne(campagne: phase3.Campagne) -> Controle:
     effet_anova = (
         None if rho is None else 1.0 + (campagne.replicats_par_donne - 1) * rho
     )
+    # `effet_anova` peut valoir exactement 0 -- `rho = -1/(m-1)`, le cas d'une donne dont les
+    # replicats se partagent une somme constante sans aucune variation entre donnes. Diviser
+    # par lui leverait un `ZeroDivisionError` au milieu d'un audit, ce qui est la pire facon de
+    # tomber : on ne saurait pas si le controle a echoue ou si le code est casse. Trouve en
+    # ecrivant le cas qui casse ce controle, au tour 2.
     concordent = (
-        effet_anova is not None and abs(effet_bootstrap - effet_anova) / effet_anova < 0.10
+        effet_anova is not None
+        and abs(effet_bootstrap - effet_anova) < 0.10 * max(effet_anova, 1e-9)
     )
-    return _c(
+    return _epreuve(
         "Q2",
         "le bootstrap tire des donnes -- deux routes vers l'effet de plan concordent",
         concordent,
@@ -349,8 +469,15 @@ def auditer(
     donnes_pool: int,
     nb_checkpoints: int,
     parties_entrainement: int,
+    intitules_hors_pool: Sequence[str] = (),
 ) -> list[Controle]:
-    """Joue tous les controles et rend leurs verdicts, dans l'ordre des questions."""
+    """Joue tous les controles et rend leurs verdicts, dans l'ordre des questions.
+
+    Args:
+        intitules_hors_pool: les compositions publiees hors du pool -- le garde-fou. Voir
+            `controle_populations_nommees` : c'est l'etroitesse de son perimetre qui l'avait
+            rendu aveugle a un doublon de nom.
+    """
     return [
         controle_niveau_nul(donnes_calibration, phase3_mesure.DEPART_CAMPAGNE_FINALE),
         controle_somme_nulle(mesure, campagne),
@@ -363,11 +490,11 @@ def auditer(
             parties_entrainement=parties_entrainement,
         ),
         controle_denominateur(mesure),
-        controle_populations_nommees(pool),
+        controle_populations_nommees(pool, intitules_hors_pool),
         controle_grains(comparaisons),
         controle_zeros(comparaisons),
         controle_unite_avant_valeur(mesure, base, nb_parties_base),
     ]
 
 
-__all__ = ["Controle", "auditer"]
+__all__ = ["Controle", "STATUTS", "auditer"]

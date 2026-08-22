@@ -32,18 +32,43 @@ politique tombe de **2,089 a 1,646** -- l'agent apprend, visiblement -- et la re
 quand meme, parce que 86,52 % est le niveau du greedy et qu'il est loin. **Une regle qui tue un
 apprenant sain n'est pas un garde-fou, c'est une panne.**
 
-La regle en vigueur separe donc les deux criteres :
+**Et la correction qui suivait etait fausse a son tour -- c'est le quatrieme defaut du meme
+garde-fou, et l'audit l'a mesure.**
 
-  - **arret anticipe**, possible des le 3e checkpoint, et il demande **deux conditions a la
-    fois** : que la part fractionnee **stagne** -- `part(k) <= part(k-2)`, donc aucun progres
-    sur une demi-heure -- **et** que l'agent soit **loin**, borne haute encore sous 86,52 %.
-    Stagner loin de la barre est le symptome d'un agent qui n'apprend pas ; etre loin en
-    progressant ne l'est pas ;
+La version du 21/08/2026 se declenchait sur **trois checkpoints consecutifs a intervalles
+recouvrants**. Or les huit intervalles de ce run se recouvrent **7 fois sur 7** : elle aurait
+tue le run au **checkpoint 3, a 45 minutes sur 120** -- plus tot que celle qu'elle remplacait.
+
+La cause est la meme a chaque fois, et elle a fini par s'ecrire : **un garde-fou ne peut
+chercher qu'un progres plus grand que l'ecart detectable a son propre budget.** Le budget du
+garde-fou est de 1 800 parties par checkpoint, soit **2,75 points** de detectable ; un quart
+d'heure de progres en vaut **1,83** sur ce run. Chercher un progres d'un seul checkpoint, c'est
+chercher un signal que le budget ne peut pas voir -- le garde-fou se declenche alors quoi que
+fasse l'agent. `portee_minimale` calcule cette borne, et un test la confronte a la portee
+retenue.
+
+La regle en vigueur, la cinquieme, **eprouvee sur les donnees avant d'etre ecrite** :
+
+  - **arret anticipe**, a partir du **4e** checkpoint : l'ecart **apparie** entre `part(k)` et
+    `part(k - 3)` est-il etabli, intervalle a 99 % corrige de Bonferroni **excluant 0** ? S'il
+    ne l'est pas, l'agent ne progresse pas de facon mesurable sur trois quarts d'heure, et on
+    arrete. Sur les huit checkpoints de ce run, les cinq ecarts de portee trois valent **+5,89,
+    +5,54, +5,79, +6,05 et +5,07 points** : aucun ne declenche ;
+  - il porte sur un **ECART**, jamais sur un niveau, et **jamais** sur la distance a 86,52 % :
+    la distance a la barre du greedy est la cible de la phase, pas un test d'apprentissage ;
   - **critere terminal**, inchange et celui du protocole : a la fin des 2 h, la part
     fractionnee a-t-elle depasse **86,52 %** ? C'est ce qui se rapporte, quel que soit le
-    chemin ;
-  - les deux premiers checkpoints sont **rapportes mais ne declenchent jamais** : un reseau
-    quasi uniforme n'a encore rien a dire, et `part(k-2)` n'existe pas avant le 3e.
+    chemin, et ce n'est pas un declencheur ;
+  - les trois premiers checkpoints sont **rapportes mais ne declenchent jamais** : `part(k-3)`
+    n'existe pas avant le quatrieme.
+
+Pourquoi la serie par donne est journalisee
+---------------------------------------------
+Un ecart apparie ne se reconstruit pas a partir de deux niveaux. Sans `Jalon.parts_par_donne`,
+la seule lecture possible serait le recouvrement de deux intervalles de niveaux -- qui ignore
+la correlation que l'appariement rend forte, et qui est **exactement** la lecture qui a produit
+le quatrieme defaut. Les donnes etant les memes a chaque checkpoint, deux jalons s'apparient
+rang a rang.
 
 Ce que le garde-fou n'est PAS
 ------------------------------
@@ -55,10 +80,12 @@ d'autre.
 from __future__ import annotations
 
 import json
+import math
 import random
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from statistics import fmean
 
 import torch
 from torch import optim
@@ -73,6 +100,10 @@ from mesure import phase3
 #: Paragraphe 8 : la part de victoire fractionnee du greedy contre deux aleatoires, **moyenne
 #: sur les trois sieges**, agregee sur les 10 002 parties de la campagne B de la phase 2. Elle
 #: ne se compare qu'a une mesure agregee de la meme facon.
+#:
+#: **C'est le critere TERMINAL, et il ne declenche rien.** Il se rapporte a la fin du run. Le
+#: declencheur est l'ecart apparie de portee `PORTEE_DU_GARDE_FOU` ; confondre les deux est le
+#: troisieme des quatre defauts que ce garde-fou a portes.
 GARDE_FOU_GREEDY = 0.8652
 
 #: Paragraphe 8.1 : 600 donnes x 3 sieges = 1 800 parties par checkpoint, ecart detectable
@@ -84,11 +115,25 @@ DEPART_DONNE_GARDE_FOU = 40_000
 #: Huit regards en 2 h. Bonferroni : `risque / 8`.
 CHECKPOINTS_ATTENDUS = 8
 
-#: Le premier checkpoint qui peut declencher l'arret, et il vaut **3** pour deux raisons qui
-#: coincident. La condition de stagnation compare `part(k)` a `part(k-2)`, qui n'existe pas
-#: avant le troisieme. Et un reseau encore quasi uniforme n'a rien a dire : un ecart de deux
-#: intervalles, soit une demi-heure, est ce qui separe du bruit d'une absence reelle de progres.
-PREMIER_CHECKPOINT_QUI_DECLENCHE = 3
+#: La **portee** du garde-fou : il compare le checkpoint `k` au checkpoint `k - 3`, jamais a son
+#: voisin immediat.
+#:
+#: **C'est la seule chose qui le rend utilisable, et les quatre versions precedentes l'ignoraient.**
+#: La regle generale, ecrite au paragraphe de la phase 3 du protocole depuis le 21/08/2026 :
+#: *un garde-fou ne peut chercher qu'un progres plus grand que l'ecart detectable a son propre
+#: budget.* Le budget du garde-fou est de 1 800 parties par checkpoint, soit un detectable de
+#: **2,75 points** ; un seul quart d'heure de progres en vaut environ **1,83** -- mesure sur ce
+#: run, `(70,13 - 57,33) / 7`. Comparer deux checkpoints voisins, c'est comparer deux nombres dont
+#: l'ecart est **par construction** sous le seuil de detection : un tel garde-fou se declenche
+#: toujours, quoi que fasse l'agent. C'est le defaut que la version du 21/08 portait, et il aurait
+#: tue ce run au checkpoint 3.
+#:
+#: `portee_minimale` ci-dessous calcule la borne, et un test la confronte a cette valeur.
+PORTEE_DU_GARDE_FOU = 3
+
+#: Le premier checkpoint qui peut declencher l'arret. Il vaut `PORTEE + 1` : l'ecart de portee
+#: trois compare `part(k)` a `part(k - 3)`, qui n'existe pas avant le quatrieme.
+PREMIER_CHECKPOINT_QUI_DECLENCHE = PORTEE_DU_GARDE_FOU + 1
 
 #: Paragraphe 3 de la phase 3 du protocole : plafond de 2 h, checkpoint tous les quarts d'heure.
 SECONDES_ENTRE_CHECKPOINTS = 15 * 60
@@ -114,7 +159,19 @@ class Jalon:
         part_fractionnee: part de victoire fractionnee contre deux aleatoires, **agregee sur
             les trois sieges**.
         borne_basse, borne_haute: IC de cette part, **corrige de Bonferroni pour 8 regards**.
+            **C'est l'intervalle d'un NIVEAU, et un niveau ne decide de rien** : voir
+            `parts_par_donne`.
         gain_moyen: gain moyen dans la meme composition, rapporte a cote.
+        parts_par_donne: la part fractionnee **donne par donne**, moyennee sur les trois
+            sieges de la donne. C'est le support des ECARTS APPARIES, et il est journalise
+            parce qu'un ecart ne se reconstruit pas a partir de deux niveaux : sans lui, la
+            seule lecture possible serait le recouvrement de deux intervalles, qui ignore la
+            correlation que l'appariement rend forte. Les donnes sont les memes a chaque
+            checkpoint -- `DEPART_DONNE_GARDE_FOU`, `DONNES_GARDE_FOU` --, donc deux jalons
+            s'apparient rang a rang.
+        ecart_de_portee: l'ecart apparie entre ce checkpoint et le checkpoint
+            `numero - PORTEE_DU_GARDE_FOU`, avec son intervalle, ou `None` avant le
+            quatrieme. **C'est lui, et lui seul, qui declenche.**
         declenche: vrai si le garde-fou impose l'arret a ce checkpoint.
     """
 
@@ -130,15 +187,66 @@ class Jalon:
     borne_basse: float
     borne_haute: float
     gain_moyen: float
+    parts_par_donne: tuple[float, ...]
+    ecart_de_portee: tuple[float, float, float] | None
     declenche: bool
+
+
+def portee_minimale(detectable: float, progres_par_checkpoint: float) -> int:
+    """Le nombre de checkpoints qu'un garde-fou doit enjamber pour pouvoir trancher.
+
+    **La regle generale que les quatre versions du garde-fou n'avaient pas** : un garde-fou ne
+    peut chercher qu'un progres **plus grand que l'ecart detectable a son propre budget**. Un
+    garde-fou de portee `p` cherche un progres de `p x progres_par_checkpoint` ; il faut donc
+    que ce produit depasse `detectable`, sans quoi il se declenche quoi que fasse l'agent.
+
+    C'est la seule fonction du depot qui repond a la question « cette regle peut-elle etre
+    franchie a ce budget ? », et elle est **appelee par un test** plutot que citee dans une
+    docstring : c'est ce qui empeche le defaut de se refaire une cinquieme fois.
+
+    Raises:
+        ValueError: si l'un des deux arguments n'est pas strictement positif. Un progres nul
+            demanderait une portee infinie, et un detectable nul ferait croire qu'une portee
+            de 1 suffit toujours.
+    """
+    if detectable <= 0 or progres_par_checkpoint <= 0:
+        raise ValueError(
+            f"portee_minimale suppose deux grandeurs strictement positives : detectable="
+            f"{detectable}, progres_par_checkpoint={progres_par_checkpoint}"
+        )
+    return max(1, math.ceil(detectable / progres_par_checkpoint))
+
+
+def intitule_du_garde_fou(donnes: int = DONNES_GARDE_FOU) -> str:
+    """Le nom de la composition du garde-fou. **Site unique, et ce n'est pas de la coquetterie.**
+
+    Cette chaine et celle du pool de `mesure.phase3_mesure` etaient **identiques** au tour 1 --
+    « 1 agent entraine contre 2 aleatoires (garde-fou) » -- pour deux campagnes qui ne
+    partagent ni l'agent, ni le nombre de donnes, ni les seeds : 600 donnes en 40000+ sur le
+    checkpoint courant d'un cote, 500 donnes en 70000+ sur `final.pt` de l'autre. Le rapport
+    publiait 70,13 % pour l'une et 70,03 % pour l'autre sous le meme nom, et le controle R2
+    -- « les noms sont distincts » -- ne voyait rien, parce qu'il ne s'appliquait qu'a la liste
+    du pool. C'est la faute maison du projet, logee dans le controle cense l'attraper.
+
+    Le nom porte donc desormais **l'agent, le nombre de donnes et le depart des seeds**, et il
+    est produit ici pour que le rapport puisse le donner a R2 sans le recopier.
+    """
+    return (
+        f"1 agent entraine AU CHECKPOINT contre 2 aleatoires, {donnes} donnes, seeds "
+        f"{DEPART_DONNE_GARDE_FOU}+ (garde-fou)"
+    )
 
 
 def evaluer_le_garde_fou(
     modele: ReseauPolitiqueValeur, donnes: int = DONNES_GARDE_FOU
-) -> tuple[float, tuple[float, float], float]:
+) -> tuple[float, tuple[float, float], float, tuple[float, ...]]:
     """L'agent contre **deux aleatoires**, sieges permutes, agrege sur les trois.
 
-    Rend `(part fractionnee, IC corrige de Bonferroni, gain moyen)`.
+    Rend `(part fractionnee, IC corrige de Bonferroni, gain moyen, part par donne)`.
+
+    **La derniere composante est celle qui decide.** Les trois premieres sont des NIVEAUX, et
+    un niveau ne dit pas si l'agent progresse ; la serie par donne est ce qui permet l'ecart
+    apparie entre deux checkpoints, sur les memes donnes.
 
     **La composition est identique a celle du 86,52 %** -- un agent contre deux aleatoires --
     et seul l'agent au siege mesure change. C'est ce qui rend la comparaison licite, et c'est
@@ -151,7 +259,7 @@ def evaluer_le_garde_fou(
         agent=lambda alea: politique_reseau(modele, alea),
         adversaire=phase3.uniforme,
         donnes=donnes,
-        intitule="1 agent entraine contre 2 aleatoires (garde-fou)",
+        intitule=intitule_du_garde_fou(donnes),
         depart=DEPART_DONNE_GARDE_FOU,
         decalage_adversaire=phase3.DECALAGE_UNIFORME,
     )
@@ -168,7 +276,12 @@ def evaluer_le_garde_fou(
         random.Random(phase3.GRAINE_BOOTSTRAP + 3),
         risque=risque_corrige,
     )
-    return part.moyenne, part.intervalle, gain.moyenne
+    return (
+        part.moyenne,
+        part.intervalle,
+        gain.moyenne,
+        tuple(fmean(groupe) for groupe in campagne.parts_fractionnees_par_donne()),
+    )
 
 
 def _sauver(modele: ReseauPolitiqueValeur, chemin: Path) -> None:
@@ -241,15 +354,27 @@ def entrainer(
             # dilue le signal sans rien retenir de l'effondrement de convention.
             del pool[0]
 
-        part, (basse, haute), gain = evaluer_le_garde_fou(modele, donnes_garde_fou)
-        # Deux conditions, et il faut les deux : STAGNER et etre LOIN. Voir la docstring du
-        # module -- appliquer le seul « loin » tuerait un apprenant sain, et c'est mesure.
-        stagne = (
-            numero >= PREMIER_CHECKPOINT_QUI_DECLENCHE
-            and part <= jalons[numero - PREMIER_CHECKPOINT_QUI_DECLENCHE].part_fractionnee
+        part, (basse, haute), gain, parts_par_donne = evaluer_le_garde_fou(
+            modele, donnes_garde_fou
         )
-        loin = haute < GARDE_FOU_GREEDY
-        declenche = stagne and loin
+        # **Une seule condition, et elle porte sur un ECART, jamais sur un niveau ni sur la
+        # distance a la barre du greedy.** Le garde-fou teste la phrase qu'il ecrit -- « l'agent
+        # n'apprend pas » --, et il la teste a une portee que son budget lui permet de trancher.
+        # Voir `PORTEE_DU_GARDE_FOU` : a portee 1, il se declencherait quoi que fasse l'agent.
+        ecart_de_portee: tuple[float, float, float] | None = None
+        if numero >= PREMIER_CHECKPOINT_QUI_DECLENCHE:
+            reference = jalons[numero - PORTEE_DU_GARDE_FOU - 1]
+            apparie = boot.bootstrap_apparie_par_donne(
+                reference.parts_par_donne,
+                parts_par_donne,
+                phase3.RECHANTILLONS,
+                random.Random(phase3.GRAINE_BOOTSTRAP + 4 + numero),
+                risque=0.01 / CHECKPOINTS_ATTENDUS,
+            )
+            ecart_de_portee = (apparie.moyenne, *apparie.intervalle)
+        declenche = ecart_de_portee is not None and not (
+            ecart_de_portee[1] > 0.0 or ecart_de_portee[2] < 0.0
+        )
         jalon = Jalon(
             numero=numero,
             secondes=ecoule,
@@ -263,6 +388,8 @@ def entrainer(
             borne_basse=basse,
             borne_haute=haute,
             gain_moyen=gain,
+            parts_par_donne=parts_par_donne,
+            ecart_de_portee=ecart_de_portee,
             declenche=declenche,
         )
         jalons.append(jalon)
@@ -272,6 +399,12 @@ def entrainer(
             f"[{numero:02d}] {ecoule:7.1f} s  {parties:8d} parties  "
             f"part {part:.4%} IC [{basse:.4%} ; {haute:.4%}]  gain {gain:+.4f}  "
             f"H {pertes['entropie']:.4f}"
+            + (
+                ""
+                if ecart_de_portee is None
+                else f"  ecart/{PORTEE_DU_GARDE_FOU} {ecart_de_portee[0]:+.4%} "
+                f"IC [{ecart_de_portee[1]:+.4%} ; {ecart_de_portee[2]:+.4%}]"
+            )
             + ("  -- GARDE-FOU DECLENCHE" if declenche else ""),
             flush=True,
         )
@@ -315,9 +448,10 @@ def main(argv: list[str] | None = None) -> int:
         flush=True,
     )
     print(
-        f"# Garde-fou : part fractionnee contre 2 aleatoires, 3 sieges agreges, seuil "
-        f"{GARDE_FOU_GREEDY:.4%} ; IC corrige Bonferroni pour {CHECKPOINTS_ATTENDUS} "
-        f"regards (z = {quantile:.4f})",
+        f"# Garde-fou : declenche si l'ecart APPARIE entre part(k) et part(k-"
+        f"{PORTEE_DU_GARDE_FOU}) n'est pas etabli, a partir du checkpoint "
+        f"{PREMIER_CHECKPOINT_QUI_DECLENCHE} ; IC corrige Bonferroni pour "
+        f"{CHECKPOINTS_ATTENDUS} regards (z = {quantile:.4f})",
         flush=True,
     )
     jalons = entrainer(
@@ -334,8 +468,9 @@ def main(argv: list[str] | None = None) -> int:
     dernier = jalons[-1]
     print(
         f"# Fin. {len(jalons)} checkpoints, {dernier.parties} parties d'entrainement. "
-        f"Garde-fou au dernier checkpoint : part {dernier.part_fractionnee:.4%} contre "
-        f"{GARDE_FOU_GREEDY:.4%}"
+        f"Critere TERMINAL au dernier checkpoint : part {dernier.part_fractionnee:.4%} contre "
+        f"{GARDE_FOU_GREEDY:.4%}. Declencheur (ecart apparie de portee "
+        f"{PORTEE_DU_GARDE_FOU})"
         + (" -- DECLENCHE" if dernier.declenche else " -- non declenche")
     )
     return 0
@@ -349,6 +484,9 @@ __all__ = [
     "CHECKPOINTS_ATTENDUS",
     "DONNES_GARDE_FOU",
     "GARDE_FOU_GREEDY",
+    "PORTEE_DU_GARDE_FOU",
+    "portee_minimale",
+    "intitule_du_garde_fou",
     "Jalon",
     "entrainer",
     "evaluer_le_garde_fou",
