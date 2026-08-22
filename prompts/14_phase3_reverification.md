@@ -1,7 +1,19 @@
 # Re-vérification après corrections — phase 3, tour 2
 
-**À coller dans la conversation n° 7 — Audit de la phase 3.** Elle est rouverte, ce n'est pas
-une conversation neuve.
+> **PROMPT ANNULÉ, JAMAIS UTILISÉ. Remplacé par
+> [15_phase3_reverification_croisee.md](15_phase3_reverification_croisee.md).**
+>
+> Il était adressé à la conversation n° 7 pour qu'elle re-vérifie des corrections que — on l'a
+> découvert après coup — **elle avait elle-même écrites**. `prompts/13`, destiné à la
+> conversation n° 6, avait été collé dans la n° 7 lors du relais. L'auditeur l'a signalé deux
+> fois ; le pilote l'a lu sans réagir.
+>
+> Le §5 de [07_protocole_audit_croise.md](../documentations/07_protocole_audit_croise.md) compte
+> comme disqualifiant un défaut corrigé par l'auditeur. Faire re-vérifier ces corrections par
+> leur auteur n'aurait rien établi. Conservé tel quel : le réécrire effacerait la trace de
+> l'erreur.
+
+**~~À coller dans la conversation n° 7 — Audit de la phase 3.~~**
 
 ---
 
