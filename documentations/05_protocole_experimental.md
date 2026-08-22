@@ -532,8 +532,13 @@ agent peut apprendre franchement sans les atteindre, et c'est exactement ce qui 
 >
 > **La version ci-dessus a été éprouvée sur les données avant d'être écrite** — ce que les quatre
 > précédentes n'avaient pas été. Sur les huit checkpoints de la phase 3, les cinq écarts de portée
-> trois valent **+5,89, +5,54, +5,79, +6,05 et +5,07 points** pour un détectable de 2,75 : aucun
-> ne déclenche, chez le constructeur comme dans la remesure de l'auditeur.
+> trois valent **+5,89, +5,54, +5,79, +6,05 et +5,07 points**, tous au-dessus de la barre
+> appariée de **3,56 à 4,06 points** : aucun ne déclenche, chez le constructeur comme dans la
+> remesure de l'auditeur.
+>
+> *(Cette phrase citait encore les 2,75 points jusqu'au 21/08 au soir — la grandeur d'un niveau,
+> corrigée deux paragraphes plus haut et laissée ici. Relevé par l'audit du tour 2 : le protocole
+> et `agents/campagne.py` ne s'accordaient pas sur la barre.)*
 
 > **Corrigé le 20/08/2026, sur remontée de la conversation n° 6.** Ce garde-fou disait « **si après
 > 2 h d'entraînement** », dans une section dont le plafond d'exécution est **2 h**. Il se
