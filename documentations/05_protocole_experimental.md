@@ -94,7 +94,22 @@ aurait déplacé l'étalon de toutes les phases qui l'ont déjà cité. Une lign
 besoin d'être forte : elle a besoin d'être **exactement décrite**.
 
 Conséquence pour les phases suivantes : **`agents/greedy.py` est la ligne de base de toutes les
-phases et ne porte aucune mutation.** `outillage/mutation.py` ne cible que `courtisans/`.
+phases et ne porte aucune mutation.**
+
+> **Périmètre des mutations, élargi le 21/08/2026 sur remontée de l'audit de la phase 3.**
+> Jusqu'ici `outillage/mutation.py` ne ciblait que `courtisans/`. La phrase « 20 mutations, toutes
+> détectées » ne disait donc **rien** des ~2 500 lignes neuves de `agents/` et de `mesure/`.
+>
+> **Ce que la règle protégeait, c'était l'étalon, pas le code de mesure.** `agents/greedy.py`
+> reste exempt — c'est le seul invariant. **`mesure/` et le reste de `agents/` entrent dans le
+> périmètre**, et pour la raison que la phase 2 a payée : son défaut le plus instructif — un
+> facteur trois indu dans six budgets, survivant à deux vérifications réussies — vivait dans le
+> **générateur**, pas dans le moteur. Laisser le code de mesure hors du périmètre, c'est exempter
+> précisément l'endroit où ce projet s'est trompé le plus souvent.
+>
+> **L'élargissement n'est pas rétroactif sur la phase 3**, qui documente la limite plutôt que de
+> la corriger : muter 2 500 lignes est un travail de phase, pas une correction de tour d'audit.
+> **C'est le premier travail de la phase 4, avant tout levier.**
 
 ---
 
@@ -462,11 +477,28 @@ intervalle à 99 % de cet **écart apparié** contenant 0 —, à partir de `k =
 
 **Sa portée est de trois checkpoints et non d'un seul, et c'est la seule chose qui le rend
 utilisable.** La règle générale, qui manquait aux quatre versions précédentes : *un garde-fou ne
-peut chercher qu'un progrès plus grand que l'écart détectable à son propre budget.* Ici le budget
-du garde-fou est de 1 800 parties par checkpoint, soit un détectable de **2,75 points**, quand un
-seul quart d'heure de progrès en vaut environ **2**. Comparer deux checkpoints voisins, c'est
-comparer deux nombres dont l'écart est **par construction** sous le seuil de détection : un tel
-garde-fou se déclenche toujours, quoi que fasse l'agent.
+peut chercher qu'un progrès plus grand que ce que son propre budget lui permet de détecter.*
+Comparer deux checkpoints voisins, c'est comparer deux nombres dont l'écart est **par
+construction** sous le seuil : un tel garde-fou se déclenche toujours, quoi que fasse l'agent.
+
+**La barre se lit sur la grandeur testée, et le test porte sur un écart apparié — pas sur un
+niveau.** La bonne barre est donc la **demi-largeur de l'intervalle de cet écart**, mesurée sur
+les données, et non l'écart détectable iid d'un niveau. Sur la phase 3, les deux valent
+respectivement **3,56 à 4,06 points** et 2,75 : ce sont deux grandeurs différentes, et c'est la
+première qui décide.
+
+> **Corrigé le 21/08/2026, au tour 2, sur remontée de la conversation n° 6.** Cette section
+> justifiait la portée de trois par les **2,75 points** de l'écart détectable — qui est un
+> détectable **iid sur un niveau**, pas la barre d'un écart apparié. **Mauvaise grandeur.** Avec
+> la bonne, les écarts de portée deux valent en moyenne **3,76 points** pour une barre de
+> **3,83** : ils sont **sous** le seuil. La portée de trois est donc **minimale, pas
+> confortable** — elle était juste, mais elle l'était pour une raison fausse, et quiconque
+> redériverait la portée à un autre budget avec la formule écrite ici se tromperait.
+>
+> Recalculé par le pilote sur les intervalles publiés : demi-largeurs des sept pas **3,56 ; 3,64 ;
+> 3,77 ; 3,83 ; 3,93 ; 4,04 ; 4,06**. Écarts de portée trois : **5,89 ; 5,54 ; 5,79 ; 6,05 ;
+> 5,07** — tous au-dessus. Écarts de portée deux : **4,44 ; 3,70 ; 3,29 ; 4,34 ; 4,21 ; 2,57** —
+> trois sur six en dessous.
 
 **Il ne se déclenche PAS parce que l'agent n'a pas atteint le niveau du greedy.** Les **86,52 %**
 du greedy dans cette composition sont la **cible** de la phase, pas un test d'apprentissage. Un
