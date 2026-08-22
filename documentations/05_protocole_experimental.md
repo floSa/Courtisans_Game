@@ -64,6 +64,14 @@ nommait quatre fois.*
   diffèrent, plutôt que de rendre un nombre qu'il faudrait relire.
 - **Un facteur de gain d'échantillonnage se mesure sur la population qui l'utilise.** L'appariement
   ne divise le budget que d'un facteur qu'il faut avoir mesuré ; voir le §1.
+- **Une courbe d'apprentissage se publie avec l'intervalle de ses ÉCARTS, pas seulement de ses
+  niveaux.** C'est un écart qui décide — « il progresse encore » —, jamais un niveau, et les écarts
+  appariés ne coûtent pas une partie de plus. La phase 3 a publié huit intervalles sur huit niveaux
+  et aucun sur les sept écarts ; sept des sept se recouvraient, et la phrase « monotone sans
+  exception, encore en progression au dernier » ne tenait sur aucun d'eux.
+- **Un contrôle qui ne peut pas échouer ne se compte pas parmi les contrôles concluants.** Deux des
+  dix contrôles de l'auto-audit de la phase 3 passaient un `True` littéral : ils sont *relevés*,
+  pas *concluants*, et le compte rendu affirmait pourtant que les dix étaient éprouvés.
 - **Aucune durée ne se cite sur un seul chronométrage.** Sur la machine du projet, cinq passes du
   même code donnent un rapport max/min de **2,93 à 3,00** par campagne, **de façon non monotone**.
   Le temps mural mesure l'état de la machine, pas le coût du code. Toute durée se cite sur au
@@ -130,6 +138,16 @@ l'exploitabilité — un nombre absolu. Ici, **le juge est relatif**.
 > **L'appariement reste obligatoire** : il ne coûte rien et il supprime une variance réelle.
 > Ce qui est interdit, c'est de **dimensionner un budget** sur un facteur de gain qu'on n'a pas
 > mesuré sur sa propre population. Toute phase qui veut s'en servir mesure d'abord son ρ.
+>
+> **Et la phase 3 a fourni le contre-exemple, le 21/08/2026 : il existe un appariement qui
+> économise vraiment.** Ce ρ-ci n'est pas le même objet que celui ci-dessus — celui de la phase 2
+> est mesuré entre **réplicats de politique** sur une donne, celui de la phase 3 entre
+> **assignations de siège** sur une donne. Mesuré sur « un greedy contre deux greedys »,
+> 2 000 donnes, seeds 20000–21999 : **ρ = −0,1400**, effet de plan **0,7200** — la permutation des
+> sièges **fait gagner 28 % de variance**. Elle est négative *par structure* : la somme des trois
+> sièges vaut zéro dans une partie, donc ce qu'un siège gagne, les autres le perdent.
+> **Conséquence : « l'appariement n'économise rien » est vrai du ρ de la phase 2 et faux de
+> celui-là. Nommer lequel des deux on parle fait partie du chiffre.**
 
 ### La mesure secondaire : les comportements B1 à B7
 
@@ -434,11 +452,56 @@ population d'un agent contre deux greedys.** La phase 3 mesure donc σ(gain) et 
 composition**, en pré-inscription, et en déduit son nombre de parties — c'est l'étape 4 de la
 boucle du §2, et le §0.2 l'exige.
 
-**Garde-fou de la règle 2.** À **chaque checkpoint de 15 minutes**, l'agent est mis à la place du
-greedy dans la composition **un contre deux aléatoires** et comparé à la part de victoire
-fractionnée du greedy dans cette même composition — **86,52 %**, mesurée en phase 2. S'il ne l'a
-pas dépassée au dernier checkpoint du run, on arrête : l'agent n'apprend pas, et rallonger ne dira
-rien de plus.
+**Garde-fou de la règle 2.** Il **teste la prémisse qu'il nomme**, et rien d'autre : *l'agent
+n'apprend pas.* À chaque checkpoint de 15 minutes, l'agent est mis à la place du greedy dans la
+composition **un contre deux aléatoires** et sa part de victoire fractionnée est mesurée, agrégée
+sur les trois sièges.
+
+**Il se déclenche si l'écart entre le checkpoint `k` et le checkpoint `k − 3` n'est pas établi** —
+intervalle à 99 % de cet **écart apparié** contenant 0 —, à partir de `k = 4`.
+
+**Sa portée est de trois checkpoints et non d'un seul, et c'est la seule chose qui le rend
+utilisable.** La règle générale, qui manquait aux quatre versions précédentes : *un garde-fou ne
+peut chercher qu'un progrès plus grand que l'écart détectable à son propre budget.* Ici le budget
+du garde-fou est de 1 800 parties par checkpoint, soit un détectable de **2,75 points**, quand un
+seul quart d'heure de progrès en vaut environ **2**. Comparer deux checkpoints voisins, c'est
+comparer deux nombres dont l'écart est **par construction** sous le seuil de détection : un tel
+garde-fou se déclenche toujours, quoi que fasse l'agent.
+
+**Il ne se déclenche PAS parce que l'agent n'a pas atteint le niveau du greedy.** Les **86,52 %**
+du greedy dans cette composition sont la **cible** de la phase, pas un test d'apprentissage. Un
+agent peut apprendre franchement sans les atteindre, et c'est exactement ce qui est arrivé.
+
+> **Quatrième correction de ce même garde-fou, le 21/08/2026, sur remontée de l'audit.** Il en a
+> porté quatre défauts successifs, et les quatre étaient des confusions différentes. **Un :** le
+> texte d'origine écrivait
+> « si après 2 h d'entraînement », dans une section dont le plafond est 2 h — il se déclenchait
+> quand le run était fini. **Deux :** la correction du pilote l'évaluait à chaque checkpoint, donc
+> il se déclenchait au premier, avant que quoi que ce soit ait pu être appris. **Trois :** sa
+> prémisse était fausse. Il concluait « l'agent n'apprend pas » d'un agent qui n'atteignait pas le
+> greedy, et la phase 3 fournit le contre-exemple mesuré — part fractionnée contre deux aléatoires
+> **57,33 → 59,52 → 61,77 → 63,22 → 65,06 → 67,56 → 69,27 → 70,13 %**, croissance monotone sans
+> exception sur huit checkpoints, encore en progression au dernier, et pourtant loin des 86,52 %.
+>
+> **Quatre :** la correction ci-dessus, écrite le matin même, se déclenchait sur **trois
+> checkpoints consécutifs à intervalles recouvrants** — et l'audit a mesuré que les huit
+> intervalles de ce run se recouvrent **7 fois sur 7**, donc qu'elle aurait tué le run au
+> **checkpoint 3, à 45 minutes sur 120**. Recalculé par le pilote sur `models/phase3/journal.jsonl` :
+> le déclenchement est confirmé. Le garde-fou réécrit pour ne pas tuer un agent qui apprend
+> l'aurait tué plus tôt que celui qu'il remplaçait.
+>
+> **Ce quatrième défaut est né dans le texte qui corrigeait le troisième**, écrit par le pilote
+> quelques heures plus tôt. C'est la cinquième fois dans ce projet que le défaut neuf naît dans la
+> correction du précédent.
+>
+> **Un garde-fou doit tester la phrase qu'il écrit, à un budget qui lui permette de la tester.**
+> Les quatre défauts venaient de là : trois ne testaient aucune phrase, le quatrième testait la
+> bonne phrase à un budget qui ne pouvait pas la trancher.
+>
+> **La version ci-dessus a été éprouvée sur les données avant d'être écrite** — ce que les quatre
+> précédentes n'avaient pas été. Sur les huit checkpoints de la phase 3, les cinq écarts de portée
+> trois valent **+5,89, +5,54, +5,79, +6,05 et +5,07 points** pour un détectable de 2,75 : aucun
+> ne déclenche, chez le constructeur comme dans la remesure de l'auditeur.
 
 > **Corrigé le 20/08/2026, sur remontée de la conversation n° 6.** Ce garde-fou disait « **si après
 > 2 h d'entraînement** », dans une section dont le plafond d'exécution est **2 h**. Il se
@@ -473,7 +536,8 @@ entre compositions différentes**.
 **Quatre défauts mineurs hérités de la phase 2 se traitent au début de cette phase**, avant toute
 mesure :
 
-1. le rapport généré est écrit en **cp1252** quand les quatre autres documents sont en UTF-8 ;
+1. le rapport généré est écrit en **cp1252** quand les **cinq** autres documents de `mesure/`
+   sont en UTF-8 — le relevé de la phase 2 écrivait « quatre », il y en a cinq ;
 2. **`vue_du_joueur` ne valide pas son argument** et rend une vue n'appartenant à aucun siège —
    c'est la réouverture du défaut 2 de la phase 0 sur une entrée neuve, et c'est le plus sérieux
    des quatre puisque **tout agent en dépend** ;
