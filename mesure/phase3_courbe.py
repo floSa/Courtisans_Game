@@ -34,6 +34,7 @@ Les runs suivants n'en ont pas besoin : `agents.campagne` journalise la serie di
 from __future__ import annotations
 
 import json
+import random
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -60,7 +61,11 @@ class Ecart:
         portee: `vers - depuis`, en checkpoints.
         moyenne: l'ecart moyen apparie, en part fractionnee.
         intervalle: son intervalle de percentiles, bootstrap **par donne**.
-        etabli: l'intervalle exclut-il 0 ? **C'est la seule lecture licite.**
+        etabli: l'intervalle exclut-il 0 ? **C'est la seule lecture licite** d'un ecart.
+        progres_etabli: l'intervalle est-il **entierement au-dessus de 0** ? Recopie de
+            `bootstrap.EcartApparie`, ou le predicat est defini une seule fois. Ce n'est pas
+            `etabli` : un effondrement etabli est etabli et n'est pas un progres, et c'est la
+            distinction dont le garde-fou depend.
     """
 
     depuis: int
@@ -69,14 +74,43 @@ class Ecart:
     moyenne: float
     intervalle: tuple[float, float]
     etabli: bool
+    progres_etabli: bool
 
 
-def serie_par_donne(chemin_checkpoint: Path, donnes: int) -> tuple[float, ...]:
-    """Rejoue l'evaluation du garde-fou d'un checkpoint et rend sa part fractionnee par donne.
+@dataclass(frozen=True)
+class RejeuDeCheckpoint:
+    """Tout ce que le rejeu d'un checkpoint rend, **chaque champ sous son nom**.
+
+    Ce type existe parce que la fonction ci-dessous rendait un `tuple[float, ...]` de cinq
+    elements dont le cinquieme etait une **suite** de flottants, pas un flottant. L'annotation
+    etait donc fausse, et le nom de la fonction ne promettait qu'un des cinq. Un appelant qui
+    lisait la signature ne pouvait pas deviner l'ordre des quatre premiers -- et c'est
+    exactement l'ordre dont depend la garde de reproduction bit a bit.
+
+    Attributes:
+        part_fractionnee: la part fractionnee du checkpoint.
+        borne_basse: la borne basse de son intervalle.
+        borne_haute: la borne haute de son intervalle.
+        gain_moyen: le gain moyen.
+        serie: la part fractionnee **donne par donne** -- la matiere de l'ecart apparie.
+    """
+
+    part_fractionnee: float
+    borne_basse: float
+    borne_haute: float
+    gain_moyen: float
+    serie: tuple[float, ...]
+
+
+def serie_par_donne(chemin_checkpoint: Path, donnes: int) -> RejeuDeCheckpoint:
+    """Rejoue l'evaluation du garde-fou d'un checkpoint et rend **tout** ce qu'elle produit.
 
     Passe par `agents.campagne.evaluer_le_garde_fou` plutot que de refaire la campagne ici :
     deux definitions de la meme composition finiraient par ne plus etre d'accord, et c'est la
     mesure qui aurait tort sans que rien ne le signale (paragraphe 2 des conventions).
+
+    Le nom est garde parce qu'il dit ce qu'on vient chercher ; le type de retour dit ce qu'on
+    obtient, et les deux ne se contredisent plus depuis que ce n'est plus un tuple anonyme.
     """
     from agents.campagne import evaluer_le_garde_fou
     from agents.politique_reseau import charger
@@ -90,7 +124,13 @@ def serie_par_donne(chemin_checkpoint: Path, donnes: int) -> tuple[float, ...]:
         nb_actions=6 * 2 * (phase3.CONFIG.joueurs - 1),
     )
     part, (basse, haute), gain, serie = evaluer_le_garde_fou(modele, donnes)
-    return part, basse, haute, gain, serie
+    return RejeuDeCheckpoint(
+        part_fractionnee=part,
+        borne_basse=basse,
+        borne_haute=haute,
+        gain_moyen=gain,
+        serie=tuple(serie),
+    )
 
 
 def completer(dossier: Path, donnes: int) -> list[dict]:
@@ -119,12 +159,12 @@ def completer(dossier: Path, donnes: int) -> list[dict]:
                 f"{chemin} : la serie par donne du checkpoint {jalon['numero']} ne peut pas "
                 f"etre rejouee sans lui, et elle ne s'invente pas"
             )
-        part, basse, haute, gain, serie = serie_par_donne(chemin, donnes)
+        rejeu = serie_par_donne(chemin, donnes)
         rejoue = {
-            "part_fractionnee": part,
-            "borne_basse": basse,
-            "borne_haute": haute,
-            "gain_moyen": gain,
+            "part_fractionnee": rejeu.part_fractionnee,
+            "borne_basse": rejeu.borne_basse,
+            "borne_haute": rejeu.borne_haute,
+            "gain_moyen": rejeu.gain_moyen,
         }
         ecarts = [
             f"{champ} : journalise {jalon[champ]!r}, rejoue {rejoue[champ]!r}"
@@ -137,7 +177,7 @@ def completer(dossier: Path, donnes: int) -> list[dict]:
                 + " ; ".join(ecarts)
                 + ". Ce n'est donc pas la meme mesure, et aucun ecart n'en sera publie."
             )
-        jalon["parts_par_donne"] = list(serie)
+        jalon["parts_par_donne"] = list(rejeu.serie)
 
     journal.write_text(
         "".join(json.dumps(jalon, ensure_ascii=False) + "\n" for jalon in jalons),
@@ -174,7 +214,7 @@ def ecarts(jalons: Sequence[dict], portee: int, risque: float) -> list[Ecart]:
             avant["parts_par_donne"],
             apres["parts_par_donne"],
             phase3.RECHANTILLONS,
-            __import__("random").Random(phase3.GRAINE_BOOTSTRAP + 4 + apres["numero"]),
+            random.Random(phase3.graine_du_garde_fou(apres["numero"])),
             risque=risque,
         )
         resultats.append(
@@ -185,6 +225,7 @@ def ecarts(jalons: Sequence[dict], portee: int, risque: float) -> list[Ecart]:
                 moyenne=apparie.moyenne,
                 intervalle=apparie.intervalle,
                 etabli=apparie.etabli,
+                progres_etabli=apparie.progres_etabli,
             )
         )
     return resultats
@@ -195,4 +236,11 @@ def ecart_des_extremes(jalons: Sequence[dict], risque: float) -> Ecart:
     return ecarts(jalons, len(jalons) - 1, risque)[0]
 
 
-__all__ = ["Ecart", "completer", "ecart_des_extremes", "ecarts", "serie_par_donne"]
+__all__ = [
+    "Ecart",
+    "RejeuDeCheckpoint",
+    "completer",
+    "ecart_des_extremes",
+    "ecarts",
+    "serie_par_donne",
+]

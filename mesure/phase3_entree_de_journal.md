@@ -98,8 +98,16 @@ encore à la fin.**
   aucune donne, et la comparaison n'est donc pas appariée** ; l'écart détectable est calculé sur
   les **deux** effectifs. **`B1-motif` 42,48 % contre 45,83 %** : l'agent manifeste le motif de
   retournement **moins** que le greedy. **`B4-brut` 31,93 % contre 15,93 %** : il refuse de tuer
-  deux fois plus souvent. **`B4-contre-nature` 35,87 % contre 0,00 %**, et cet écart n'établit
-  ni planification ni erreur.
+  deux fois plus souvent. **`B4-contre-nature` 35,87 % contre 0,00 %** — un écart
+  **séparable**, mais par une **autre règle** que le reste du tableau : sur un zéro absolu la
+  variance binomiale est nulle, la formule normale rendrait « tout est détectable », et le
+  détectable vaut donc `None`. Ce zéro se traite par sa **borne exacte**, celle de
+  Clopper-Pearson : **0,2338 %** pour `0/1967`, **0,0443 %** pour le `0/10382` de
+  `B4-meurtre-couteux`. **Le tour 2 imprimait ces deux lignes « non séparables »** — une
+  conclusion que rien n'avait calculée, dans un document dont le texte argumentait une
+  demi-page sur ce que le même écart établit. Le rendu **lève** désormais sur toute ligne
+  qu'aucune règle nommée n'a tranchée. Séparable ou non, **cet écart n'établit ni
+  planification ni erreur** : ce qu'il mesure, c'est un désaccord avec l'évaluation myope.
 
 **Audit. VERDICT du tour 1 : REJETÉ** — deux bloquants, quatre majeurs, huit mineurs,
 **97 contrôles hostiles** écrits par l'auditeur, tous verts.
@@ -112,8 +120,9 @@ pendant la décision, et un brouilleur dont il prouve qu'il attraperait un tense
 seule** composante ; **la disjonction des populations au niveau des DONNES et pas des seuls
 seeds** — 0 collision de pioche entre les 14 600 donnes de mesure et les **1 486 336** donnes
 d'entraînement balayées en entier ; les gardes de grain ; 20/20 mutations ; 1 132 tests verts
-dont **aucun sauté**. *La suite en compte **1 161** au tour 2, toujours 0 rouge et 0 sauté :
-29 cas de plus, tous écrits pour faire tomber une correction.*
+dont **aucun sauté**. *La suite en compte **1 172** après le tour 2 d'audit, toujours 0 rouge et
+0 sauté : 40 cas de plus qu'au tour 1, tous écrits pour faire tomber une correction — et onze
+d'entre eux pour faire tomber une correction du tour 2.*
 
 **Ce que l'auto-audit avait trouvé avant la mesure, et qui tient** : les compositions du pool
 tombaient **dans la plage d'entraînement** — départ à 30 000 avec des décalages de +100 000 et
@@ -154,8 +163,10 @@ entre deux budgets différents ; et une règle de garde-fou qui tuait un agent q
    pilote avait propagé l'erreur**. *Corrigé, avec la raison pour laquelle la règle était
    aveugle.*
 8. **mineur** — l'écart détectable supposait des dénominateurs égaux ; `B4-strict` passait de
-   2,37 à 3,96 pt. *Corrigé : formule à deux échantillons ; **aucune des 34 lignes ne change de
-   statut**, et un test le fige.*
+   2,37 à 3,96 pt. *Corrigé : formule à deux échantillons. **La phrase « aucune des 34 lignes ne
+   change de statut » était fausse, et l'audit du tour 2 l'a montré** : deux lignes changent —
+   celles qui portent un zéro absolu, que la formule normale ne sait pas traiter. Voir A
+   ci-dessous.*
 9. **mineur** — le tableau central ne se rendait pas comme un tableau. *Corrigé : le blockquote
    passe avant l'en-tête.*
 10. **mineur** — « les quatre plages » suivi d'une liste de six. *Corrigé : **six familles,
@@ -170,6 +181,85 @@ entre deux budgets différents ; et une règle de garde-fou qui tuait un agent q
 **Trouvé au tour 2, en écrivant le cas qui casse un contrôle** : `controle_bootstrap_par_donne`
 divisait par un effet de plan qui peut valoir exactement 0 — `ρ = −1/(m−1)` —, donc levait un
 `ZeroDivisionError` au milieu d'un audit. Corrigé.
+
+**Audit croisé du tour 2. VERDICT : REJETÉ.** Douze des quatorze défauts sont levés et le
+restent. Le verdict porte sur **ce que les corrections ont introduit** — trois défauts neufs,
+dont deux bloquants, et deux d'entre eux étaient dans l'avant-dernier commit et non dans le
+dernier. **Pour la sixième fois dans ce projet, le défaut neuf est né dans la correction du
+précédent.**
+
+- **A — bloquant.** *« Aucune ligne ne change de statut » était faux, et sur les deux lignes du
+  défaut 4.* `ecart_detectable_deux_echantillons` rend `None` sur un taux dégénéré ; les deux
+  zéros absolus passaient donc de **séparable** à « non séparable à ce budget », **sans
+  détectable et sans nombre de parties**. L'étiquette n'était pas seulement absente, elle était
+  **fausse** : les deux lignes sont séparables. *Corrigé : `separer_un_taux_degenere` calcule
+  la borne de Clopper-Pearson que ma propre docstring prescrivait depuis le tour 2 sans que
+  personne ne l'exerce — **0,2338 %** et **0,0443 %** —, chaque ligne publie **le nom de la
+  règle qui l'a tranchée**, `separable` distingue `None` de `False`, et le rendu **lève** sur
+  toute ligne qu'aucune règle n'a tranchée. Le texte et le tableau du rapport disent désormais
+  la même chose : le tour 2 déclarait `B4-contre-nature` non séparable dans son tableau et
+  argumentait une demi-page sur ce que le même écart établit.*
+- **B — bloquant.** *Le cas qui soutenait cette phrase maquillait son entrée.*
+  `test_aucune_ligne_ne_change_de_STATUT_avec_la_formule_corrigee` écrivait `1` là où la mesure
+  dit `0`, **sur les deux seules lignes qui changent de statut**. Avec le `1`, les deux
+  redevenaient séparables et le cas passait au vert. C'est la famille du test de la phase 2 dont
+  le nom disait « refuse » quand le corps affirmait le contraire — à ceci près qu'ici
+  **l'assertion était juste et l'ENTRÉE falsifiée**, ce qui est plus difficile à voir en
+  relisant. *Corrigé : le cas prend les comptes réels, il change de nom parce que l'ancien
+  portait la conclusion fausse, et **une parade va relire ces comptes dans le rapport publié**
+  — un cas ne choisit plus ses propres entrées.*
+- **C — majeur.** *Le garde-fou v5 était aveugle à un effondrement.* Il testait « l'écart
+  apparié est-il **établi** ? ». Un effondrement établi satisfait la condition : mesuré par
+  l'auditeur, **−17,80 pt, IC [−18,43 ; −17,08], ne déclenchait pas**. C'est le mode de
+  défaillance — l'effondrement de convention en self-play — que l'arbitrage du tour 1 avait
+  escaladé en retirant le greedy et l'aléatoire du pool. **Cinquième défaut du même garde-fou.**
+  *Corrigé : le déclenchement porte sur un **progrès établi et positif**, le prédicat vit à un
+  seul site — `bootstrap.EcartApparie.progres_etabli` —, et un cas hostile lui passe un
+  effondrement au lieu d'une stagnation.*
+
+**Quatre mineurs et une réserve, du même tour.** *(D)* le verdict de déclenchement était relu
+dans `journal["declenche"]`, champ écrit **pendant le run** par une règle depuis retirée deux
+fois, pendant que la phrase imprimée décrivait la règle courante — les deux concordent ici, rien
+ne le garantissait ; il est **recalculé**. *(E)* `serie_par_donne` était annotée
+`tuple[float, ...]` et rendait cinq valeurs hétérogènes — un dataclass nommé. *(F)*
+`portee_minimale` n'était appelée qu'avec trois littéraux transcrits de ce run : la parade
+figeait un run au lieu de calculer le suivant. Les deux grandeurs sont désormais **mesurées sur
+le journal** — 3,8333 pt et 1,8280 pt, qui rendent bien 3. *(G)* trois règles à deux sites — le
+prédicat « établi », la graine du bootstrap apparié et un `__import__("random")` — ramenées
+chacune à un seul. *Réserve* : la parade des intitulés ne lisait que les `ast.Constant`, si bien
+que redonner au pool le nom du garde-fou **via `intitule_du_garde_fou()`** la traversait. Elle
+**évalue** les appels désormais, et un cas lui donne les deux formes du même nom.
+
+**Trouvé en relisant l'avant-dernier commit, comme le pilote l'a demandé — sept défauts de
+plus, tous de mes propres corrections du tour 2.** Ils se rangent en trois familles, et les
+trois sont celles des défauts A, B et C.
+
+*Une parade qui ne vérifie pas avoir inspecté quelque chose.* **(a)**
+`test_parties_requises_et_separable_sont_le_MEME_critere` ne comptait pas ses deux branches ; le
+décompte ajouté est **tombé du premier coup** — le balayage `range(2900, 3101, 20)` ne visitait
+que la branche non séparable, pour un détectable d'environ 3 points qu'aucun de ses écarts
+n'atteignait. **Ce cas était vert depuis le tour 2 sans avoir jamais éprouvé la moitié de
+l'équivalence qu'il annonce.** **(b)** la parade AST du booléen littéral et **(c)** celle des
+intitulés restaient vertes si leur boucle ne trouvait plus rien : renommer `_epreuve` ou le
+mot-clé `intitule=` les désactivait en silence. Les trois exigent désormais un compte minimum.
+
+*Une parade qui ne couvre qu'une forme syntaxique.* **(d)** la parade AST ne lisait que
+`_epreuve(..., True, ...)` par position : la même faute écrite `passe=True` la traversait. C'est
+mot pour mot la réserve que l'auditeur avait laissée sur les intitulés, présente **au même
+endroit sous une autre forme**, et que sa réserve ne nommait pas.
+
+*Un texte ou un cas qui interroge une règle retirée, ou qui fige un run.* **(e)**
+`test_le_garde_fou_du_RUN_REEL_ne_declenche_sur_aucun_checkpoint` interrogeait `etabli` quand la
+règle en vigueur demande `progres_etabli` — même famille que le défaut D, dans le cas censé
+tenir le défaut C. **(f)** `risque = 0.01 / 8` transcrivait un nombre de checkpoints au lieu de
+le demander. **(g)** le rapport écrivait « `sigma` a **chuté** » avec une valeur absolue, donc
+aurait annoncé une chute sur une hausse.
+
+**Et un trou dans la correction de A elle-même, trouvé en l'éprouvant** : deux côtés à zéro —
+un comportement qu'aucun des deux joueurs ne manifeste jamais, parfaitement banal — repartaient
+« non conclus », et le rendu **lève** sur une ligne non conclue. Ma parade aurait fait tomber la
+génération du rapport entier sur un cas normal. Les quatre cas de taux dégénéré sont désormais
+traités et chacun a son cas de test.
 
 **Décision. PROPOSÉE : pivot de diagnostic. Le levier n'est pas le budget.**
 
@@ -187,12 +277,16 @@ une variable à la fois.
 
 **Impact plan.**
 
-1. **Le garde-fou a été corrigé une quatrième fois**, et le code le suit : portée 3, déclencheur
-   sur l'écart apparié, `portee_minimale` en parade. La règle générale qui manquait aux quatre
-   versions est désormais au protocole : **un garde-fou ne peut chercher qu'un progrès plus
-   grand que l'écart détectable à son propre budget.** Sur ce run, les cinq écarts de portée
-   trois valent +5,89, +5,54, +5,79, +6,05 et +5,07 points : aucun ne déclenche, et un test le
-   vérifie sur le journal réel.
+1. **Le garde-fou a été corrigé une CINQUIÈME fois**, et le code le suit : portée 3,
+   déclencheur sur un **progrès établi et positif**, `portee_minimale` en parade. Deux règles
+   générales en sortent, et ce sont elles qui valent, pas la version. **Un garde-fou ne peut
+   chercher qu'un progrès plus grand que l'écart détectable à son propre budget** — c'est au
+   protocole depuis le 21/08. Et : **un garde-fou qui cherche un progrès teste le signe autant
+   que la taille**, sans quoi il lit un effondrement comme une raison de continuer. Sur ce run,
+   les cinq écarts de portée trois valent +5,89, +5,54, +5,79, +6,05 et +5,07 points : aucun ne
+   déclenche, et un test le vérifie sur le journal réel. **Cinq versions, cinq défauts, chacun
+   né dans la correction du précédent** : ce compte est le vrai résultat de ce garde-fou, et il
+   dit qu'une règle de surveillance se teste sur ses deux erreurs avant d'être écrite.
 2. **Toute courbe d'apprentissage se publie avec l'IC de ses ÉCARTS**, pas seulement de ses
    niveaux — règle du §0.2 depuis le 22/08. Un écart apparié ne coûte pas une partie de plus :
    la matière était déjà jouée, il ne manquait que de garder la série par donne.
@@ -207,4 +301,13 @@ une variable à la fois.
    de l'agent**.
 6. **Les 20 mutations ne couvrent aucun fichier de `agents/` ni de `mesure/`.** La phase 4
    hériterait d'un moteur muté et de ~2 500 lignes de mesure qui ne le sont pas. **Arbitrage de
-   périmètre remonté au pilote, non décidé ici.**
+   périmètre remonté au pilote, non décidé ici** — le pilote a depuis élargi le périmètre au
+   protocole, et l'a explicitement posé comme **premier travail de la phase 4**, non rétroactif
+   sur celle-ci.
+7. **Un verdict se recalcule avec la règle qu'on publie, ou il ne se publie pas.** Le rapport
+   relisait `journal["declenche"]`, écrit pendant le run par une règle depuis retirée deux fois.
+   Un champ journalisé porte la règle de son époque, pas celle du document qui le cite.
+8. **Une entrée de cas se relit à sa source, pas seulement son assertion.** Le défaut B est
+   passé au travers de la relecture finale du tour 2 — qui cherchait des assertions fausses —
+   parce que l'assertion était juste et la donnée fausse. La parade est structurelle : le cas
+   va rechercher ses comptes dans le rapport publié.

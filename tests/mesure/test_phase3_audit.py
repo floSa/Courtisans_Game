@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import dataclasses
 import random
+from pathlib import Path
 
 from mesure import phase2, phase3, phase3_mesure
 from mesure import phase3_audit as audit
@@ -104,7 +105,8 @@ def test_le_controle_de_grain_mord_sur_deux_grains_differents():
     )
     bonne = phase3_mesure.Comparaison(
         nom="B1-motif", agent=compte, base=compte, ecart=0.0,
-        detectable=0.1, separable=False, parties_requises=None, exclu=None,
+        detectable=0.1, separable=False, regle=phase3_mesure.REGLE_DETECTABLE,
+        borne_exacte=None, parties_requises=None, exclu=None,
     )
     assert audit.controle_grains([bonne]).passe
 
@@ -122,7 +124,8 @@ def test_le_controle_de_grain_ignore_les_lignes_EXCLUES():
     autre = comp.Compte(nom="B4-tout-dos", succes=1, total=10, grain="b", vue="decideur")
     exclue = phase3_mesure.Comparaison(
         nom="B4-tout-dos", agent=compte, base=autre, ecart=None,
-        detectable=None, separable=False, parties_requises=None,
+        detectable=None, separable=None, regle=phase3_mesure.REGLE_EXCLUE,
+        borne_exacte=None, parties_requises=None,
         exclu="texte de la definition",
     )
     assert audit.controle_grains([exclue]).passe
@@ -237,32 +240,70 @@ def test_le_budget_de_la_phase_2_n_est_pas_deplace_par_la_phase_3():
 # ---------------------------------------------------------------------------------------
 
 
+def _predicats_litteraux(source: str) -> tuple[list[str], int]:
+    """Les `_epreuve(...)` dont le predicat est un booleen en dur, et le nombre d'appels vus.
+
+    **Positionnel ET par mot-cle.** Le tour 2 ne regardait que `args[2]`, si bien qu'un
+    `_epreuve(code=..., passe=True, ...)` la traversait sans la faire tomber -- meme famille
+    que la reserve laissee sur la parade des intitules : une garde qui ne couvre qu'une des
+    formes syntaxiques d'une meme ecriture.
+
+    Le compte d'appels est rendu **pour que l'appelant l'exige non nul**. Sans lui, renommer
+    `_epreuve` viderait la boucle et le cas resterait vert sans avoir rien inspecte : c'est
+    l'autre facon dont une parade cesse silencieusement de garder.
+    """
+    import ast
+
+    fautifs: list[str] = []
+    vus = 0
+    for noeud in ast.walk(ast.parse(source)):
+        if not isinstance(noeud, ast.Call) or getattr(noeud.func, "id", None) != "_epreuve":
+            continue
+        vus += 1
+        # `_epreuve(code, intitule, passe, preuve)` : le predicat est le troisieme argument,
+        # qu'il soit passe par position ou sous son nom.
+        predicat = noeud.args[2] if len(noeud.args) >= 3 else None
+        for motcle in noeud.keywords:
+            if motcle.arg == "passe":
+                predicat = motcle.value
+        if isinstance(predicat, ast.Constant) and isinstance(predicat.value, bool):
+            fautifs.append(f"ligne {noeud.lineno} : passe={predicat.value!r}")
+    return fautifs, vus
+
+
 def test_aucun_controle_eprouve_ne_passe_un_booleen_litteral():
     """**La parade.** Un `True` en dur dans un `_epreuve` fait un controle qui ne peut pas
     echouer, et c'est exactement ce que R4 et R5 faisaient. Une docstring ne l'empeche pas ;
     l'AST, si.
     """
-    import ast
     import pathlib
 
     source = pathlib.Path(audit.__file__).read_text(encoding="utf-8")
-    arbre = ast.parse(source)
-    fautifs = []
-    for noeud in ast.walk(arbre):
-        if not isinstance(noeud, ast.Call):
-            continue
-        nom = getattr(noeud.func, "id", None)
-        if nom != "_epreuve":
-            continue
-        # `_epreuve(code, intitule, passe, preuve)` : le troisieme argument est le predicat.
-        if len(noeud.args) >= 3 and isinstance(noeud.args[2], ast.Constant):
-            if isinstance(noeud.args[2].value, bool):
-                fautifs.append(f"ligne {noeud.lineno} : passe={noeud.args[2].value!r}")
+    fautifs, vus = _predicats_litteraux(source)
+    assert vus >= 8, (
+        f"la parade n'a trouve que {vus} appel(s) a `_epreuve` dans {audit.__file__} : elle "
+        f"n'inspecte plus ce qu'elle croit inspecter, et resterait verte quoi qu'on ecrive"
+    )
     assert not fautifs, (
         "un controle eprouve porte un booleen litteral, donc il ne peut pas echouer : "
         + " ; ".join(fautifs)
         + ". Utiliser `_releve` si le controle liste sans juger."
     )
+
+
+def test_la_parade_du_booleen_litteral_MORD_sur_LES_DEUX_ecritures():
+    """Une parade qu'on n'a jamais vue tomber ne garde rien -- et celle-ci ne voyait qu'une
+    des deux facons d'ecrire la meme faute."""
+    positionnel = '_epreuve("R4", "les zeros", True, "aucune")'
+    par_motcle = '_epreuve(code="R4", intitule="les zeros", passe=True, preuve="aucune")'
+    calcule = '_epreuve("R4", "les zeros", len(extremes) == 0, "aucune")'
+
+    for source in (positionnel, par_motcle):
+        fautifs, vus = _predicats_litteraux(source)
+        assert vus == 1 and fautifs, f"la parade laisse passer : {source}"
+
+    fautifs, vus = _predicats_litteraux(calcule)
+    assert vus == 1 and not fautifs, "la parade accuse un predicat calcule"
 
 
 def test_le_controle_du_niveau_nul_MORD_sur_un_instrument_decalibre():
@@ -344,7 +385,8 @@ def test_R4_est_un_RELEVE_et_regarde_les_DEUX_cotes():
     def comparaison(nom, a, b):
         return phase3_mesure.Comparaison(
             nom=nom, agent=a, base=b, ecart=0.0, detectable=1.0,
-            separable=False, parties_requises=None, exclu=None,
+            separable=False, regle=phase3_mesure.REGLE_DETECTABLE,
+            borne_exacte=None, parties_requises=None, exclu=None,
         )
 
     lignes = [
@@ -389,10 +431,61 @@ def test_R2_voit_le_doublon_de_nom_QUI_A_ECHAPPE_au_tour_1():
     assert "doublons" in casse.preuve, casse.preuve
 
 
+#: Les formes d'expression qui **fabriquent** un intitule, et que la parade sait donc lire.
+#: `ast.Name` et `ast.Attribute` -- `intitule=intitule`, `intitule=campagne.intitule` -- ne
+#: fabriquent rien : elles transmettent un nom fabrique ailleurs, ou ce cas l'attrape deja.
+#: Les compter ferait deux faux doublons sur `campagne.intitule` et masquerait les vrais.
+FORMES_QUI_FABRIQUENT_UN_INTITULE = ("Constant", "Call", "JoinedStr")
+
+
+def _cle_d_un_intitule(valeur, chemin) -> str | None:
+    """La chaine qu'une expression `intitule=` fixe, ou `None` si elle n'en fixe aucune.
+
+    **Un appel est EVALUE, pas seulement transcrit.** C'est la reserve que l'audit du tour 2 a
+    laissee : la parade ne lisait que `ast.Constant`, si bien que redonner au pool le nom du
+    garde-fou **via `intitule_du_garde_fou()`** la traversait sans la faire tomber. Or c'est
+    la forme la plus probable du retour du defaut, maintenant que le site unique existe : on
+    ne recopie plus une chaine, on rappelle la fonction.
+
+    L'appel est donc resolu et execute avec ses arguments par defaut, et sa valeur de retour
+    devient la cle -- ce qui rapproche un litteral et un appel qui rendent la meme chaine.
+    S'il n'est pas resoluble ou s'il leve, on retombe sur son texte source : deux appels
+    ecrits pareil restent un doublon.
+    """
+    import ast
+    import importlib
+
+    if type(valeur).__name__ not in FORMES_QUI_FABRIQUENT_UN_INTITULE:
+        return None
+    if isinstance(valeur, ast.Constant):
+        return valeur.value if isinstance(valeur.value, str) else None
+    if isinstance(valeur, ast.Call):
+        nom = valeur.func.attr if isinstance(valeur.func, ast.Attribute) else getattr(
+            valeur.func, "id", None
+        )
+        if nom:
+            module = importlib.import_module(
+                str(chemin.with_suffix("")).replace("/", ".").replace("\\", ".")
+            )
+            fonction = getattr(module, nom, None)
+            if callable(fonction):
+                try:
+                    rendu = fonction()
+                except TypeError:  # des arguments sans defaut : on garde le texte source
+                    rendu = None
+                if isinstance(rendu, str):
+                    return rendu
+    return ast.unparse(valeur)
+
+
 def test_les_intitules_du_depot_sont_deux_a_deux_DISTINCTS():
     """**La parade du defaut 5.** Deux campagnes differentes ne peuvent plus porter le meme nom
-    sans que ce cas ne tombe -- il lit les litteraux de tout le code de mesure, pas seulement
+    sans que ce cas ne tombe -- il lit les intitules de tout le code de mesure, pas seulement
     ceux qu'un appelant a pense passer a R2.
+
+    **Il lit les APPELS autant que les litteraux**, et c'est la reserve levee du tour 2 : voir
+    `_cle_d_un_intitule`. R2 reste le second filet ; ce cas est le premier, et il en fallait
+    deux, parce que R2 ne voit que ce qu'on lui passe.
     """
     import ast
     import pathlib
@@ -408,16 +501,53 @@ def test_les_intitules_du_depot_sont_deux_a_deux_DISTINCTS():
             for motcle in noeud.keywords:
                 if motcle.arg != "intitule":
                     continue
-                if isinstance(motcle.value, ast.Constant) and isinstance(
-                    motcle.value.value, str
-                ):
-                    vus.setdefault(motcle.value.value, []).append(
-                        f"{chemin}:{motcle.value.lineno}"
-                    )
+                cle = _cle_d_un_intitule(motcle.value, chemin)
+                if cle is not None:
+                    vus.setdefault(cle, []).append(f"{chemin}:{motcle.value.lineno}")
+    # **Elle doit avoir trouve des intitules, sinon elle ne garde rien.** Un `glob` qui ne
+    # ramene plus rien, un mot-cle renomme, et cette parade reste verte en n'inspectant plus
+    # aucun fichier -- c'est la seconde facon dont une garde cesse silencieusement de garder,
+    # apres celle de ne couvrir qu'une forme syntaxique.
+    assert len(vus) >= 5, (
+        f"la parade n'a trouve que {len(vus)} intitule(s) dans tout `mesure/` et `agents/` : "
+        f"elle n'inspecte plus ce qu'elle croit inspecter"
+    )
     doublons = {nom: ou for nom, ou in vus.items() if len(ou) > 1}
     assert not doublons, (
         "deux campagnes portent le meme intitule, donc deux populations differentes se "
         f"liraient comme une seule : {doublons}"
+    )
+
+
+def test_la_parade_des_intitules_ATTRAPE_le_contournement_par_APPEL(tmp_path):
+    """**Elle mord, et sur le contournement precis que l'auditeur a construit.**
+
+    Une parade qui n'a jamais ete vue tomber ne protege rien. Ce cas lui donne les deux formes
+    du meme nom -- le litteral et l'appel qui le produit -- et exige qu'elle les rapproche.
+    Sans l'evaluation de l'appel, les deux cles differeraient et le doublon passerait : c'est
+    exactement ce que faisait la version du tour 2.
+    """
+    import ast
+
+    from agents import campagne as campagne_module
+
+    source = (
+        "from agents.campagne import intitule_du_garde_fou\n"
+        "a = Campagne(intitule=intitule_du_garde_fou())\n"
+        f"b = Campagne(intitule={campagne_module.intitule_du_garde_fou()!r})\n"
+    )
+    arbre = ast.parse(source)
+    cles = [
+        _cle_d_un_intitule(motcle.value, Path("agents/campagne.py"))
+        for noeud in ast.walk(arbre)
+        if isinstance(noeud, ast.Call)
+        for motcle in noeud.keywords
+        if motcle.arg == "intitule"
+    ]
+    assert len(cles) == 2, cles
+    assert cles[0] == cles[1], (
+        f"l'appel rend {cles[0]!r} et le litteral {cles[1]!r} : la parade ne les rapproche "
+        f"pas, et redonner le nom du garde-fou par appel la traverserait"
     )
 
 

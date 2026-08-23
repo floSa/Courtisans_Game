@@ -83,6 +83,9 @@ class EcartApparie:
         intervalle: l'intervalle de percentiles du bootstrap, au niveau demande.
         etabli: vrai si l'intervalle **exclut** 0 -- donc si l'ecart est etabli, dans un sens
             ou dans l'autre. C'est la seule lecture licite d'un ecart.
+        progres_etabli: vrai si l'intervalle est **entierement au-dessus de 0**. Ce n'est PAS
+            `etabli` : un effondrement etabli est etabli, et il n'est pas un progres. Voir
+            ci-dessous -- c'est la distinction que le garde-fou v5 avait perdue.
     """
 
     moyenne: float
@@ -94,6 +97,31 @@ class EcartApparie:
         """L'intervalle exclut-il 0 ?"""
         bas, haut = self.intervalle
         return bas > 0.0 or haut < 0.0
+
+    @property
+    def progres_etabli(self) -> bool:
+        """L'intervalle est-il **entierement au-dessus de 0** ?
+
+        **Ce predicat existe parce que confondre les deux a coute un defaut bloquant.** Le
+        garde-fou v5 demandait « l'ecart est-il etabli ? » pour decider de ne PAS arreter
+        l'entrainement. Un effondrement est un ecart parfaitement etabli : il passait le test,
+        et le garde-fou le lisait comme une raison de continuer. **Mesure de l'auditeur du
+        tour 2, sur son propre support** -- une chute de -17,80 points, IC [-18,43 ; -17,08],
+        ne declenchait pas. Le cas de ce depot qui tient la regle,
+        `test_un_EFFONDREMENT_etabli_declenche`, construit sa propre chute et ne cherche pas a
+        reproduire ce chiffre-la : c'est le signe qui compte, pas la taille. C'est exactement le mode de defaillance -- l'effondrement de convention
+        en self-play -- que l'arbitrage du tour 1 avait escalade en retirant le greedy et
+        l'aleatoire du pool.
+
+        Un garde-fou qui cherche un progres teste **le signe autant que la taille**.
+
+        Les deux predicats vivent ici et nulle part ailleurs. Le tour 2 avait ecrit celui de
+        `etabli` une seconde fois, a la main, dans `agents/campagne.py` -- `not (bas > 0 or
+        haut < 0)` --, et c'est la copie qui portait la faute pendant que l'original etait
+        juste. Deux definitions de la meme regle finissent par ne plus etre d'accord, et c'est
+        la plus recente qui a tort sans que rien ne le signale.
+        """
+        return self.intervalle[0] > 0.0
 
 
 def bootstrap_apparie_par_donne(

@@ -160,7 +160,9 @@ Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, 
 
 **Critere terminal du protocole** : au dernier checkpoint, la part fractionnee vaut **70.13 %** contre **86,52 %**. **NON franchi.**
 
-**Declencheur du garde-fou** -- l'ecart apparie de portee 3, a partir du checkpoint 4 : **non declenche** -- les 5 ecarts de portee 3 sont tous etablis.
+**Declencheur du garde-fou** -- l'ecart apparie de portee 3, a partir du checkpoint 4 : **non declenche** -- les 5 ecarts de portee 3 sont tous des progres etablis, intervalle entierement au-dessus de 0.
+
+> **Ce verdict est RECALCULE ici, il n'est pas relu dans le journal.** Le champ `declenche` du `journal.jsonl` de ce run a ete ecrit **pendant** le run, donc par la regle en vigueur ce jour-la, qui a depuis ete retiree deux fois. Le tour 2 le relisait tel quel pendant que la phrase au-dessus decrivait la regle courante : les deux concordent sur ce run, et rien ne le garantissait. Un verdict se recalcule avec la regle qu'on publie, ou il ne se publie pas.
 
 > **Le critere terminal n'est pas franchi, et la raison que le protocole lui pretait etait fausse -- mais pas pour la raison que ce rapport donnait au premier tour.**
 >
@@ -183,6 +185,11 @@ Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, 
 **Les exclusions sont recalculees au budget de 6000 parties**, jamais recopiees : ce sont des proprietes du couple `(ligne, budget)`. Voir `mesure/phase3_budget_des_comportements.py`.
 
 > **La regle « hors budget » de la pre-inscription ne s'applique pas ici, et il faut le dire plutot que de la laisser croire appliquee.** Le paragraphe 9.2 annoncait que les huit lignes hors budget a 6 000 parties ne seraient pas comparees, et les nommait ; ces huit noms sont calcules sur l'ecart **greedy contre hasard** de la phase 2, qui n'est pas l'ecart de cette phase. La branche qui les excluait etait par ailleurs **inatteignable** -- `ecart=None` rendait `hors_budget` toujours faux --, donc elle n'a jamais rien exclu : elle est retiree. Le critere qui s'exerce est `|ecart| > detectable`, **le meme critere** exprime sur l'ecart effectivement mesure, et la colonne « Separable ? » publie desormais le nombre de parties que chaque ligne non separable demanderait.
+
+
+**2 ligne(s) sont tranchees par une AUTRE regle, et le tableau la nomme.** `B4-contre-nature`, `B4-meurtre-couteux` porte(nt) un **zero absolu** d'un cote. Sur un zero, la variance binomiale est nulle : la formule normale rendrait « tout est detectable », ce qui est exactement faux, donc `ecart_detectable_deux_echantillons` rend `None`. **Ce `None` etait imprime « non separable a ce budget » au tour 2** -- une conclusion que rien n'avait calculee, et fausse. Un zero se traite par sa **borne exacte**, celle de Clopper-Pearson, qui ne suppose aucune normalite : `0/1967` a pour borne haute a 99 % **0.2338 %** quand l'agent vaut **35.87 %** ; `0/10382` a pour borne haute a 99 % **0.0443 %** quand l'agent vaut **3.66 %**. Le rendu **leve** desormais sur toute ligne qu'aucune regle n'a tranchee, plutot que de lui donner un verdict par defaut.
+
+> **Le tour 2 se contredisait dans ce document meme** : ce tableau declarait `B4-contre-nature` non separable, et le paragraphe 6 argumentait une demi-page sur ce que son ecart de +35.87 pt etablit. C'est le tableau qui avait tort.
 
 > **Les lignes `-par-partie` portent ici les MEMES nombres que leur ligne au grain du couple, et ce n'est pas un defaut.** Un seul siege est mesure par partie, donc « au moins un des 1 sieges » et « le siege mesure » comptent exactement la meme chose. C'est deja le cas de la colonne a un siege de la phase 2. Les deux sont gardees pour que le grain reste lisible dans le libelle, et parce que `ecart_de_taux` leve si on les compare a une population qui en agrege trois.
 
@@ -211,9 +218,9 @@ Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, 
 | `B3-expose-vraie` | 48.80 % (11712/24000) | 46.48 % (11156/24000) | +2.32 pt | 1.56 % | **separable** |
 | `B3-simultane` | 6.73 % (1615/24000) | 9.60 % (2304/24000) | -2.87 pt | 0.85 % | **separable** |
 | `B4-brut` | 31.93 % (3814/11945) | 15.93 % (1967/12349) | +16.00 pt | 1.84 % | **separable** |
-| `B4-contre-nature` | 35.87 % (1368/3814) | 0.00 % (0/1967) | +35.87 pt | - | non separable a ce budget |
+| `B4-contre-nature` | 35.87 % (1368/3814) | 0.00 % (0/1967) | +35.87 pt | - | **separable** -- par bornes exactes : le zero de la ligne de base a pour borne haute a 99 % **0.2338 %**, et l'agent est au-dela |
 | `B4-departage` | 53.88 % (2055/3814) | 68.38 % (1345/1967) | -14.50 pt | 4.52 % | **separable** |
-| `B4-meurtre-couteux` | 3.66 % (298/8131) | 0.00 % (0/10382) | +3.66 pt | - | non separable a ce budget |
+| `B4-meurtre-couteux` | 3.66 % (298/8131) | 0.00 % (0/10382) | +3.66 pt | - | **separable** -- par bornes exactes : le zero de la ligne de base a pour borne haute a 99 % **0.0443 %**, et l'agent est au-dela |
 | `B4-strict` | 10.25 % (391/3814) | 31.62 % (622/1967) | -21.37 pt | 3.96 % | **separable** |
 | `B4-tout-dos` | 4.95 % (591/11945) | 3.63 % (448/12349) | +1.32 pt | 0.89 % | **non compare** : texte de la definition : elle ne nomme aucun autre joueur |
 | `B5-pire-cas` | 18.52 % (1647/8893) | 13.44 % (1219/9068) | +5.08 pt | 1.87 % | **separable** |
@@ -240,7 +247,7 @@ Composition : **1 agent entraine AU CHECKPOINT contre 2 aleatoires, 600 donnes, 
 
 Le rapport de la phase 2 ecrit : « pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax n'est pas celui de l'etalon, donc `B4-contre-nature` devient un vrai diagnostic -- et **un refus par anticipation d'un retournement y comptera, ce qui se lit comme un signe de planification** et non comme un defaut ».
 
-**Je refuse cette lecture pour cet agent, et le motif est dans le paragraphe 1.** `B4-contre-nature` vaut **35.87 %** chez lui contre **0,00 %** chez le greedy. Deux hypotheses expliquent le meme chiffre :
+**Je refuse cette lecture pour cet agent, et le motif est dans le paragraphe 1.** `B4-contre-nature` vaut **35.87 %** chez lui contre **0.00 %** chez le greedy -- un ecart **separable**, et le paragraphe 5 dit par quelle regle : la borne haute exacte a 99 % de ce zero vaut 0.2338 %. Deux hypotheses expliquent le meme chiffre :
 
 1. **l'agent voit quelque chose que l'evaluation myope ne voit pas** -- il refuse un meurtre localement gagnant parce qu'il anticipe un retournement. C'est la lecture flatteuse ;
 2. **l'agent joue moins bien** -- il refuse des meurtres qu'il aurait fallu commettre.
@@ -253,7 +260,7 @@ La meme reserve vaut pour `B4-meurtre-couteux`, `B4-strict` et `B4-departage`, d
 
 ## 7. L'audit de ce resultat, par ses propres controles
 
-**Les deux zeros absolus de la ligne de base -- `B4-contre-nature` 0,00 % et `B4-meurtre-couteux` 0,00 % -- sont confrontes a un cas construit a la main**, comme le paragraphe 0.2 l'exige, par quatre cas de `tests/mesure/test_comportements.py` : deux qui fabriquent le nœud et exigent que le compteur le classe, un qui retrouve les zeros sur de vraies parties, et **un contre-cas** ou une politique uniforme en produit -- sans lui, un compteur mort rendrait le meme zero. Le controle R4 les **liste** desormais : au premier tour il ne regardait que l'agent, et imprimait « aucune » pendant que le rapport en publiait deux.
+**Les zeros absolus de la ligne de base -- ceux que R4 nomme ci-dessous, avec leurs comptes -- sont confrontes a un cas construit a la main**, comme le paragraphe 0.2 l'exige, par quatre cas de `tests/mesure/test_comportements.py` : deux qui fabriquent le nœud et exigent que le compteur le classe, un qui retrouve les zeros sur de vraies parties, et **un contre-cas** ou une politique uniforme en produit -- sans lui, un compteur mort rendrait le meme zero. Le controle R4 les **liste** desormais : au premier tour il ne regardait que l'agent, et imprimait « aucune » pendant que le rapport en publiait deux.
 
 **Ces controles sont ecrits et commites AVANT que l'agent ne soit mesure** -- `mesure/phase3_audit.py`. Un controle ecrit apres avoir vu un chiffre est un controle que le chiffre a passe par construction.
 
@@ -269,7 +276,7 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 | R1 | le denominateur du verdict est `donnes x sieges` | concluant | 2000 donnes x 3 sieges = 6000, rapporte : 6000 |
 | R2 | chaque composition est nommee, et les noms sont distincts | concluant | 12 compositions, 12 noms distincts |
 | R3 | les lignes comparees sont au meme grain | concluant | 32 lignes comparees sur 34, 0 a grains differents |
-| R4 | les zeros et les cent pour cent, des DEUX cotes, listes pour traitement individuel | *releve* -- il liste, il ne juge pas | 2 valeur(s) extreme(s) sur 34 lignes : B4-contre-nature [ligne de base] = 0/1967, B4-meurtre-couteux [ligne de base] = 0/10382 |
+| R4 | les zeros et les cent pour cent, des DEUX cotes, listes pour traitement individuel | *releve* -- il liste, il ne juge pas | 2 valeur(s) extreme(s) sur 34 lignes : B4-contre-nature [ligne de base] = 0/1967 -> bornes exactes -- un taux degenere, B4-meurtre-couteux [ligne de base] = 0/10382 -> bornes exactes -- un taux degenere |
 | R5 | l'unite -- observations par partie -- relevee des deux cotes, numerateurs non regardes | *releve* -- il liste, il ne juge pas | 5 compteur(s) dont l'unite differe de plus de 5 % : B4-contre-nature 0.636 vs 0.328, B4-departage 0.636 vs 0.328, B4-meurtre-couteux 1.355 vs 1.730, B4-strict 0.636 vs 0.328, B5-renfort 2.076 vs 2.193. Un ecart n'est pas fautif en soi -- un denominateur d'action depend de la politique -- mais il doit etre lu avant de comparer les taux. |
 
 **8 controles eprouves, aucun en echec ; 2 releves, qui ne s'y comptent pas -- R4, R5.**
@@ -297,24 +304,29 @@ Ils portent sur des **unites**, des **denominateurs** et des **populations**, ja
 10. **Les 20 mutations de `outillage/mutation.py` ne couvrent AUCUN fichier de cette phase.** Elles ciblent toutes `courtisans/`, ce que le paragraphe 0.3 du protocole impose -- `agents/greedy.py` est la ligne de base de toutes les phases et ne porte aucune mutation. « 20 mutations, toutes detectees » ne dit donc **rien** de `agents/reseau.py`, `agents/entrainement.py`, `agents/campagne.py` ni de `mesure/phase3*.py` : ce que ces fichiers ont, ce sont leurs tests, pas une preuve que ces tests mordent. **Etendre le perimetre des mutations est un arbitrage de perimetre, remonte au pilote et non decide ici.**
 11. **Les comportements comparent deux echantillons de donnes DISJOINTES** -- 0 a 1999 pour la ligne de base, 60000 a 61999 pour l'agent. La comparaison n'est pas appariee, et sa puissance est celle de deux echantillons independants.
 
-## 9. Duree machine -- 7 passe(s)
+**Deux limites de plus, etablies par l'audit croise du tour 2 -- qui a REJETE les corrections du tour 1 sur des defauts qu'elles avaient elles-memes introduits.**
 
-**7 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
+12. **Les deux lignes a zero absolu ne sont pas separees par la regle du reste du tableau.** Elles le sont par des bornes exactes, un critere de non-recouvrement, plus conservateur et de puissance differente -- voir le paragraphe 5. Deux verdicts « separable » du meme tableau ne viennent donc pas tous du meme raisonnement, et la colonne le dit ligne par ligne. **Ce que le tour 1 en publiait etait faux**, et ce que le tour 2 en publiait -- « non separable a ce budget » -- etait une conclusion qu'aucun calcul n'avait rendue.
+13. **Le garde-fou n'a jamais ete eprouve en conditions reelles sur un effondrement.** Sa version 5 laissait passer une chute etablie -- **17,80 points sur le support de l'auditeur du tour 2**, qui n'est pas un checkpoint de ce run -- parce qu'elle demandait « l'ecart est-il etabli ? » au lieu de « est-ce un progres etabli ? ». Le defaut est corrige et un cas hostile le tient, mais **il a ete trouve par un auditeur, pas par le run** : ce run n'a pas eu d'effondrement, donc rien n'a exerce cette branche en vrai. **Cinquieme defaut du meme garde-fou, et le cinquieme est ne dans la correction du quatrieme.**
+
+## 9. Duree machine -- 10 passe(s)
+
+**10 passes**, etendue publiee. Le temps mural mesure l'etat de la machine, pas le cout du code : le rapport max/min ci-dessous est a lire comme tel, et non comme une variation du programme.
 
 | Etape | Minimum | Maximum | Rapport max/min |
 |---|---:|---:|---:|
-| 1 agent contre 2 greedys | 81.2 s | 86.2 s | 1.06 |
-| 1 agent contre 2 aleatoires | 16.1 s | 16.7 s | 1.04 |
-| 1 agent DETERMINISTE contre 2 greedys | 82.8 s | 85.6 s | 1.03 |
-| 1 agent contre 2 x checkpoint_01.pt | 18.8 s | 19.5 s | 1.04 |
-| 1 agent contre 2 x checkpoint_02.pt | 21.3 s | 22.2 s | 1.04 |
-| 1 agent contre 2 x checkpoint_03.pt | 18.8 s | 19.6 s | 1.05 |
-| 1 agent contre 2 x checkpoint_04.pt | 19.1 s | 20.1 s | 1.05 |
-| 1 agent contre 2 x checkpoint_05.pt | 22.2 s | 23.0 s | 1.04 |
-| 1 agent contre 2 x checkpoint_06.pt | 19.0 s | 19.7 s | 1.04 |
-| 1 agent contre 2 x checkpoint_07.pt | 18.9 s | 19.4 s | 1.03 |
-| 1 agent contre 2 x checkpoint_08.pt | 18.8 s | 19.5 s | 1.03 |
-| ligne de base : 3 greedys, 1 siege compte | 73.0 s | 74.9 s | 1.03 |
-| auto-audit | 80.5 s | 82.4 s | 1.02 |
+| 1 agent contre 2 greedys | 81.2 s | 92.7 s | 1.14 |
+| 1 agent contre 2 aleatoires | 16.1 s | 20.0 s | 1.24 |
+| 1 agent DETERMINISTE contre 2 greedys | 82.8 s | 90.9 s | 1.10 |
+| 1 agent contre 2 x checkpoint_01.pt | 18.8 s | 23.0 s | 1.22 |
+| 1 agent contre 2 x checkpoint_02.pt | 21.3 s | 24.8 s | 1.16 |
+| 1 agent contre 2 x checkpoint_03.pt | 18.8 s | 21.6 s | 1.15 |
+| 1 agent contre 2 x checkpoint_04.pt | 19.1 s | 23.1 s | 1.21 |
+| 1 agent contre 2 x checkpoint_05.pt | 22.2 s | 26.8 s | 1.21 |
+| 1 agent contre 2 x checkpoint_06.pt | 19.0 s | 24.5 s | 1.29 |
+| 1 agent contre 2 x checkpoint_07.pt | 18.9 s | 22.4 s | 1.19 |
+| 1 agent contre 2 x checkpoint_08.pt | 18.8 s | 21.8 s | 1.16 |
+| ligne de base : 3 greedys, 1 siege compte | 73.0 s | 85.7 s | 1.17 |
+| auto-audit | 80.5 s | 92.2 s | 1.15 |
 
-Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s, 493.7 s, 494.8 s, 493.9 s -- etendue 493.7-505.4 s, rapport 1.02.
+Total par passe : 505.4 s, 504.9 s, 499.4 s, 502.2 s, 493.7 s, 494.8 s, 493.9 s, 565.7 s, 518.3 s, 524.3 s -- etendue 493.7-565.7 s, rapport 1.15.

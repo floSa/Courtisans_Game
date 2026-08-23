@@ -243,7 +243,18 @@ class Comparaison:
         ecart: `taux(agent) - taux(base)`, ou `None` si l'un des deux n'a pas de taux.
         detectable: l'ecart de taux detectable au budget de la campagne, calcule sur les
             **deux** effectifs -- voir `ecart_detectable_deux_echantillons`.
-        separable: vrai si `|ecart| > detectable`.
+        separable: `True` separable, `False` non separable, **`None` = aucune regle n'a pu
+            conclure**. Les trois etats sont distincts, et le troisieme n'est pas le second.
+            L'audit du tour 2 a trouve l'inverse ici : `detectable is None` sur un taux
+            degenere produisait `separable = False`, imprime « non separable a ce budget ».
+            **C'est une conclusion, et elle n'avait pas ete calculee** -- sur les deux lignes
+            que le rapport argumente en toutes lettres, et faussement : elles SONT separables,
+            par la borne exacte de leur zero.
+        regle: le nom de la regle qui a tranche -- voir `REGLES`. Publie a cote du verdict :
+            deux lignes du meme tableau peuvent etre separees par deux regles differentes, et
+            le lecteur doit savoir laquelle.
+        borne_exacte: pour une ligne tranchee par `REGLE_BORNES_EXACTES`, la borne du cote
+            degenere -- borne **haute** d'un zero, borne **basse** d'un cent. `None` sinon.
         parties_requises: pour une ligne **non separable**, le nombre de parties qu'il
             faudrait de chaque cote pour separer l'ecart observe. `None` sinon. C'est la
             regle « hors budget » de la pre-inscription, rendue lisible au lieu d'etre une
@@ -256,7 +267,9 @@ class Comparaison:
     base: comp.Compte
     ecart: float | None
     detectable: float | None
-    separable: bool
+    separable: bool | None
+    regle: str
+    borne_exacte: float | None
     parties_requises: int | None
     exclu: str | None
 
@@ -265,6 +278,193 @@ class Comparaison:
 #: est : la definition nomme-t-elle un autre joueur ? `B1-collectif` oui, ces deux-la non, et
 #: leurs taux bougent sous une autre composition pour une raison qui n'est pas l'habilete.
 EXCLUS_PAR_LE_TEXTE: tuple[str, ...] = ("B4-tout-dos", "B5-renfort")
+
+
+#: Les trois regles qui peuvent trancher une ligne, et leurs noms publies.
+#:
+#: **Il y en a trois parce qu'une seule ne suffit pas, et le tour 2 l'a paye.** La regle
+#: normale ne sait pas traiter un taux degenere -- variance binomiale nulle, donc « tout est
+#: detectable », ce qui est exactement faux --, et `ecart_detectable_deux_echantillons` rend
+#: `None` pour cette raison. Ce `None` etait ensuite imprime « non separable a ce budget »,
+#: qui est une **conclusion** que rien n'avait calculee. Il faut donc que le verdict porte le
+#: nom de la regle qui l'a rendu : sans lui, deux verdicts identiques peuvent venir de deux
+#: raisonnements differents, et l'un des deux peut etre l'absence de raisonnement.
+REGLE_DETECTABLE = "detectable a deux echantillons"
+REGLE_BORNES_EXACTES = "bornes exactes -- un taux degenere"
+REGLE_EXCLUE = "exclue avant comparaison"
+REGLE_AUCUNE = "AUCUNE -- non conclu"
+REGLES: tuple[str, ...] = (
+    REGLE_DETECTABLE,
+    REGLE_BORNES_EXACTES,
+    REGLE_EXCLUE,
+    REGLE_AUCUNE,
+)
+
+
+def borne_haute_exacte_d_un_zero(total: int, risque: float = dim.RISQUE) -> float:
+    """La borne haute exacte du taux vrai quand on a observe **zero succes sur `total`**.
+
+    C'est la borne de Clopper-Pearson, et dans ce cas degenere elle s'ecrit en une ligne :
+    la probabilite de n'observer aucun succes sur `total` tirages independants de taux `p`
+    vaut `(1 - p)**total`, et la borne est le `p` qui rend cette probabilite egale au risque.
+    D'ou `1 - risque**(1/total)`. **Aucune approximation normale**, ce qui est exactement le
+    point : c'est parce que l'approximation normale s'effondre sur un zero que cette
+    fonction existe.
+
+    Sur les deux zeros de la ligne de base de la phase 3, a 99 % : `0/1967` donne **0,2338 %**
+    et `0/10382` donne **0,0443 %**. L'agent y vaut 35,87 % et 3,66 %. Les deux lignes sont
+    donc separables **de tres loin**, et le tableau du tour 2 les declarait « non separables ».
+
+    Raises:
+        ValueError: si `total` n'est pas strictement positif, ou si `risque` n'est pas dans
+            `]0 ; 1[`. Un zero sur zero observation n'est pas un zero : c'est une absence, et
+            elle n'a pas de borne.
+    """
+    if total <= 0:
+        raise ValueError(
+            f"borne_haute_exacte_d_un_zero demande un effectif strictement positif : "
+            f"total={total}. Zero succes sur zero occasion n'est pas un taux nul, c'est une "
+            f"absence d'occasion, et elle ne se borne pas."
+        )
+    if not 0.0 < risque < 1.0:
+        raise ValueError(f"le risque doit etre dans ]0 ; 1[ : risque={risque}")
+    return 1.0 - risque ** (1.0 / total)
+
+
+def borne_basse_exacte_d_un_cent(total: int, risque: float = dim.RISQUE) -> float:
+    """La borne basse exacte du taux vrai quand on a observe **`total` succes sur `total`**.
+
+    Le symetrique exact de `borne_haute_exacte_d_un_zero`, et elle existe pour la meme raison :
+    le tableau de la phase 3 ne porte aucun taux a 100 %, mais `ecart_detectable_deux_echantillons`
+    rend `None` sur ce cas comme sur l'autre, et une phase suivante qui en produirait un
+    retomberait sur le defaut qu'on vient de corriger. La regle est ecrite pour les deux bouts.
+
+    Raises:
+        ValueError: aux memes conditions que sa symetrique.
+    """
+    if total <= 0:
+        raise ValueError(
+            f"borne_basse_exacte_d_un_cent demande un effectif strictement positif : "
+            f"total={total}"
+        )
+    if not 0.0 < risque < 1.0:
+        raise ValueError(f"le risque doit etre dans ]0 ; 1[ : risque={risque}")
+    return risque ** (1.0 / total)
+
+
+@dataclass(frozen=True)
+class SeparationExacte:
+    """Ce qu'un taux degenere permet de conclure, et par quels deux nombres.
+
+    Attributes:
+        cote: « agent » ou « ligne de base » -- lequel des deux porte le taux degenere.
+        borne: la borne exacte de ce cote (haute pour un zero, basse pour un cent).
+        borne_de_l_autre: la borne de l'intervalle de l'autre cote qui lui fait face --
+            **sa borne basse** si le degenere est un zero, sa borne haute si c'est un cent.
+        disjoints: les deux bornes se croisent-elles ? Si non, l'ecart est etabli.
+    """
+
+    cote: str
+    borne: float
+    borne_de_l_autre: float
+    disjoints: bool
+
+
+def separer_un_taux_degenere(
+    agent: comp.Compte, base: comp.Compte, risque: float = dim.RISQUE
+) -> SeparationExacte | None:
+    """Trancher une ligne dont **exactement un** des deux cotes vaut 0 % ou 100 %.
+
+    **La docstring de `ecart_detectable_deux_echantillons` prescrivait ce traitement depuis le
+    tour 2 -- « un zero observe se traite par sa borne exacte » -- et personne ne le calculait.**
+    Une prescription qu'aucun code n'exerce est du meme genre que la branche « hors budget » du
+    defaut 6 : elle fait croire qu'un traitement s'applique.
+
+    La regle, en deux bornes qui ne se rencontrent pas
+    --------------------------------------------------
+    Le cote degenere recoit sa borne de Clopper-Pearson **unilaterale** au risque `risque` --
+    1 % dans toute la queue qui compte. L'autre recoit la borne de son intervalle normal
+    **bilateral** au meme `risque`, donc 0,5 % dans la queue qui regarde vers le degenere. Si
+    les deux ne se croisent pas, l'ecart est etabli.
+
+    **Les deux queues ne valent donc pas le meme nombre, et c'est dit plutot que lisse** : le
+    cote normal est traite plus severement que le cote exact. Ecrire « au meme risque » aurait
+    ete faux d'un facteur deux sur une des deux queues. Cela va dans le sens du conservatisme,
+    et le total reste borne par 1,5 %.
+
+    **Deux intervalles qui ne se recouvrent pas donnent un test plus severe que leur risque
+    nominal, pas plus lache** : c'est le sens de la lecture par recouvrement, et c'est
+    justement pourquoi le paragraphe 4 refuse de l'employer sur des ecarts APPARIES, ou elle
+    ignore la correlation et perd de la puissance. Ici les deux cotes sont independants et la
+    marge est enorme -- 35,87 % contre 0,2338 % --, donc le conservatisme ne coute rien. C'est
+    une regle differente de celle du reste du tableau, et elle est **publiee sous son nom**
+    pour cela : `REGLE_BORNES_EXACTES`.
+
+    Les quatre cas, parce qu'il y en a quatre et qu'en oublier un fait lever le rapport
+    ----------------------------------------------------------------------------------------
+    **Un seul** cote degenere : le cas ci-dessus, et le seul que la phase 3 rencontre.
+    **Les deux, au meme bout** -- `0 %` contre `0 %` : l'ecart vaut exactement zero, il n'y a
+    rien a etablir, et c'est une conclusion, pas une absence de conclusion. **Les deux, aux
+    bouts opposes** -- `0 %` contre `100 %` : les deux bornes exactes sont disjointes par
+    construction, et la ligne est separable. **Aucun** : cette regle ne s'applique pas.
+
+    Le deuxieme cas merite d'etre nomme, parce que l'oublier coutait cher : `comparer` l'aurait
+    rendu « non conclu », et le rendu du rapport **leve** sur une ligne non conclue. Une ligne
+    parfaitement banale -- un comportement qu'aucun des deux joueurs ne manifeste jamais --
+    aurait fait tomber la generation du rapport entier.
+
+    Rend `None` si aucun cote n'est degenere, ou si un effectif est nul.
+    """
+    taux_agent, taux_base = agent.taux(), base.taux()
+    if taux_agent is None or taux_base is None:
+        return None
+    agent_degenere = taux_agent <= 0.0 or taux_agent >= 1.0
+    base_degenere = taux_base <= 0.0 or taux_base >= 1.0
+    if not agent_degenere and not base_degenere:
+        return None
+
+    if agent_degenere and base_degenere:
+        if taux_agent == taux_base:
+            # Meme bout : l'ecart est exactement nul. Conclusion, et non absence de conclusion.
+            borne = (
+                borne_haute_exacte_d_un_zero(base.total, risque)
+                if taux_base <= 0.0
+                else borne_basse_exacte_d_un_cent(base.total, risque)
+            )
+            return SeparationExacte(
+                cote="les deux", borne=borne, borne_de_l_autre=borne, disjoints=False
+            )
+        # Bouts opposes : les deux bornes exactes ne peuvent pas se croiser.
+        zero, cent = (
+            (agent, base) if taux_agent <= 0.0 else (base, agent)
+        )
+        haute = borne_haute_exacte_d_un_zero(zero.total, risque)
+        basse = borne_basse_exacte_d_un_cent(cent.total, risque)
+        return SeparationExacte(
+            cote="les deux", borne=haute, borne_de_l_autre=basse, disjoints=basse > haute
+        )
+
+    if base_degenere:
+        cote, degenere, autre = "ligne de base", base, agent
+        taux_degenere, taux_autre = taux_base, taux_agent
+    else:
+        cote, degenere, autre = "agent", agent, base
+        taux_degenere, taux_autre = taux_agent, taux_base
+
+    demi = dim.quantile_bilateral(risque) * (
+        taux_autre * (1 - taux_autre) / autre.total
+    ) ** 0.5
+    if taux_degenere <= 0.0:
+        borne = borne_haute_exacte_d_un_zero(degenere.total, risque)
+        borne_de_l_autre = taux_autre - demi
+        disjoints = borne_de_l_autre > borne
+    else:
+        borne = borne_basse_exacte_d_un_cent(degenere.total, risque)
+        borne_de_l_autre = taux_autre + demi
+        disjoints = borne_de_l_autre < borne
+    return SeparationExacte(
+        cote=cote, borne=borne, borne_de_l_autre=borne_de_l_autre, disjoints=disjoints
+    )
 
 
 def ecart_detectable_deux_echantillons(
@@ -286,9 +486,16 @@ def ecart_detectable_deux_echantillons(
     `B4-contre-nature` 3,75 contre 2,65, `B4-meurtre-couteux` 1,01 contre 0,71, `B5-renfort`
     1,67 contre 1,56.
 
-    **Aucune des 34 lignes ne change de statut** -- l'audit l'a verifie ligne a ligne, et cette
-    fonction le refait. Mais un chiffre publie faux se corrige meme quand il ne renverse rien :
-    c'est celui-la qu'une phase suivante citera.
+    **Deux des 34 lignes changent de statut, et cette phrase disait le contraire.** L'audit du
+    tour 1 avait verifie « aucune » sur la formule ; l'audit du tour 2 a vu ce que la formule
+    fait des deux zeros de la ligne de base. `B4-contre-nature` et `B4-meurtre-couteux` sortent
+    de cette fonction avec `None` -- taux degenere --, et sortaient de `comparer` etiquetees
+    « non separable a ce budget ». Elles sont separables, par `separer_un_taux_degenere` :
+    35,87 % contre une borne haute exacte de 0,2338 %, et 3,66 % contre 0,0443 %.
+
+    Les trois autres lignes aux effectifs inegaux ne changent pas de statut. Un chiffre publie
+    faux se corrige meme quand il ne renverse rien -- c'est celui-la qu'une phase suivante
+    citera --, mais **une conclusion publiee fausse se corrige d'abord**.
 
     La variance est donc celle d'une difference de deux binomiales independantes,
     `p_a q_a / n_a + p_b q_b / n_b`, chacune avec **son** taux et **son** effectif.
@@ -298,8 +505,12 @@ def ecart_detectable_deux_echantillons(
 
     Rend `None` dans les memes deux cas qu'elle, et pour la meme raison : un effectif attendu
     sous 1, ou un taux exactement 0 ou 1 -- ou la variance binomiale est nulle, donc ou la
-    formule normale rendrait « tout est detectable », ce qui est exactement faux. Un zero
-    observe se traite par sa borne exacte.
+    formule normale rendrait « tout est detectable », ce qui est exactement faux.
+
+    **Un zero observe se traite par sa borne exacte, et c'est `separer_un_taux_degenere` qui
+    le fait.** Cette phrase etait ici des le tour 2, sans qu'aucun code ne l'exerce : la ligne
+    repartait « non separable » faute de detectable. Une prescription qu'aucun appelant
+    n'honore est du meme genre que la branche « hors budget » du defaut 6.
     """
     taux_agent, taux_base = agent.taux(), base.taux()
     if taux_agent is None or taux_base is None:
@@ -420,16 +631,37 @@ def comparer(
         detectable = ecart_detectable_deux_echantillons(
             compte_agent, nb_parties_agent, compte_base, nb_parties_base, budget
         )
-        separable = (
-            exclu is None
-            and ecart is not None
-            and detectable is not None
-            and abs(ecart) > detectable
-        )
+
+        # **Une ligne sort d'ici avec le NOM de la regle qui l'a tranchee, ou avec l'aveu
+        # qu'aucune ne l'a fait.** `separable = False` ne s'atteint que par un calcul qui a
+        # conclu ; l'absence de calcul vaut `None`, et le rendu leve dessus.
+        separable: bool | None
+        borne_exacte: float | None = None
+        if exclu is not None:
+            separable, regle = None, REGLE_EXCLUE
+        elif ecart is None:
+            separable, regle = None, REGLE_AUCUNE
+        elif detectable is not None:
+            separable, regle = abs(ecart) > detectable, REGLE_DETECTABLE
+        else:
+            # `detectable is None` : la formule normale ne sait pas traiter cette ligne. Un
+            # taux degenere se traite par sa borne exacte -- c'est ce que la docstring de
+            # `ecart_detectable_deux_echantillons` prescrit depuis le tour 2, et ce que rien
+            # ne faisait. Les autres causes de `None` -- un effectif attendu sous 1 -- n'ont
+            # pas de regle de rechange, et la ligne repart NON CONCLUE.
+            exacte = separer_un_taux_degenere(compte_agent, compte_base)
+            if exacte is None:
+                separable, regle = None, REGLE_AUCUNE
+            else:
+                separable, regle = exacte.disjoints, REGLE_BORNES_EXACTES
+                borne_exacte = exacte.borne
+
         requises = (
-            None
-            if separable or exclu is not None or ecart is None or detectable is None
-            else parties_requises(compte_agent, nb_parties_agent, compte_base, nb_parties_base, ecart)
+            parties_requises(
+                compte_agent, nb_parties_agent, compte_base, nb_parties_base, ecart
+            )
+            if separable is False and regle == REGLE_DETECTABLE and ecart is not None
+            else None
         )
         resultats.append(
             Comparaison(
@@ -439,6 +671,8 @@ def comparer(
                 ecart=ecart,
                 detectable=detectable,
                 separable=separable,
+                regle=regle,
+                borne_exacte=borne_exacte,
                 parties_requises=requises,
                 exclu=exclu,
             )

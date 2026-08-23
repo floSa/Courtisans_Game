@@ -292,6 +292,11 @@ def controle_zeros(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Control
     pendant que le rapport en publiait deux, et la regle du paragraphe 0.2 n'etait exercee sur
     aucun des deux. Il scanne desormais **les deux cotes**, et nomme lequel.
 
+    **Chaque valeur extreme repart avec le nom de la regle qui a tranche sa ligne.** Le tour 2
+    les listait sans dire ce qu'elles etaient devenues, et elles etaient devenues « non
+    separables a ce budget » -- une conclusion qu'aucun calcul n'avait rendue. Un releve qui
+    nomme sans suivre laisse passer exactement ce qu'il releve.
+
     **La confrontation a un cas construit a la main existe, et elle est nommee ici** plutot
     que laissee a chercher -- c'est ce que la regle exige. Quatre cas de
     `tests/mesure/test_comportements.py` la portent, et il faut les quatre :
@@ -309,8 +314,12 @@ def controle_zeros(comparaisons: Sequence[phase3_mesure.Comparaison]) -> Control
     for comparaison in comparaisons:
         for cote, compte in (("agent", comparaison.agent), ("ligne de base", comparaison.base)):
             if compte.total > 0 and compte.taux() in (0.0, 1.0):
+                # **Et le traitement que la ligne a recu, pas seulement son existence.**
+                # « Liste pour traitement individuel » sans dire lequel laissait le tour 2
+                # imprimer ces deux lignes « non separables » sans que ce releve ne bronche.
                 extremes.append(
                     f"{comparaison.nom} [{cote}] = {compte.succes}/{compte.total}"
+                    f" -> {comparaison.regle}"
                 )
     return _releve(
         "R4",

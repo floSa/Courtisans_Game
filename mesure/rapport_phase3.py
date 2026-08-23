@@ -26,6 +26,16 @@ def _pt(valeur: float | None) -> str:
     return "-" if valeur is None else f"{valeur * 100:+.2f} pt"
 
 
+def _borne(valeur: float | None) -> str:
+    """Une borne exacte, a QUATRE decimales. Deux ne suffisent pas ici.
+
+    `0,0443 %` s'arrondit en `0,04 %` au format ordinaire, et un lecteur y lit un zero
+    arrondi -- exactement ce que la borne sert a exclure. Une borne dont la lecture depend de
+    son arrondi ne borne rien.
+    """
+    return "-" if valeur is None else f"{valeur * 100:.4f} %"
+
+
 def _titre(texte: str) -> str:
     return f"\n## {texte}\n"
 
@@ -153,9 +163,11 @@ def section_dimensionnement(lignes: list[str], mesure: phase3_mesure.Mesure) -> 
         ">",
         f"> **La regle etait aveugle au mouvement qu'elle pretendait detecter, et c'est le "
         f"resultat interessant.** Une demi-largeur ne depend pas de `sigma` seul mais de "
-        f"`sigma x sqrt(effet de plan / n)`. Ici `sigma` a **chute** de "
-        f"{abs(dim.sigma_gain / 0.6494 - 1) * 100:.1f} % pendant que l'effet de plan **montait** "
-        f"de 0,7200 a {dim.effet_de_plan:.4f} : "
+        f"`sigma x sqrt(effet de plan / n)`. Ici `sigma` a "
+        + ("**chute**" if dim.sigma_gain < 0.6494 else "**monte**")
+        + f" de {abs(dim.sigma_gain / 0.6494 - 1) * 100:.1f} % pendant que l'effet de plan "
+        + ("**montait**" if dim.effet_de_plan > 0.7200 else "**baissait**")
+        + f" de 0,7200 a {dim.effet_de_plan:.4f} : "
         f"`0,6494 x sqrt(0,7200)` = {0.6494 * 0.72 ** 0.5:.4f} contre "
         f"`{dim.sigma_gain:.4f} x sqrt({dim.effet_de_plan:.4f})` = "
         f"{dim.sigma_gain * dim.effet_de_plan ** 0.5:.4f}, soit "
@@ -378,6 +390,9 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
     )
 
     etablis = [e for e in consecutifs if e.etabli]
+    # **Le declencheur du garde-fou, recalcule avec la regle courante.** `progres_etabli`, pas
+    # `etabli` : un effondrement etabli n'est pas un progres, et la v5 les confondait.
+    sans_progres = [e for e in de_portee if not e.progres_etabli]
     lignes += [
         "",
         f"**Ce qui est etabli : l'agent apprend.** Du premier au dernier checkpoint, "
@@ -414,12 +429,21 @@ def section_garde_fou(lignes: list[str], jalons: Sequence[dict]) -> None:
         f"**Declencheur du garde-fou** -- l'ecart apparie de portee {portee}, a partir du "
         f"checkpoint {campagne_module.PREMIER_CHECKPOINT_QUI_DECLENCHE} : "
         + (
-            "**declenche** -- un ecart de portee "
-            f"{portee} n'est pas etabli."
-            if any(j.get("declenche") for j in jalons)
+            f"**declenche** -- {len(sans_progres)} ecart(s) de portee {portee} ne sont pas un "
+            f"progres etabli : "
+            + ", ".join(f"ckpt {e.depuis}->{e.vers}" for e in sans_progres)
+            + "."
+            if sans_progres
             else f"**non declenche** -- les {len(de_portee)} ecarts de portee {portee} sont "
-            f"tous etablis."
+            f"tous des progres etablis, intervalle entierement au-dessus de 0."
         ),
+        "",
+        "> **Ce verdict est RECALCULE ici, il n'est pas relu dans le journal.** Le champ "
+        "`declenche` du `journal.jsonl` de ce run a ete ecrit **pendant** le run, donc par la "
+        "regle en vigueur ce jour-la, qui a depuis ete retiree deux fois. Le tour 2 le relisait "
+        "tel quel pendant que la phrase au-dessus decrivait la regle courante : les deux "
+        "concordent sur ce run, et rien ne le garantissait. Un verdict se recalcule avec la "
+        "regle qu'on publie, ou il ne se publie pas.",
         "",
         "> **Le critere terminal n'est pas franchi, et la raison que le protocole lui pretait "
         "etait fausse -- mais pas pour la raison que ce rapport donnait au premier tour.**",
@@ -499,7 +523,34 @@ def section_comportements(
         "`|ecart| > detectable`, **le meme critere** exprime sur l'ecart effectivement mesure, "
         "et la colonne « Separable ? » publie desormais le nombre de parties que chaque ligne "
         "non separable demanderait.",
+        "",
     ]
+    exactes = [c for c in comparaisons if c.regle == phase3_mesure.REGLE_BORNES_EXACTES]
+    if exactes:
+        lignes += [
+            "",
+            f"**{len(exactes)} ligne(s) sont tranchees par une AUTRE regle, et le tableau la "
+            f"nomme.** "
+            + ", ".join(f"`{c.nom}`" for c in exactes)
+            + " porte(nt) un **zero absolu** d'un cote. Sur un zero, la variance binomiale est "
+            "nulle : la formule normale rendrait « tout est detectable », ce qui est exactement "
+            "faux, donc `ecart_detectable_deux_echantillons` rend `None`. **Ce `None` etait "
+            "imprime « non separable a ce budget » au tour 2** -- une conclusion que rien "
+            "n'avait calculee, et fausse. Un zero se traite par sa **borne exacte**, celle de "
+            "Clopper-Pearson, qui ne suppose aucune normalite : "
+            + " ; ".join(
+                f"`{c.base.succes}/{c.base.total}` a pour borne haute a 99 % "
+                f"**{_borne(c.borne_exacte)}** quand l'agent vaut **{_pct(c.agent.taux())}**"
+                for c in exactes
+            )
+            + ". Le rendu **leve** desormais sur toute ligne qu'aucune regle n'a tranchee, "
+            "plutot que de lui donner un verdict par defaut.",
+            "",
+            "> **Le tour 2 se contredisait dans ce document meme** : ce tableau declarait "
+            f"`{exactes[0].nom}` non separable, et le paragraphe 6 argumentait une demi-page "
+            f"sur ce que son ecart de {_pt(exactes[0].ecart)} etablit. C'est le tableau qui "
+            f"avait tort.",
+        ]
     if any(c.nom.endswith("-par-partie") for c in comparaisons):
         lignes += [
             "",
@@ -521,8 +572,30 @@ def section_comportements(
     ]
     for comparaison in comparaisons:
         agent, base = comparaison.agent, comparaison.base
+        # **La garde qui LEVE.** Une ligne dont aucune regle n'a tranche ne s'imprime pas :
+        # « non separable a ce budget » est une CONCLUSION, et le tour 2 la publiait sur deux
+        # lignes qu'il n'avait pas calculees -- les deux zeros de la ligne de base, que la
+        # formule normale rend `None`. Le rapport les declarait non separables dans son
+        # tableau pendant que son texte argumentait une demi-page sur ce qu'elles etablissent.
+        # Rien ne se publie qu'une regle nommee n'ait tranche.
+        if comparaison.separable is None and comparaison.exclu is None:
+            raise ValueError(
+                f"{comparaison.nom} : aucune regle n'a tranche cette ligne "
+                f"({comparaison.regle}), et un tableau ne publie pas un verdict qu'il n'a pas "
+                f"calcule. Ecart {comparaison.ecart}, detectable {comparaison.detectable}, "
+                f"agent {agent.succes}/{agent.total}, base {base.succes}/{base.total}."
+            )
         if comparaison.exclu is not None:
             verdict = f"**non compare** : {comparaison.exclu}"
+        elif comparaison.regle == phase3_mesure.REGLE_BORNES_EXACTES:
+            borne = _borne(comparaison.borne_exacte)
+            verdict = (
+                f"**separable** -- par bornes exactes : le zero de la ligne de base a pour "
+                f"borne haute a 99 % **{borne}**, et l'agent est au-dela"
+                if comparaison.separable
+                else f"non separable -- la borne exacte du taux degenere, {borne}, croise "
+                f"l'intervalle de l'autre cote"
+            )
         elif comparaison.separable:
             verdict = "**separable**"
         elif comparaison.parties_requises is not None:
@@ -595,8 +668,18 @@ def section_lecture_de_b4(
         "**Je refuse cette lecture pour cet agent, et le motif est dans le paragraphe 1.** "
         "`B4-contre-nature` vaut "
         + (f"**{_pct(taux)}**" if taux is not None else "un taux non nul")
-        + " chez lui contre **0,00 %** chez le greedy. Deux hypotheses expliquent le meme "
-        "chiffre :",
+        + " chez lui contre **"
+        + (_pct(contre_nature.base.taux()) if contre_nature is not None else "0,00 %")
+        + "** chez le greedy -- un ecart "
+        + (
+            "**separable**, et le paragraphe 5 dit par quelle regle : la borne haute exacte "
+            f"a 99 % de ce zero vaut {_borne(contre_nature.borne_exacte)}"
+            if contre_nature is not None
+            and contre_nature.borne_exacte is not None
+            and contre_nature.separable
+            else "dont le paragraphe 5 donne le statut"
+        )
+        + ". Deux hypotheses expliquent le meme chiffre :",
         "",
         "1. **l'agent voit quelque chose que l'evaluation myope ne voit pas** -- il refuse un "
         "meurtre localement gagnant parce qu'il anticipe un retournement. C'est la lecture "
@@ -674,6 +757,26 @@ def section_ce_qui_n_est_pas_etabli(lignes: list[str]) -> None:
         "11. **Les comportements comparent deux echantillons de donnes DISJOINTES** -- 0 a "
         "1999 pour la ligne de base, 60000 a 61999 pour l'agent. La comparaison n'est pas "
         "appariee, et sa puissance est celle de deux echantillons independants.",
+        "",
+        "**Deux limites de plus, etablies par l'audit croise du tour 2 -- qui a REJETE les "
+        "corrections du tour 1 sur des defauts qu'elles avaient elles-memes introduits.**",
+        "",
+        "12. **Les deux lignes a zero absolu ne sont pas separees par la regle du reste du "
+        "tableau.** Elles le sont par des bornes exactes, un critere de non-recouvrement, plus "
+        "conservateur et de puissance differente -- voir le paragraphe 5. Deux verdicts "
+        "« separable » du meme tableau ne viennent donc pas tous du meme raisonnement, et la "
+        "colonne le dit ligne par ligne. **Ce que le tour 1 en publiait etait faux**, et ce "
+        "que le tour 2 en publiait -- « non separable a ce budget » -- etait une conclusion "
+        "qu'aucun calcul n'avait rendue.",
+        "13. **Le garde-fou n'a jamais ete eprouve en conditions reelles sur un effondrement.** "
+        "Sa version 5 laissait passer une chute etablie -- **17,80 points sur le support de "
+        "l'auditeur du tour 2**, qui n'est pas un checkpoint de ce run -- parce qu'elle "
+        "demandait « l'ecart est-il etabli ? » au lieu de « est-ce un progres etabli ? ». "
+        "Le defaut est "
+        "corrige et un cas hostile le tient, mais **il a ete trouve par un auditeur, pas par "
+        "le run** : ce run n'a pas eu d'effondrement, donc rien n'a exerce cette branche en "
+        "vrai. **Cinquieme defaut du meme garde-fou, et le cinquieme est ne dans la correction "
+        "du quatrieme.**",
     ]
 
 
@@ -685,8 +788,8 @@ def section_audit(lignes: list[str], controles: Sequence) -> None:
     """
     lignes.append(_titre("7. L'audit de ce resultat, par ses propres controles"))
     lignes += [
-        "**Les deux zeros absolus de la ligne de base -- `B4-contre-nature` 0,00 % et "
-        "`B4-meurtre-couteux` 0,00 % -- sont confrontes a un cas construit a la main**, comme "
+        "**Les zeros absolus de la ligne de base -- ceux que R4 nomme ci-dessous, avec leurs "
+        "comptes -- sont confrontes a un cas construit a la main**, comme "
         "le paragraphe 0.2 l'exige, par quatre cas de `tests/mesure/test_comportements.py` : "
         "deux qui fabriquent le nœud et exigent que le compteur le classe, un qui retrouve les "
         "zeros sur de vraies parties, et **un contre-cas** ou une politique uniforme en produit "

@@ -54,10 +54,19 @@ et une portee de 2 serait **insuffisante**.
 La regle en vigueur, la cinquieme, **eprouvee sur les donnees avant d'etre ecrite** :
 
   - **arret anticipe**, a partir du **4e** checkpoint : l'ecart **apparie** entre `part(k)` et
-    `part(k - 3)` est-il etabli, intervalle a 99 % corrige de Bonferroni **excluant 0** ? S'il
-    ne l'est pas, l'agent ne progresse pas de facon mesurable sur trois quarts d'heure, et on
-    arrete. Sur les huit checkpoints de ce run, les cinq ecarts de portee trois valent **+5,89,
-    +5,54, +5,79, +6,05 et +5,07 points** : aucun ne declenche ;
+    `part(k - 3)` est-il un **progres etabli** -- intervalle a 99 % corrige de Bonferroni
+    **entierement au-dessus de 0** ? S'il ne l'est pas, on arrete. Sur les huit checkpoints de
+    ce run, les cinq ecarts de portee trois valent **+5,89, +5,54, +5,79, +6,05 et +5,07
+    points**, tous au-dessus de la barre appariee de 3,56 a 4,06 : aucun ne declenche ;
+  - **au-dessus de 0, pas « different de 0 »**, et la v5 s'y est trompee. Elle demandait
+    « l'ecart est-il etabli ? », si bien qu'un **effondrement** etabli la rassurait : l'audit
+    du tour 2 lui a passe, sur son propre support, un -17,80 pt IC [-18,43 ; -17,08] -- pas un
+    checkpoint de ce run --, et elle n'a pas declenche. C'est
+    le mode de defaillance -- l'effondrement de convention en self-play -- que l'arbitrage du
+    tour 1 avait escalade en retirant le greedy et l'aleatoire du pool ; le garde-fou cense le
+    voir ne le voyait pas. **Cinquieme defaut du meme garde-fou, ne dans la correction du
+    quatrieme.** Le predicat vit desormais dans `bootstrap.EcartApparie.progres_etabli`, a un
+    seul site, et un cas lui passe un effondrement ;
   - il porte sur un **ECART**, jamais sur un niveau, et **jamais** sur la distance a 86,52 % :
     la distance a la barre du greedy est la cible de la phase, pas un test d'apprentissage ;
   - **critere terminal**, inchange et celui du protocole : a la fin des 2 h, la part
@@ -379,19 +388,23 @@ def entrainer(
         # n'apprend pas » --, et il la teste a une portee que son budget lui permet de trancher.
         # Voir `PORTEE_DU_GARDE_FOU` : a portee 1, il se declencherait quoi que fasse l'agent.
         ecart_de_portee: tuple[float, float, float] | None = None
+        declenche = False
         if numero >= PREMIER_CHECKPOINT_QUI_DECLENCHE:
             reference = jalons[numero - PORTEE_DU_GARDE_FOU - 1]
             apparie = boot.bootstrap_apparie_par_donne(
                 reference.parts_par_donne,
                 parts_par_donne,
                 phase3.RECHANTILLONS,
-                random.Random(phase3.GRAINE_BOOTSTRAP + 4 + numero),
+                random.Random(phase3.graine_du_garde_fou(numero)),
                 risque=0.01 / CHECKPOINTS_ATTENDUS,
             )
             ecart_de_portee = (apparie.moyenne, *apparie.intervalle)
-        declenche = ecart_de_portee is not None and not (
-            ecart_de_portee[1] > 0.0 or ecart_de_portee[2] < 0.0
-        )
+            # **`progres_etabli`, pas `etabli`.** La v5 demandait « etabli », et un
+            # effondrement etabli lui suffisait pour continuer : mesure de l'audit du tour 2,
+            # -17,80 pt IC [-18,43 ; -17,08] ne declenchait pas. Le predicat vit dans
+            # `bootstrap.EcartApparie` et nulle part ailleurs -- la v5 l'avait recopie ici a
+            # la main, et c'est la copie qui portait la faute.
+            declenche = not apparie.progres_etabli
         jalon = Jalon(
             numero=numero,
             secondes=ecoule,

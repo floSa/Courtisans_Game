@@ -72,8 +72,14 @@ def _declencherait(jalons: list[campagne.Jalon], numero: int, serie: tuple[float
     ne verifierait rien -- c'est la faute que la phase 2 a payee, deux implementations qui
     partagent la meme hypothese fausse concordant parfaitement.
 
-    Le texte : *« il se declenche si l'ecart apparie entre part(k) et part(k - 3) n'est pas
-    etabli -- intervalle a 99 % corrige de Bonferroni contenant 0 --, a partir de k = 4 ».*
+    Le texte de la v6 : *« il se declenche si l'ecart apparie entre part(k) et part(k - 3)
+    n'est pas un PROGRES ETABLI -- intervalle a 99 % corrige de Bonferroni entierement
+    au-dessus de 0 --, a partir de k = 4 ».*
+
+    **La v5 disait « n'est pas etabli », et cette fonction la recopiait fidelement.** Les deux
+    portaient donc la meme faute, et un test fidele a un texte faux est vert : un effondrement
+    etabli passait des deux cotes. C'est pourquoi la borne lue ci-dessous est la borne BASSE
+    seule, et pourquoi `test_un_EFFONDREMENT_etabli_declenche` existe.
     """
     if numero < campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE:
         return False
@@ -85,8 +91,8 @@ def _declencherait(jalons: list[campagne.Jalon], numero: int, serie: tuple[float
         random.Random(7),
         risque=0.01 / campagne.CHECKPOINTS_ATTENDUS,
     )
-    bas, haut = ecart.intervalle
-    return not (bas > 0.0 or haut < 0.0)
+    bas, _haut = ecart.intervalle
+    return not bas > 0.0
 
 
 def test_un_agent_qui_progresse_n_est_PAS_arrete():
@@ -123,6 +129,46 @@ def test_un_agent_qui_stagne_TRES_HAUT_est_arrete_aussi():
     assert _declencherait(jalons, 4, jalons[3].parts_par_donne)
 
 
+def test_un_EFFONDREMENT_etabli_declenche():
+    """**Le defaut bloquant du tour 2, et le cinquieme du meme garde-fou.**
+
+    La v5 demandait « l'ecart est-il etabli ? » pour decider de continuer. Un effondrement est
+    un ecart parfaitement etabli : il passait le test, et le garde-fou lisait la chute comme
+    une raison de laisser tourner. L'audit lui a mesure un -17,80 pt, IC [-18,43 ; -17,08],
+    sans declenchement.
+
+    **C'est le mode de defaillance que l'arbitrage du tour 1 avait escalade** en retirant le
+    greedy et l'aleatoire du pool d'entrainement : l'effondrement de convention en self-play.
+    Le garde-fou cense le voir ne le voyait pas.
+
+    Le cas passe une chute franche, et exige le declenchement a chaque checkpoint ou la regle
+    peut s'exercer. Il tombe si quelqu'un remet `etabli` a la place de `progres_etabli`.
+    """
+    parts = [0.70, 0.68, 0.60, 0.52, 0.42, 0.30]
+    jalons = [_jalon(i + 1, p) for i, p in enumerate(parts)]
+    for numero in range(campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE, len(parts) + 1):
+        chute = 100 * (parts[numero - 1] - parts[numero - 4])
+        assert _declencherait(jalons, numero, jalons[numero - 1].parts_par_donne), (
+            f"le checkpoint {numero} laisse tourner un agent qui s'effondre de "
+            f"{chute:.2f} pt sur trois quarts d'heure"
+        )
+
+    # Et le predicat lui-meme, a son site unique : un effondrement est ETABLI et n'est PAS un
+    # progres. Confondre les deux est exactement ce qui a coute le defaut.
+    effondrement = boot.bootstrap_apparie_par_donne(
+        jalons[0].parts_par_donne,
+        jalons[-1].parts_par_donne,
+        2_000,
+        random.Random(7),
+        risque=0.01 / campagne.CHECKPOINTS_ATTENDUS,
+    )
+    assert effondrement.moyenne < 0.0, effondrement.moyenne
+    assert effondrement.etabli, "l'effondrement construit ici n'est pas etabli : cas a revoir"
+    assert not effondrement.progres_etabli, (
+        "un effondrement etabli est compte comme un progres etabli -- c'est le defaut"
+    )
+
+
 def test_les_TROIS_premiers_checkpoints_ne_declenchent_jamais():
     """`part(k-3)` n'existe pas avant le quatrieme."""
     jalons = [_jalon(i + 1, 0.5) for i in range(8)]
@@ -131,6 +177,34 @@ def test_les_TROIS_premiers_checkpoints_ne_declenchent_jamais():
             f"le checkpoint {numero} declenche alors qu'il n'a pas de terme de comparaison"
         )
     assert campagne.PREMIER_CHECKPOINT_QUI_DECLENCHE == 4
+
+
+def _grandeurs_du_run_reel() -> tuple[float, float]:
+    """Les deux grandeurs que `portee_minimale` demande, **mesurees sur le journal du run**.
+
+    Rend `(barre_appariee_en_points, progres_par_checkpoint_en_points)`.
+
+      - la **barre** est la demi-largeur moyenne des intervalles des ecarts apparies de portee
+        1, telle que `mesure/phase3_courbe` les calcule -- la grandeur qui juge un ecart, et
+        non le detectable d'un niveau ;
+      - le **progres par checkpoint** est l'ecart des extremes divise par le nombre de pas.
+
+    Un journal sans serie par donne fait **lever** `ecarts`, et le cas tombe : c'est voulu. Une
+    parade qui se met en veille quand sa matiere manque ne garde rien.
+    """
+    from mesure import phase3_courbe
+
+    jalons = [
+        json.loads(ligne)
+        for ligne in Path("models/phase3/journal.jsonl").read_text(encoding="utf-8").splitlines()
+        if ligne.strip()
+    ]
+    consecutifs = phase3_courbe.ecarts(jalons, 1, risque=0.01 / campagne.CHECKPOINTS_ATTENDUS)
+    barre = 100 * sum(
+        (e.intervalle[1] - e.intervalle[0]) / 2 for e in consecutifs
+    ) / len(consecutifs)
+    extremes = phase3_courbe.ecart_des_extremes(jalons, risque=0.01 / campagne.CHECKPOINTS_ATTENDUS)
+    return barre, 100 * extremes.moyenne / (len(jalons) - 1)
 
 
 def test_une_portee_de_UN_serait_indetectable_a_ce_budget():
@@ -148,8 +222,17 @@ def test_une_portee_de_UN_serait_indetectable_a_ce_budget():
     bonne, la portee minimale est **3** et la portee retenue est donc minimale, pas
     confortable ; avec celle du niveau, elle rendrait 2, et une portee de 2 chercherait 3,66
     pour une barre de 3,83 -- **sous le seuil**. C'est la relecture finale du tour 2 qui l'a vu.
+
+    **Les deux grandeurs sont MESUREES sur le journal, plus transcrites.** Le tour 2 les
+    ecrivait en litteraux -- `3.83, 2.75, 1.83` --, si bien que la parade figeait un run au
+    lieu de calculer le suivant : le jour ou le budget change, les trois nombres restent, la
+    portee minimale qu'ils rendent devient fausse, et le cas reste vert. Ils sont maintenant
+    recalcules par `_grandeurs_du_run_reel` a partir de `models/phase3/journal.jsonl` ; seul
+    le 2,75 reste un litteral, parce que c'est une citation de la pre-inscription -- le
+    contre-exemple, pas la mesure.
     """
-    apparie_pt, niveau_pt, progres_pt = 3.83, 2.75, 1.83
+    apparie_pt, progres_pt = _grandeurs_du_run_reel()
+    niveau_pt = 2.75  # cite de la pre-inscription 8.1 : un detectable IID SUR UN NIVEAU
 
     minimale = campagne.portee_minimale(apparie_pt, progres_pt)
     assert minimale == 3, minimale
@@ -159,9 +242,14 @@ def test_une_portee_de_UN_serait_indetectable_a_ce_budget():
     )
     # La mauvaise grandeur donnerait une portee insuffisante : le cas le fige pour que
     # personne ne la reintroduise en croyant simplifier.
-    assert campagne.portee_minimale(niveau_pt, progres_pt) == 2
-    assert 2 * progres_pt < apparie_pt, (
-        "une portee de 2 chercherait un progres sous la barre : le contre-exemple a bouge"
+    assert campagne.portee_minimale(niveau_pt, progres_pt) < minimale, (
+        f"le 2,75 du NIVEAU rend {campagne.portee_minimale(niveau_pt, progres_pt)}, la barre "
+        f"appariee de {apparie_pt:.2f} rend {minimale} : si les deux se rejoignent, le "
+        f"contre-exemple a disparu et ce cas ne tient plus rien"
+    )
+    assert (minimale - 1) * progres_pt < apparie_pt, (
+        "une portee d'un cran de moins chercherait un progres sous la barre : c'est ce qui "
+        "rend la portee retenue MINIMALE et non confortable"
     )
     assert campagne.PORTEE_DU_GARDE_FOU * progres_pt > apparie_pt
 
@@ -187,15 +275,27 @@ def test_le_garde_fou_du_RUN_REEL_ne_declenche_sur_aucun_checkpoint():
     risque = 0.01 / campagne.CHECKPOINTS_ATTENDUS
     ecarts = phase3_courbe.ecarts(jalons, campagne.PORTEE_DU_GARDE_FOU, risque)
     assert len(ecarts) == 5, len(ecarts)
-    non_etablis = [f"ckpt {e.depuis}->{e.vers}" for e in ecarts if not e.etabli]
-    assert not non_etablis, (
-        f"le garde-fou declencherait sur {non_etablis} : la regle en vigueur tuerait le run "
+    # **`progres_etabli`, pas `etabli`** -- c'est la regle v6, et la v5 disait « etabli ». Un
+    # cas qui interroge la regle retiree passe au vert sans rien tenir de la regle en vigueur ;
+    # ici les deux concordent sur ce run, et c'est justement pourquoi il fallait le corriger.
+    sans_progres = [f"ckpt {e.depuis}->{e.vers}" for e in ecarts if not e.progres_etabli]
+    assert not sans_progres, (
+        f"le garde-fou declencherait sur {sans_progres} : la regle en vigueur tuerait le run "
         f"de la phase 3, exactement comme celle qu'elle remplace"
     )
     # Et le contraste avec la portee 1, qui est le defaut fige.
     voisins = phase3_courbe.ecarts(jalons, 1, risque)
+    assert len(voisins) == len(jalons) - 1, (
+        f"{len(voisins)} ecarts de portee 1 pour {len(jalons)} jalons : les deux assertions "
+        f"negatives qui suivent porteraient sur une liste tronquee"
+    )
+    assert not any(e.progres_etabli for e in voisins), (
+        "a portee 1, un ecart est un progres etabli : le contre-exemple qui justifie la "
+        "portee 3 a bouge"
+    )
     assert not any(e.etabli for e in voisins), (
-        "a portee 1, un ecart est etabli : le contre-exemple qui justifie la portee 3 a bouge"
+        "a portee 1, un ecart est etabli dans un sens ou dans l'autre : le contre-exemple a "
+        "bouge, et la lecture du paragraphe 4 du rapport doit etre reprise"
     )
 
 

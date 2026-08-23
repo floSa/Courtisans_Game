@@ -121,6 +121,22 @@ RECHANTILLONS = 10_000
 GRAINE_BOOTSTRAP = 8_500_000
 
 
+def graine_du_garde_fou(numero: int) -> int:
+    """La graine du bootstrap apparie du checkpoint `numero`. **Site unique.**
+
+    Elle etait ecrite deux fois -- dans `agents/campagne`, qui la tire pendant le run, et dans
+    `mesure/phase3_courbe`, qui rejoue la meme mesure a partir du journal. Elle vit desormais
+    ici, avec le reste du plan de mesure pre-inscrit, et les deux la demandent. Deux copies de la meme graine, c'est deux copies de la meme
+    regle : le jour ou l'une bouge, les ecarts republies cessent d'etre ceux du run **sans que
+    rien ne le signale**, et la garde de reproduction bit a bit ne les couvre pas -- elle
+    verifie les quatre nombres journalises, pas l'ecart calcule apres coup.
+
+    Le decalage de 4 separe cette suite de celles du gain et de la part, qui prennent
+    `+ 2` et `+ 3` dans la meme campagne.
+    """
+    return GRAINE_BOOTSTRAP + 4 + numero
+
+
 @dataclass(frozen=True)
 class Campagne:
     """Les parties d'une composition, groupees par donne -- l'unite du bootstrap.
