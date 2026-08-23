@@ -74,6 +74,7 @@ from __future__ import annotations
 import argparse
 import subprocess
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -99,6 +100,24 @@ FICHIERS_EXEMPTS: frozenset[str] = frozenset({"agents/greedy.py"})
 DELAI_DE_GARDE = 15 * 60
 
 
+
+@dataclass(frozen=True)
+class Passe:
+    """Ce qu'une passe de la suite a rendu.
+
+    Attributes:
+        verts: tests passes.
+        rouges: tests en echec.
+        tombes: les **identifiants** des tests en echec. Ils ne servent pas au verdict d'une
+            ligne -- c'est `rouges` qui le donne -- mais a un controle que rien d'autre ne
+            peut faire : voir `tombes_sous_TOUTES_les_mutations`.
+    """
+
+    verts: int
+    rouges: int
+    tombes: frozenset[str]
+
+
 @dataclass(frozen=True)
 class Mutation:
     """Une faute plausible, injectee volontairement dans le coeur.
@@ -116,6 +135,38 @@ class Mutation:
     avant: str
     apres: str
     vise: str
+
+
+#: **Le temoin negatif : une mutation qui ne change RIEN.** Elle insere un commentaire, donc
+#: le comportement du depot est identique au caractere pres apres application.
+#:
+#: **Ce qu'elle attrape, et pourquoi la passe de base ne suffisait pas.** La passe de base
+#: mesure le zero *avant* la premiere mutation. Elle ne voit donc pas un test qui reagit au
+#: FAIT QU'UN FICHIER A ETE EDITE plutot qu'a un changement de comportement -- un tel test est
+#: vert tant qu'aucune mutation n'est en place, et rouge sous **toutes** a la fois.
+#:
+#: Ce n'est pas theorique. Le 23/08/2026, deux cas de `tests/outillage/test_mutation.py`
+#: verifiaient les invariants du catalogue en lisant le DISQUE : « ce motif apparait
+#: exactement une fois dans sa source ». Sous mutation, le fichier ne contient plus son
+#: `avant`, les deux tombaient, et la campagne a rendu **56 detectees, 0 survivante** --
+#: exactement `+2 rouges` sur chaque ligne, les onze survivantes reelles effacees.
+#:
+#: **C'est le mode de defaillance que la passe de base venait de fermer, refait par la
+#: correction elle-meme.** Le temoin le ferme comme CLASSE : si la suite n'est pas verte avec
+#: une mutation qui ne change rien, un test reagit a l'edition et non au comportement, et tout
+#: verdict de la campagne serait faux.
+MUTATION_TEMOIN = Mutation(
+    nom="TEMOIN-ne-change-rien",
+    fichier="mesure/instance.py",
+    avant="ENTRAINEMENT_3J = GameConfig(",
+    apres="# Temoin du test de mutation : cette ligne ne change aucun comportement.\n"
+    "ENTRAINEMENT_3J = GameConfig(",
+    vise=(
+        "RIEN -- c'est le temoin negatif. La suite doit rester VERTE sous cette mutation ; "
+        "si elle rougit, un test reagit a l'edition d'un fichier et non a un changement de "
+        "comportement, et il se deguiserait en detection sur toutes les lignes a la fois."
+    ),
+)
 
 
 MUTATIONS: tuple[Mutation, ...] = (
@@ -864,7 +915,7 @@ def _appliquer(mutation: Mutation) -> None:
     chemin.write_text(source.replace(mutation.avant, mutation.apres), encoding="utf-8")
 
 
-def _jouer(cible: str, delai: float = DELAI_DE_GARDE) -> tuple[int, int] | None:
+def _jouer(cible: str, delai: float = DELAI_DE_GARDE) -> Passe | None:
     """Rejoue la suite et rend `(verts, rouges)`, ou `None` si le delai de garde expire.
 
     **Le delai existe parce qu'une mutation l'a exige, et le cas est instructif.**
@@ -908,7 +959,47 @@ def _jouer(cible: str, delai: float = DELAI_DE_GARDE) -> tuple[int, int] | None:
             verts = valeur
         elif morceau.startswith("failed"):
             rouges = valeur
-    return verts, rouges
+    tombes = frozenset(
+        ligne.split()[1] for ligne in lignes if ligne.startswith("FAILED ")
+    )
+    return Passe(verts=verts, rouges=rouges, tombes=tombes)
+
+
+def tombes_sous_TOUTES_les_mutations(
+    tombes_par_mutation: Sequence[frozenset[str]],
+) -> frozenset[str]:
+    """Les tests qui sont tombes sous **chaque** mutation jouee. **Le detecteur de miroir.**
+
+    *Le nom ne commence pas par `test` : pytest collecterait la fonction comme un cas des
+    qu'un module de test l'importe, et elle sortirait en erreur de collecte.*
+
+    **Ce que ce controle etablit.** Une mutation change UN comportement. Un test qui tombe
+    sous *toutes* les mutations a la fois ne peut pas reagir a ce comportement-la : il reagit
+    a autre chose -- le plus souvent au FAIT QU'UN FICHIER A ETE EDITE. Un tel test se deguise
+    en detection sur toutes les lignes du releve, efface toutes les survivantes, et **la passe
+    de base ne peut pas le voir**, puisqu'il est vert tant qu'aucune mutation n'est en place.
+
+    **Ce n'est pas theorique, et c'est ne dans une correction.** Le 23/08/2026, deux cas de
+    `tests/outillage/test_mutation.py` verifiaient les invariants du catalogue en lisant le
+    DISQUE. `_appliquer` remplace `avant` par `apres` ; sous mutation, le motif n'est plus la,
+    les deux cas tombaient, et la campagne a rendu **56 detectees, 0 survivante** -- exactement
+    `+2 rouges` sur chaque ligne, les onze survivantes reelles effacees.
+
+    **Ce que ce controle N'ETABLIT PAS.** Un test qui tombe sous toutes les mutations *peut*
+    etre legitime -- un test tres general, qui verifierait par exemple que le depot entier
+    reste coherent. Le controle **signale**, il ne condamne pas : c'est a la lecture de
+    trancher. Il ne dit rien non plus des tests qui tombent sous *plusieurs* mutations sans
+    tomber sous toutes.
+
+    Rend l'ensemble vide s'il n'y a aucune passe, plutot que l'intersection de rien -- qui
+    n'est pas definie et que Python rendrait sous forme d'erreur.
+    """
+    if not tombes_par_mutation:
+        return frozenset()
+    intersection = set(tombes_par_mutation[0])
+    for tombes in tombes_par_mutation[1:]:
+        intersection &= tombes
+    return frozenset(intersection)
 
 
 def refus_de_la_passe_de_base(
@@ -942,8 +1033,8 @@ def refus_de_la_passe_de_base(
     return None
 
 
-def _passe_de_base(cible: str, delai: float) -> tuple[int, int]:
-    """Joue la suite **non mutee** et rend `(verts, rouges)`. **Le zero de l'instrument.**
+def _passe_de_base(cible: str, delai: float) -> Passe:
+    """Joue la suite **non mutee** et rend sa `Passe`. **Le zero de l'instrument.**
 
     Appelee une fois, en tete de campagne. `principal` leve si `rouges` n'est pas nul : les
     57 verdicts qui suivent sont des ECARTS lus contre ce compte-la, et un ecart ne se lit pas
@@ -1023,7 +1114,8 @@ def principal() -> int:
     # **Le zero de l'instrument, mesure avant le premier ecart.** Voir la docstring du module :
     # sans cette passe, un seul rouge preexistant fait rapporter « toutes detectees » a une
     # campagne dont les 57 verdicts sont faux.
-    verts_base, rouges_base = _passe_de_base(arguments.cible, arguments.delai)
+    base = _passe_de_base(arguments.cible, arguments.delai)
+    verts_base, rouges_base = base.verts, base.rouges
     print(
         f"passe de BASE, sans mutation : {verts_base} verts, {rouges_base} rouges "
         f"(cible {arguments.cible!r})"
@@ -1031,12 +1123,40 @@ def principal() -> int:
     refus = refus_de_la_passe_de_base(verts_base, rouges_base, len(mutations))
     if refus is not None:
         raise SystemExit(refus)
+
+    # **Le temoin negatif.** Voir `MUTATION_TEMOIN` : la passe de base ne peut pas voir un
+    # test qui reagit a l'EDITION d'un fichier plutot qu'a un changement de comportement,
+    # parce qu'un tel test est vert tant qu'aucune mutation n'est en place.
+    _appliquer(MUTATION_TEMOIN)
+    try:
+        temoin = _jouer(arguments.cible, arguments.delai)
+    finally:
+        _restaurer(MUTATION_TEMOIN.fichier)
+    if temoin is None:
+        raise SystemExit(
+            f"le TEMOIN a expire apres {arguments.delai:.0f} s alors qu'il ne change rien : "
+            f"la suite n'est pas stable, aucun ecart n'y est lisible."
+        )
+    verts_temoin, rouges_temoin = temoin.verts, temoin.rouges
+    print(
+        f"TEMOIN, mutation qui ne change rien : {verts_temoin} verts, {rouges_temoin} rouges"
+    )
+    if (verts_temoin, rouges_temoin) != (verts_base, rouges_base):
+        raise SystemExit(
+            f"le TEMOIN ne rend pas la passe de base : {verts_temoin}/{rouges_temoin} contre "
+            f"{verts_base}/{rouges_base}. **Un ou plusieurs tests reagissent a l'EDITION d'un "
+            f"fichier et non a un changement de comportement.** Ils tomberaient sous les "
+            f"{len(mutations)} mutations a la fois, se deguiseraient en detections, et "
+            f"effaceraient toutes les survivantes du releve. C'est exactement ce qui est "
+            f"arrive le 23/08/2026 -- voir `MUTATION_TEMOIN`. L'outil refuse de commencer."
+        )
     print()
 
     print(f"{'mutation':40s} {'verts':>6s} {'rouges':>7s}  verdict")
     print("-" * 86)
     survivantes = []
     expirees = []
+    tombes_par_mutation: list[frozenset[str]] = []
     for mutation in mutations:
         _appliquer(mutation)
         try:
@@ -1050,13 +1170,32 @@ def principal() -> int:
                 f"EXPIRE apres {arguments.delai:.0f} s -- la suite ne rend pas la main"
             )
             continue
-        verts, rouges = resultat
+        verts, rouges = resultat.verts, resultat.rouges
+        tombes_par_mutation.append(resultat.tombes)
         verdict = "detectee" if rouges else "SURVIT -- trou de test"
         if not rouges:
             survivantes.append(mutation)
         print(f"{mutation.nom:40s} {verts:6d} {rouges:7d}  {verdict}")
 
     print("-" * 86)
+
+    # **Le detecteur de miroir.** Une mutation change UN comportement ; un test qui tombe sous
+    # TOUTES ne peut pas reagir a celui-la. Voir `tombes_sous_TOUTES_les_mutations` : ce
+    # controle est ce qui aurait vu, le 23/08/2026, les deux cas qui ont efface onze
+    # survivantes du releve. Il ne coute aucune passe -- les noms sont deja dans la sortie.
+    miroirs = tombes_sous_TOUTES_les_mutations(tombes_par_mutation)
+    if miroirs and len(tombes_par_mutation) > 1:
+        print(
+            f"\n!! {len(miroirs)} test(s) sont tombes sous les {len(tombes_par_mutation)} "
+            f"mutations jouees. **Un test qui tombe sous toutes ne reagit a aucune** : il "
+            f"reagit le plus souvent au fait qu'un fichier a ete edite, il se deguise en "
+            f"detection sur toutes les lignes, et il efface les survivantes du releve. "
+            f"La passe de base ne peut pas le voir. A LIRE avant de croire ce releve :"
+        )
+        for nom in sorted(miroirs):
+            print(f"  - {nom}")
+        print()
+
     if expirees:
         print(
             f"{len(expirees)} mutation(s) ont fait EXPIRER la suite. **Ce n'est ni une "
