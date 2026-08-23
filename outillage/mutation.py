@@ -11,9 +11,28 @@ calcul ne teste rien.** C16 et I8 comparaient la chaine et le tenseur, tous deux
 depuis la meme observation ; retirer un champ des deux les laissait coherents.
 
 Une suite qui passe sans qu'on ait verifie qu'elle sait echouer n'est pas une suite de
-tests. Cet outil applique une mutation connue au moteur -- le coeur, ou l'adaptateur --
-rejoue la suite, et rapporte combien de tests tombent. Une mutation qui ne fait rien tomber
-designe un trou.
+tests. Cet outil applique une mutation connue au depot, rejoue la suite, et rapporte combien
+de tests tombent. Une mutation qui ne fait rien tomber designe un trou.
+
+**Le perimetre, et pourquoi il s'est elargi le 23/08.** Les vingt premieres mutations ne
+touchent que `courtisans/` -- le moteur et son adaptateur. « 20 mutations, toutes detectees »
+ne disait donc rien des ~2 500 lignes de `agents/` et `mesure/`, c'est-a-dire du code qui
+**entraine** et du code qui **mesure**. Le paragraphe 0.3 du protocole a ete elargi le 21/08,
+et la raison se lit dans l'histoire du projet : le defaut le plus instructif de la phase 2 --
+un facteur trois indu dans six budgets, qui a survecu a DEUX verifications reussies -- vivait
+dans le GENERATEUR, pas dans le moteur. Une suite qui sait attraper une faute de regle et pas
+une faute de mesure protege le chiffre qu'elle publie moitie moins qu'elle ne le croit.
+
+**`agents/greedy.py` est EXEMPT, et c'est le seul invariant que la regle protegeait.** C'est
+l'etalon de toutes les phases : un agent de reference se documente au lieu de se corriger, et
+une mutation qui le change deplacerait la ligne de base a laquelle tout le reste se compare.
+`FICHIERS_EXEMPTS` le tient, et `principal` leve si une mutation le vise -- une exemption
+ecrite en commentaire n'est pas une exemption.
+
+**UNE MUTATION QUI SURVIT EST UN RESULTAT, PAS UN ECHEC.** Elle nomme un trou de la suite. Le
+code de sortie 1 dit « il y a des survivantes », pas « l'outil a echoue » : elles se
+rapportent, elles ne se cachent pas, et on ne fabrique pas un test a la hate pour en faire
+tomber une sans dire ce qu'elle a appris.
 
 **Toute correction de defaut arrive avec sa mutation.** Les cinq dernieres de la liste
 remettent, une a une, les defauts trouves par l'audit de la phase 0 : un correctif dont la
@@ -38,6 +57,15 @@ from dataclasses import dataclass
 from pathlib import Path
 
 RACINE = Path(__file__).resolve().parent.parent
+
+#: Les fichiers qu'aucune mutation ne vise, et le motif est unique : `agents/greedy.py` est
+#: l'**etalon** de toutes les phases. La ligne de base « trois greedys, un seul siege compte »,
+#: le 86,52 % du garde-fou, le juge de B4 : les trois passent par lui. Le muter ne testerait pas
+#: la suite, il deplacerait le metre. Un agent de reference se documente au lieu de se corriger.
+#:
+#: Ecrit comme une **donnee que `principal` verifie**, et non comme une phrase de la docstring :
+#: c'est la seule forme d'exemption qui resiste a un ajout distrait de mutation.
+FICHIERS_EXEMPTS: frozenset[str] = frozenset({"agents/greedy.py"})
 
 
 @dataclass(frozen=True)
@@ -305,6 +333,475 @@ MUTATIONS: tuple[Mutation, ...] = (
             "defaut 2 de l'audit de la phase 0)"
         ),
     ),
+    # ---------------------------------------------------------------------------------
+    # Ajoutees le 23/08, ouverture de la phase 4 : **le perimetre s'etend a `agents/` et
+    # `mesure/`**, paragraphe 0.3 du protocole, elargi le 21/08.
+    #
+    # Pourquoi. Les vingt mutations ci-dessus ciblent toutes `courtisans/`. « 20 mutations,
+    # toutes detectees » ne disait donc RIEN des ~2 500 lignes qui **entrainent** et qui
+    # **mesurent** -- et le defaut le plus instructif de la phase 2, un facteur trois indu
+    # dans six budgets qui a survecu a DEUX verifications reussies, vivait dans le
+    # GENERATEUR, pas dans le moteur.
+    #
+    # `agents/greedy.py` reste EXEMPT, et c'est le seul invariant que la regle protegeait :
+    # c'est l'etalon de toutes les phases, un agent de reference se documente au lieu de se
+    # corriger, et une mutation qui le change changerait la ligne de base a laquelle tout le
+    # reste se compare. `_greedy_est_exempt` ci-dessous le tient, plutot que ce commentaire.
+    #
+    # Chaque mutation vise un **invariant ecrit** -- une docstring qui promet quelque chose,
+    # un arbitrage du protocole, ou un defaut deja paye. Aucune ne deplace un hyperparametre
+    # de plan : changer `TAUX_APPRENTISSAGE` ne serait pas une faute, seulement un autre run.
+    # ---------------------------------------------------------------------------------
+    Mutation(
+        nom='perception-nomme-les-dos',
+        fichier='agents/perception.py',
+        avant='                    carte=cible.carte if connue else None,',
+        apres='                    carte=cible.carte,',
+        vise=(
+            "la redaction disparait : l'identite d'un dos adverse entre dans la Perception, "
+            'donc dans ce que le decideur recoit'
+        ),
+    ),
+    Mutation(
+        nom='perception-decide-sur-un-noeud-de-chance',
+        fichier='agents/perception.py',
+        avant=(
+            '    if etat.phase() in (Phase.TERMINAL, Phase.CHANCE):\n'
+            '        raise ValueError('
+        ),
+        apres=(
+            '    if False:\n'
+            '        raise ValueError('
+        ),
+        vise=(
+            'un agent appele sur un noeud de chance ou terminal recoit une Perception au lieu '
+            "d'une levee"
+        ),
+    ),
+    Mutation(
+        nom='masque-laisse-une-probabilite-aux-illegales',
+        fichier='agents/reseau.py',
+        avant='    return torch.softmax(logits.masked_fill(~plan, float("-inf")), dim=-1)',
+        apres='    return torch.softmax(logits.masked_fill(~plan, -30.0), dim=-1)',
+        vise=(
+            'une action illegale garde une probabilite tres petite mais NON NULLE : elle est '
+            'tiree un coup sur un million, tres loin de la cause'
+        ),
+    ),
+    Mutation(
+        nom='tirer-ne-verifie-plus-la-somme',
+        fichier='agents/reseau.py',
+        avant='    if not math.isfinite(total) or abs(total - 1.0) > 1e-6:',
+        apres='    if False:',
+        vise=(
+            'une loi qui ne somme pas a 1 -- masque mal applique -- est tiree quand meme et '
+            'rend un indice sans signification'
+        ),
+    ),
+    Mutation(
+        nom='valeur-non-aplatie',
+        fichier='agents/reseau.py',
+        avant='        return self.tete_politique(cache), self.tete_valeur(cache).squeeze(-1)',
+        apres='        return self.tete_politique(cache), self.tete_valeur(cache)',
+        vise=(
+            'la tete de valeur rend (n, 1) au lieu de (n,) : la MSE contre des retours (n,) '
+            'diffuse en matrice n x n sans rien lever'
+        ),
+    ),
+    Mutation(
+        nom='deterministe-ignore-le-masque',
+        fichier='agents/reseau.py',
+        avant='    return int(torch.argmax(loi[0]).item())',
+        apres='    return int(torch.argmax(logits.cpu()[0]).item())',
+        vise=(
+            "la variante deterministe prend l'argmax des logits BRUTS : elle peut rendre une "
+            'action illegale'
+        ),
+    ),
+    Mutation(
+        nom='politique-reseau-observe-le-siege-zero',
+        fichier='agents/politique_reseau.py',
+        avant=(
+            '        observation = tenseur(etat, etat.current_player())\n'
+            '        actions = etat.legal_actions()'
+        ),
+        apres=(
+            '        observation = tenseur(etat, 0)\n'
+            '        actions = etat.legal_actions()'
+        ),
+        vise=(
+            "l'agent decide sur le tenseur du siege 0 quel que soit le siege qu'il occupe -- "
+            "il voit la main d'un autre"
+        ),
+    ),
+    Mutation(
+        nom='charger-laisse-le-reseau-en-entrainement',
+        fichier='agents/politique_reseau.py',
+        avant='    modele.eval()\n    return modele',
+        apres='    return modele',
+        vise=(
+            'un checkpoint relu reste en mode entrainement : il mesurerait autre chose que ce '
+            "qu'il a appris"
+        ),
+    ),
+    Mutation(
+        nom='gain-du-siege-zero',
+        fichier='agents/entrainement.py',
+        avant='                trajectoires.gains[noeud] = gains[siege]',
+        apres='                trajectoires.gains[noeud] = gains[0]',
+        vise=(
+            'chaque noeud porte le gain du siege 0 et non celui du siege qui decidait : '
+            "l'agent apprend le retour de quelqu'un d'autre"
+        ),
+    ),
+    Mutation(
+        nom='noeuds-du-pool-collectes',
+        fichier='agents/entrainement.py',
+        avant=(
+            '                if decideur is None:\n'
+            '                    # **Seuls les n'
+        ),
+        apres=(
+            '                if True:\n'
+            '                    # **Seuls les n'
+        ),
+        vise=(
+            'les noeuds joues par un checkpoint fige entrent dans la mise a jour : PPO '
+            'devient hors-politique sans que le ratio le sache'
+        ),
+    ),
+    Mutation(
+        nom='avantage-sans-ligne-de-base',
+        fichier='agents/entrainement.py',
+        avant=(
+            '    avantages = retours - torch.tensor(\n'
+            '        trajectoires.valeurs, dtype=torch.float32, device=appareil\n'
+            '    )'
+        ),
+        apres=(
+            '    avantages = retours - 0.0 * torch.tensor(\n'
+            '        trajectoires.valeurs, dtype=torch.float32, device=appareil\n'
+            '    )'
+        ),
+        vise=(
+            "la tete de valeur ne sert plus de ligne de base a l'avantage : le critique "
+            "n'entre plus dans le gradient de politique"
+        ),
+    ),
+    Mutation(
+        nom='alea-de-partie-partage',
+        fichier='agents/entrainement.py',
+        avant='                alea=random.Random(DECALAGE_TIRAGE + donne),',
+        apres='                alea=random.Random(DECALAGE_TIRAGE),',
+        vise=(
+            "toutes les parties d'une vague partagent un generateur : une partie depend de "
+            "celles qui l'accompagnent, et rien n'est rejouable a l'unite"
+        ),
+    ),
+    Mutation(
+        nom='composition-toujours-self-play',
+        fichier='agents/entrainement.py',
+        avant='        if alea.random() >= PART_SELF_PLAY:',
+        apres='        if False:',
+        vise=(
+            "le pool fige n'est jamais joue : l'entrainement est du self-play pur et le "
+            "garde-fou contre l'effondrement de convention disparait"
+        ),
+    ),
+    Mutation(
+        nom='tete-plus-grande-que-l-espace-d-action',
+        fichier='agents/entrainement.py',
+        avant='    nb_actions = 6 * 2 * (CONFIG.joueurs - 1)',
+        apres='    nb_actions = 6 * 2 * CONFIG.joueurs',
+        vise=(
+            "la tete du reseau ne fait plus la taille de l'espace d'action du moteur, et le "
+            'controle `max(legal_actions) >= nb_actions` ne mord pas'
+        ),
+    ),
+    Mutation(
+        nom='garde-fou-de-portee-un',
+        fichier='agents/campagne.py',
+        avant='PORTEE_DU_GARDE_FOU = 3',
+        apres='PORTEE_DU_GARDE_FOU = 1',
+        vise=(
+            "le garde-fou cherche un progres plus petit que l'ecart detectable a son budget : "
+            "il se declenche quoi que fasse l'agent"
+        ),
+    ),
+    Mutation(
+        nom='garde-fou-se-contente-d-un-ecart-etabli',
+        fichier='agents/campagne.py',
+        avant='            declenche = not apparie.progres_etabli',
+        apres='            declenche = not apparie.etabli',
+        vise=(
+            'le defaut v5 : un EFFONDREMENT etabli rassure le garde-fou au lieu de le '
+            'declencher'
+        ),
+    ),
+    Mutation(
+        nom='garde-fou-sans-bonferroni',
+        fichier='agents/campagne.py',
+        avant='    risque_corrige = 0.01 / CHECKPOINTS_ATTENDUS',
+        apres='    risque_corrige = 0.01',
+        vise='huit regards au risque nominal de 1 % : le risque global monte a ~8 %',
+    ),
+    Mutation(
+        nom='pool-garde-les-plus-anciens',
+        fichier='agents/campagne.py',
+        avant='            del pool[0]',
+        apres='            del pool[-1]',
+        vise=(
+            'le plafond du pool jette le checkpoint le plus RECENT : le pool se remplit des '
+            'versions les plus faibles'
+        ),
+    ),
+    Mutation(
+        nom='intitule-du-garde-fou-sans-population',
+        fichier='agents/campagne.py',
+        avant=(
+            '    return (\n'
+            '        f"1 agent entraine AU CHECKPOINT contre 2 aleatoires, '
+            '{donnes} donnes, seeds "\n'
+            '        f"{DEPART_DONNE_GARDE_FOU}+ (garde-fou)"\n'
+            '    )'
+        ),
+        apres='    return "1 agent entraine contre 2 aleatoires (garde-fou)"',
+        vise=(
+            "retour du defaut 5 : le nom ne porte plus ni l'agent, ni les donnes, ni les "
+            'seeds, et deux campagnes distinctes redeviennent homonymes'
+        ),
+    ),
+    Mutation(
+        nom='garde-fou-se-compare-a-lui-meme',
+        fichier='agents/campagne.py',
+        avant='PREMIER_CHECKPOINT_QUI_DECLENCHE = PORTEE_DU_GARDE_FOU + 1',
+        apres='PREMIER_CHECKPOINT_QUI_DECLENCHE = PORTEE_DU_GARDE_FOU',
+        vise=(
+            'au checkpoint `PORTEE`, `jalons[numero - PORTEE - 1]` vaut `jalons[-1]` : le '
+            'garde-fou compare le checkpoint a LUI-MEME, ecart nul, declenchement certain'
+        ),
+    ),
+    Mutation(
+        nom='progres-etabli-redevient-etabli',
+        fichier='mesure/bootstrap.py',
+        avant=(
+            '        return self.intervalle[0] > 0.0\n'
+            ''
+        ),
+        apres=(
+            '        return self.intervalle[0] > 0.0 or self.intervalle[1] < 0.0\n'
+            ''
+        ),
+        vise=(
+            'le defaut v5 remis AU SITE UNIQUE : `progres_etabli` ne distingue plus un '
+            "progres d'un effondrement"
+        ),
+    ),
+    Mutation(
+        nom='percentiles-apparies-unilateraux',
+        fichier='mesure/bootstrap.py',
+        avant=(
+            '    bas = int(risque / 2 * repetitions)\n'
+            '    haut = min(repetitions - 1, int((1 - risque / 2) * repetitions))\n'
+            '    return EcartApparie('
+        ),
+        apres=(
+            '    bas = int(risque * repetitions)\n'
+            '    haut = min(repetitions - 1, int((1 - risque) * repetitions))\n'
+            '    return EcartApparie('
+        ),
+        vise=(
+            "l'intervalle de l'ecart apparie devient unilateral a chaque bout tout en "
+            "s'annoncant a 99 % : il est trop etroit, et le garde-fou declenche moins"
+        ),
+    ),
+    Mutation(
+        nom='rho-sur-des-groupes-inegaux',
+        fichier='mesure/bootstrap.py',
+        avant='    if len(tailles) != 1:',
+        apres='    if False:',
+        vise=(
+            'le rapport intraclasse est calcule sur des donnes de tailles differentes, ce que '
+            'sa formule ne permet pas, et il rend un nombre sans le signaler'
+        ),
+    ),
+    Mutation(
+        nom='appariement-par-rang-de-valeur',
+        fichier='mesure/bootstrap.py',
+        avant='    differences = [b - a for a, b in zip(avant, apres, strict=True)]',
+        apres=(
+            '    differences = [b - a for a, b in zip(sorted(avant), sorted(apres), strict=True)]'
+        ),
+        vise=(
+            "l'appariement est detruit : chaque donne est comparee a une AUTRE donne, et "
+            "l'ecart apparie perd tout son sens en gardant sa forme"
+        ),
+    ),
+    Mutation(
+        nom='masse-binomiale-part-de-zero',
+        fichier='mesure/binomiale.py',
+        avant='    mode = min(n, max(0, int((n + 1) * p)))',
+        apres='    mode = 0',
+        vise=(
+            'la recurrence part de k = 0 : pour n = 10 000 le premier terme vaut 1e-1760, '
+            'donc zero en flottant, et toute la loi se normalise a partir de rien'
+        ),
+    ),
+    Mutation(
+        nom='clopper-pearson-borne-basse-unilaterale',
+        fichier='mesure/binomiale.py',
+        avant='queue_superieure(k, n, p) - alpha / 2)',
+        apres='queue_superieure(k, n, p) - alpha)',
+        vise=(
+            "la borne basse est prise a `alpha` et non `alpha/2` : l'intervalle n'est plus "
+            "bilateral alors que son intitule l'annonce"
+        ),
+    ),
+    Mutation(
+        nom='r2-devient-r0',
+        fichier='mesure/retournement.py',
+        avant=(
+            '        avant is not Statut.INDIFFERENTE and avant is not apres'
+            ' for avant, apres in transitions\n    )'
+        ),
+        apres=(
+            '        avant is not apres'
+            ' for avant, apres in transitions\n    )'
+        ),
+        vise=(
+            "R2 -- perte d'acquis -- compte aussi les departs d'Indifference : il devient R0, "
+            "et l'inclusion R2 sous R0 devient une egalite"
+        ),
+    ),
+    Mutation(
+        nom='r3-ignore-le-statut-final',
+        fichier='mesure/retournement.py',
+        avant='    r3 = bool(signes) and suite[-1] is not signes[0]',
+        apres='    r3 = bool(signes) and signes[-1] is not signes[0]',
+        vise=(
+            'R3 -- divergence finale -- compare au dernier statut NON indifferent : une '
+            "famille qui finit Indifferente n'est plus vue comme divergente"
+        ),
+    ),
+    Mutation(
+        nom='vue-d-un-siege-voit-tous-les-espions',
+        fichier='mesure/partie.py',
+        avant='        return self.joueur is not None and posee.poseur == self.joueur',
+        apres='        return self.joueur is not None',
+        vise=(
+            "la vue d'un siege compte les Espions ADVERSES poses face cachee : elle devient "
+            "la vue de dieu et l'ecart vrai/vu s'annule"
+        ),
+    ),
+    Mutation(
+        nom='part-fractionnee-ne-somme-plus-a-un',
+        fichier='mesure/phase2.py',
+        avant='    return [1 / vainqueurs if score == meilleur else 0.0 for score in scores]',
+        apres='    return [1.0 if score == meilleur else 0.0 for score in scores]',
+        vise=(
+            'la part fractionnee donne 1 a chaque ex aequo : elle ne somme plus a 1 par '
+            "partie, et son niveau neutre de 33,3333 % cesse d'etre exact"
+        ),
+    ),
+    Mutation(
+        nom='quantile-sans-bonferroni',
+        fichier='mesure/dimensionnement.py',
+        avant='    return _NORMALE.inv_cdf(1 - risque / comparaisons / 2)',
+        apres='    return _NORMALE.inv_cdf(1 - risque / 2)',
+        vise=(
+            'la correction de Bonferroni est ignoree : `comparaisons` est recu, verifie, et '
+            'jamais utilise'
+        ),
+    ),
+    Mutation(
+        nom='sieges-non-permutes',
+        fichier='mesure/phase3.py',
+        avant=(
+            '        for siege in range(CONFIG.joueurs):\n'
+            '            politiques: list[Politique] = []'
+        ),
+        apres=(
+            '        for siege in [0] * CONFIG.joueurs:\n'
+            '            politiques: list[Politique] = []'
+        ),
+        vise=(
+            "l'agent occupe TOUJOURS le siege 0 : les trois replicats ne permutent plus rien, "
+            "et le niveau nul cesse d'etre exact alors que l'avantage de siege est massif"
+        ),
+    ),
+    Mutation(
+        nom='adversaires-partagent-un-alea',
+        fichier='mesure/phase3.py',
+        avant=(
+            '                        + CONFIG.joueurs * siege\n'
+            '                        + place\n'
+            '                    )'
+        ),
+        apres=(
+            '                        + CONFIG.joueurs * siege\n'
+            '                    )'
+        ),
+        vise=(
+            'les deux adversaires partagent un generateur : ils jouent de facon correlee, ce '
+            "qui n'est pas la composition annoncee"
+        ),
+    ),
+    Mutation(
+        nom='gain-lu-au-siege-zero',
+        fichier='mesure/phase3.py',
+        avant=(
+            '            [trace.gains[siege] for trace, siege in zip(groupe, sieges, strict=True)]'
+        ),
+        apres='            [trace.gains[0] for trace, siege in zip(groupe, sieges, strict=True)]',
+        vise=(
+            "le gain rapporte n'est pas celui du siege de l'agent mais toujours celui du "
+            'siege 0'
+        ),
+    ),
+    Mutation(
+        nom='separation-exacte-toujours-disjointe',
+        fichier='mesure/phase3_mesure.py',
+        avant=(
+            '        borne_de_l_autre = taux_autre - demi\n'
+            '        disjoints = borne_de_l_autre > borne'
+        ),
+        apres=(
+            '        borne_de_l_autre = taux_autre - demi\n'
+            '        disjoints = True'
+        ),
+        vise=(
+            'toute ligne portant un zero est declaree separable, meme quand les deux bornes '
+            'se croisent'
+        ),
+    ),
+    Mutation(
+        nom='b4-strict-avale-le-departage',
+        fichier='mesure/comportements.py',
+        avant=(
+            '            if decision.refus():\n'
+            '                refus += 1\n'
+            '                if meilleur_meurtre < valeur_refus:'
+        ),
+        apres=(
+            '            if decision.refus():\n'
+            '                refus += 1\n'
+            '                if meilleur_meurtre <= valeur_refus:'
+        ),
+        vise=(
+            "les refus de DEPARTAGE sont comptes comme des refus STRICTS : l'identite de "
+            '`verifier_b4` tient toujours, donc rien ne le signale'
+        ),
+    ),
+    Mutation(
+        nom='b4-meurtre-couteux-au-mauvais-denominateur',
+        fichier='mesure/comportements.py',
+        avant='meurtre_couteux, meurtres, "meurtres"',
+        apres='meurtre_couteux, noeuds_avec_cible, "meurtres"',
+        vise=(
+            'le denominateur de B4-meurtre-couteux devient les noeuds de ciblage et non les '
+            'meurtres : le taux publie est divise par ~3'
+        ),
+    ),
 )
 
 
@@ -369,6 +866,19 @@ def principal() -> int:
             "avec git checkout et les detruirait. Commite d'abord."
         )
 
+    vises_exempts = sorted({m.nom for m in MUTATIONS if m.fichier in FICHIERS_EXEMPTS})
+    if vises_exempts:
+        raise SystemExit(
+            f"ces mutations visent un fichier EXEMPT ({', '.join(sorted(FICHIERS_EXEMPTS))}) : "
+            f"{', '.join(vises_exempts)}. L'etalon ne porte aucune mutation -- il se documente "
+            f"au lieu de se corriger, et le muter deplacerait la ligne de base a laquelle tout "
+            f"le reste se compare."
+        )
+
+    doublons = sorted({m.nom for m in MUTATIONS if [x.nom for x in MUTATIONS].count(m.nom) > 1})
+    if doublons:
+        raise SystemExit(f"deux mutations portent le meme nom : {', '.join(doublons)}")
+
     mutations = [m for m in MUTATIONS if arguments.nom in (None, m.nom)]
     if not mutations:
         raise SystemExit(f"aucune mutation nommee {arguments.nom!r}")
@@ -389,9 +899,13 @@ def principal() -> int:
 
     print("-" * 78)
     if survivantes:
-        print(f"{len(survivantes)} mutation(s) non detectee(s) :")
+        print(
+            f"{len(survivantes)} mutation(s) non detectee(s) sur {len(mutations)}. "
+            f"**C'est un RESULTAT, pas un echec de l'outil** : chacune nomme un trou de la "
+            f"suite de tests, et se rapporte telle quelle."
+        )
         for mutation in survivantes:
-            print(f"  - {mutation.nom} : {mutation.vise}")
+            print(f"  - {mutation.nom} ({mutation.fichier}) : {mutation.vise}")
         return 1
     print(f"{len(mutations)} mutation(s), toutes detectees.")
     return 0
