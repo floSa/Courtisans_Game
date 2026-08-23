@@ -2,7 +2,7 @@
 
 **Point d'entrée du projet. Où on en est, ce qui est vrai, ce qu'on fait ensuite, et dans quel document c'est écrit.**
 
-Mis à jour le 20/08/2026.
+Mis à jour le 21/08/2026.
 
 > **Tu reprends le projet sur une autre machine ou un autre compte ?** Lis
 > **[09_reprise.md](09_reprise.md)** avant ce document. Il contient ce qui n'est écrit nulle
@@ -187,8 +187,13 @@ Détail, hypothèses, critères go/no-go : [05_protocole_experimental.md](05_pro
    **erratum sur la phase 2** qui nomme les cinq défauts de son propre texte, et des **seuils
    de phases 3, 4 et 5 réécrits** : le « > 55 % » était une intuition de jeu à deux joueurs,
    alors qu'à trois la valeur nulle est 33,33 %.
-8. **Écrire les prompts de la phase 3**, puis la lancer. Deux conversations neuves et
-   distinctes, construction puis audit.
+8. ~~Écrire les prompts de la phase 3, puis la lancer~~ — **fait. La phase 3 est close le
+   21/08, verdict ACCEPTÉ SOUS RÉSERVE au troisième tour.** L'agent PPO est **battu par le
+   greedy** et **il apprend** : les deux sont établis. Deux tours de REJET, 97 contrôles
+   hostiles, 1 172 tests verts. Voir l'entrée du 21/08 au
+   [journal](06_journal_decisions.md).
+9. **Écrire les prompts de la phase 4.** Premier travail : étendre le périmètre des mutations
+   à `mesure/` et au reste de `agents/`. Puis le premier levier, **la tête de valeur**.
 
 ---
 

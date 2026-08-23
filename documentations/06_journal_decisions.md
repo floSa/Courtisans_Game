@@ -16,6 +16,153 @@ Impact plan : phases invalidées ou modifiées
 
 ---
 
+## [2026-08-21] Phase 3 — Le premier agent entraîné
+
+**Hypothèse.** *Écrite et commitée avant tout entraînement,
+`mesure/phase3_hypothese_et_instrument.md`.* Un agent entraîné en self-play avec un pool
+d'adversaires figés, sur `entrainement-3j`, obtient contre **deux greedys**, sièges permutés, un
+**gain moyen strictement positif, borne basse de son IC 99 % bootstrap par donne comprise**.
+
+**Instrument.** PPO à masque d'actions, réseau unique partagé par les trois sièges, tête de
+valeur, `γ = 1`, `λ = 1`. Ni le greedy ni l'aléatoire n'entrent dans le pool d'entraînement —
+arbitrage du pilote, pour que « bat le greedy » reste un test **hors distribution**. Juge : le
+gain moyen, niveau nul **exactement 0,0000**. Budget **dimensionné sur sa propre composition et
+jamais emprunté** : σ = 0,6494 et ρ = −0,1400 mesurés sur « un greedy contre deux greedys »,
+2 000 donnes, seeds 20000–21999, d'où **6 000 parties** et un écart détectable de +0,0243.
+Garde-fou : 1 800 parties par checkpoint, seeds 40000–40599. Rapport régénérable par
+`uv run python -m mesure.phase3_mesure`.
+
+**Résultat. L'agent apprend, et il est battu par le greedy. Les deux sont établis, et le second
+plus étroitement que le premier livrable ne l'écrivait.**
+
+- **H est INFIRMÉE.** Gain moyen **−0,1643**, IC 99 % **[−0,1824 ; −0,1462]** sur 6 000 parties :
+  la borne **haute** est négative. Part de victoire fractionnée **22,38 %** contre 33,3333 % au
+  neutre exact. **Trois implémentations indépendantes concordent** — constructeur −0,1643 sur
+  2 000 donnes, pilote −0,1719 sur **400 donnes**, auditeur −0,1734 sur 2 000 donnes ; chaque
+  intervalle contient les deux autres estimations.
+- **L'instrument est calibré sur les seeds exactes du verdict** : le greedy mis à la place de
+  l'agent rend +0,0062 IC [−0,0124 ; +0,0255] chez le constructeur, +0,0152 IC
+  [−0,0036 ; +0,0338] chez l'auditeur. Les deux contiennent 0.
+- **L'agent apprend entre son premier et son dernier checkpoint, et cela seul est établi.**
+  Écart apparié ckpt 1 → 8 : **+12,80 pt, IC 99 % [+8,33 ; +17,40]** avec Bonferroni pour
+  8 regards. Les intervalles des deux niveaux sont disjoints.
+- **« Monotone sans exception » et « encore en progression au dernier » ne sont PAS établis, et
+  c'est le défaut bloquant de la phase.** Les sept pas valent +0,86 à +2,50 pt pour une barre
+  appariée de **3,56 à 4,06 pt** ; **les huit intervalles se recouvrent 7 fois sur 7** —
+  recalculé par le pilote sur le journal brut du run. La remesure de l'auditeur, **mêmes donnes**
+  et autre aléa de tirage, porte **deux inversions** et un dernier pas **négatif**, −0,53 pt.
+  La monotonie n'était pas une propriété de l'agent, c'était une propriété de son tirage.
+- **Le critique n'apprend pas, et c'est le fait le plus actionnable de la phase.** `perte_valeur`
+  0,3923 au premier checkpoint, 0,3908 au huitième, sans amélioration entre les deux. Le pilote a
+  reconstruit l'**unité avant la valeur** — `mse_loss` sur les retours **bruts**, ni GAE ni
+  actualisés — puis mesuré la variance de ces retours : **0,4275**. L'auditeur l'a confirmée hors
+  plage d'entraînement (0,4190) et a mesuré ce que le pilote n'avait pas fait, le **plancher
+  irréductible** `E[Var(R | état)] = 0,1815`, soit **43 %**. `R² = +0,093` quand **0,57** est
+  atteignable. Et le plancher **s'effondre avec la profondeur** — 0,32 à 0,0075 à l'avant-dernière
+  décision — alors que la MSE du critique **reste plate**, 0,36 à 0,30. **La valeur n'est pas
+  imprédictible dans ce jeu : le critique est mauvais, y compris là où la partie est déjà
+  écrite.**
+- **σ a bougé de −12,1 %** (0,5710 contre 0,6494) mais la règle pré-inscrite portait sur la
+  **demi-largeur**, qui n'a bougé que de −1,1 % : le déclencheur n'était pas franchi. La règle
+  était **aveugle au mouvement qu'elle prétendait détecter**, σ et l'effet de plan ayant bougé en
+  sens contraire et se compensant dans le produit surveillé.
+- **Comportements**, ligne de base **régénérée** « trois greedys, un seul siège compté » :
+  `B1-motif` 42,48 % contre 45,83 % — l'agent manifeste le motif **moins** que le greedy ;
+  `B4-brut` 31,93 % contre 15,93 % ; `B4-contre-nature` 35,87 % contre 0,00 % (0/1967). Le
+  constructeur **refuse** d'y lire une planification, et il a raison : deux hypothèses produisent
+  ce compteur — l'agent voit plus loin, ou l'agent joue moins bien — et le juge dit qu'il est
+  battu.
+
+**Audit. VERDICT FINAL : ACCEPTÉ SOUS RÉSERVE**, au troisième tour. **REJETÉ** aux deux
+premiers.
+
+*Tour 1 — livrable `9c96f65`, verdict **REJETÉ**.* Deux bloquants, quatre majeurs, huit mineurs,
+**97 contrôles hostiles**, plan d'audit **pré-inscrit et commité avant d'ouvrir un fichier du
+constructeur**. Confirmé par du code indépendant : le verdict, la calibration du niveau nul,
+l'aveuglement complet du réseau par **88 contrôles** — tenseur et logits invariants **bit à bit**,
+zéro appel privilégié compté pendant la décision, brouilleur prouvé capable d'attraper une fuite
+d'**une seule** composante —, et la disjonction des populations **au niveau des donnes** :
+0 collision de pioche entre 14 600 donnes de mesure et **1 486 336** donnes d'entraînement
+balayées en entier.
+
+*Tours 2 et 3.* Douze des quatorze défauts levés au tour 2, puis **deux bloquants neufs, nés dans
+les corrections** : une phrase « aucune ligne ne change de statut » devenue fausse sur les deux
+lignes portant un zéro absolu, et **un cas de test qui écartait son propre contre-exemple en
+falsifiant son entrée** — il écrivait `1` là où la mesure disait `0`. Levés au tour 3 par le
+calcul de la borne exacte de Clopper-Pearson que la docstring prescrivait sans qu'aucun code ne
+l'exerce : **0/1967 → 0,2338 %**, **0/10382 → 0,0443 %**, bornes **unilatérales** à 99 %,
+reconstruites au quatrième décimal par le pilote et par l'auditeur.
+
+**L'audit croisé a perdu son indépendance pendant un tour entier, par une faute du pilote.** Le
+prompt de corrections, adressé à la conversation de construction, a été collé dans celle d'audit.
+**L'auditeur a donc corrigé les défauts qu'il avait lui-même trouvés**, et il l'a signalé deux
+fois — le pilote a lu la première et a continué. Les rôles ont été échangés pour la suite : la
+conversation d'audit est devenue constructeur de ses corrections, celle de construction en est
+devenue l'auditeur. C'est ce croisement inversé qui a trouvé les deux bloquants du tour 2.
+
+**Trois réserves restent ouvertes**, aucune ne falsifiant un chiffre publié :
+
+1. **Un intitulé « 99 % » qui couvre deux risques.** Les deux bornes exactes sont
+   **unilatérales** ; tout le reste du rapport publie des intervalles **bilatéraux** à 99 %. Les
+   bilatérales vaudraient 0,2690 % et 0,0510 % — la conclusion ne bouge pas, le libellé est
+   faux. `mesure/resultats/phase3.md` écrit **quatre fois** « borne haute à 99 % » sans
+   qualificatif, cinquante lignes sous un « 99 % bilatéral ». *La présente entrée écrit le
+   qualificatif ; le rapport, non.*
+2. **Le rendu du verdict exact n'est écrit que pour un des quatre cas que la règle couvre** — un
+   zéro côté agent est annoncé « de la ligne de base », un cent est annoncé « le zéro », deux
+   zéros font parler d'un intervalle qui n'existe pas. **Aucun de ces trois cas n'est atteignable
+   sur les données de cette phase.**
+3. **La parade des intitulés ne couvre qu'une écriture d'appel.** `from agents import campagne as
+   X` puis `X.intitule_du_garde_fou()` passe au travers, et c'est l'écriture du dépôt. R2 attrape
+   toujours le doublon : un filet, pas deux.
+
+**Décision. PIVOT DE DIAGNOSTIC, et le levier n'est pas le budget.** La phase 3 est close ; son
+hypothèse est infirmée. La table go/no-go dit « diagnostiquer avant d'insister », et la mesure
+désigne la **tête de valeur** — ce que le §7.1 de la pré-inscription avait écrit d'avance comme
+réponse prévue. **Le budget n'est pas *écarté*, il est *non désigné* :** la courbe ne montre pas
+qu'elle montait encore, et rallonger un run dont l'avantage de PPO est dominé par le bruit du
+retour rallonge le bruit.
+
+**Impact plan.**
+
+1. **Le premier travail de la phase 4 est d'étendre le périmètre des mutations à `mesure/` et au
+   reste de `agents/`**, `agents/greedy.py` excepté. Les 20 motifs ne couvrent que `courtisans/` :
+   « 20 mutations, toutes détectées » ne dit rien des ~2 500 lignes neuves. Le défaut le plus
+   instructif de la phase 2 vivait dans le **générateur**, pas dans le moteur.
+2. **Le premier levier est la tête de valeur, pas le budget**, et il se pré-inscrit avec un seuil
+   falsifiable sur `R²` avant d'être implémenté. Une variable à la fois.
+3. **Les trois réserves ci-dessus sont à traiter au début de la phase 4.**
+4. La ligne de base **« trois greedys, un seul siège compté »** existe et est régénérable ; toute
+   phase mesurant un agent contre deux adversaires la cite plutôt que la colonne à trois sièges de
+   la phase 2 — en disant que ses donnes sont celles de la phase 2, pas celles de l'agent.
+
+**Cinq enseignements de méthode.**
+
+- **Un garde-fou doit tester la phrase qu'il écrit, à un budget qui lui permette de la tester.**
+  Celui de la phase 3 a porté **cinq** défauts successifs : il se déclenchait quand le run était
+  fini ; puis au premier checkpoint ; puis sur une prémisse fausse — « n'atteint pas le greedy »
+  confondu avec « n'apprend pas » ; puis à une portée d'un checkpoint, où le progrès cherché est
+  **par construction** sous le seuil de détection ; puis aveugle à un effondrement, un écart
+  établi **négatif** satisfaisant sa condition. **Quatre des cinq sont nés dans le texte qui
+  corrigeait le précédent, et deux sont du pilote.**
+- **Une courbe d'apprentissage se publie avec l'intervalle de ses ÉCARTS, pas de ses niveaux.**
+  C'est un écart qui décide ; les écarts appariés ne coûtent pas une partie de plus. Huit
+  intervalles publiés sur huit niveaux, aucun sur les sept écarts, et la phrase qui portait toute
+  la décision ne tenait sur aucun d'eux.
+- **Un contrôle qui ne peut pas échouer ne se compte pas parmi les contrôles concluants**, et
+  **un cas dont on choisit les données pour qu'il passe ne teste rien.** Les deux sont sortis dans
+  la même phase : deux contrôles passant un `True` littéral, et un cas écrivant `1` là où la
+  mesure disait `0` pour écarter son propre contre-exemple.
+- **Une parade doit vérifier qu'elle a inspecté quelque chose.** Un balayage `range(2900, 3101,
+  20)` ne visitait qu'une des deux branches de l'équivalence qu'il annonçait : vert depuis un tour
+  entier sans avoir jamais éprouvé la moitié de son énoncé. Même famille qu'une parade AST aveugle
+  à une écriture syntaxique, et qu'une injection dont l'ancre n'existe pas — l'auditeur a commis
+  la troisième en cherchant la première.
+- **Un niveau de confiance porte sa latéralité.** Deux grandeurs sous le même « 99 % » n'ont pas
+  le même risque si l'une est unilatérale.
+
+---
+
 ## [2026-08-19] Phase 2 — Mesurer le jeu avant d'y jouer
 
 **Hypothèse.** *Écrite et commitée avant toute mesure, `mesure/phase2_hypothese_et_instrument.md`.*

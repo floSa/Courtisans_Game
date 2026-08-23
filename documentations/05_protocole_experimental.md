@@ -72,6 +72,10 @@ nommait quatre fois.*
 - **Un contrôle qui ne peut pas échouer ne se compte pas parmi les contrôles concluants.** Deux des
   dix contrôles de l'auto-audit de la phase 3 passaient un `True` littéral : ils sont *relevés*,
   pas *concluants*, et le compte rendu affirmait pourtant que les dix étaient éprouvés.
+- **Un niveau de confiance porte sa latéralité.** « 99 % » désigne deux risques différents selon
+  que l'intervalle est unilatéral ou bilatéral, et les deux se côtoient dès qu'on borne un zéro
+  observé. La phase 3 a publié quatre fois « borne haute à 99 % » — unilatérale — dans un document
+  qui écrit « 99 % bilatéral » cinquante lignes plus haut.
 - **Aucune durée ne se cite sur un seul chronométrage.** Sur la machine du projet, cinq passes du
   même code donnent un rapport max/min de **2,93 à 3,00** par campagne, **de façon non monotone**.
   Le temps mural mesure l'état de la machine, pas le coût du code. Toute durée se cite sur au
