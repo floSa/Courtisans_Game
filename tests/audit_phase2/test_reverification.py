@@ -149,10 +149,19 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     "mesure/phase3_hypothese_et_instrument.md",
     "mesure/resultats/phase2.md",
     "mesure/resultats/phase3.md",
+    # Ajoute le 23/08/2026, etape 0 de la phase 4 : le releve du test de mutation.
+    #
+    # **Il a ete commite sans etre inscrit ici, et ce cas est tombe.** C'est exactement ce
+    # pour quoi il existe -- et l'incident vaut mieux que la correction : le document non
+    # inscrit etait le rapport qui publiait « 1 172 tests, 45 detections », produit par un
+    # outil qui ne verifiait pas que la suite etait verte avant de commencer. Un seul rouge
+    # preexistant aurait fait rapporter « 56 detectees, 0 survivante » a la campagne suivante.
+    # Voir `outillage/mutation.py`, `_passe_de_base`.
+    "mesure/resultats/phase4_mutations.md",
 )
 
 
-def test_les_neuf_documents_de_mesure_sont_dans_le_meme_encodage():
+def test_les_documents_de_mesure_sont_nommes_et_dans_le_meme_encodage():
     """« Les quatre autres sont en UTF-8 » est un compte : ce cas ecrit les NOMS.
 
     Deux assertions, et elles ne disent pas la meme chose. La premiere : **tout** document
@@ -160,6 +169,12 @@ def test_les_neuf_documents_de_mesure_sont_dans_le_meme_encodage():
     la garantie. La seconde : la liste nommee ci-dessus est **exhaustive** -- c'est ce qui
     oblige celui qui ajoute un document a l'y inscrire, au lieu de laisser un compte se
     perimer en silence, comme le « quatre » du releve.
+
+    **Ce cas s'appelait `test_les_neuf_documents_...`, et son propre nom portait un compte.**
+    Il y en a dix depuis le 23/08/2026. Un cas ecrit pour imposer une liste de noms contre un
+    compte s'etait donne un compte en guise de nom, et ce compte s'est perime comme tous les
+    autres. Le nom ne dit plus combien il y en a : c'est la liste qui le dit, et elle est la
+    seule a avoir le droit de le dire.
     """
     trouves = sorted(
         str(chemin)

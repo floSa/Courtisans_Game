@@ -34,6 +34,27 @@ code de sortie 1 dit « il y a des survivantes », pas « l'outil a echoue » : 
 rapportent, elles ne se cachent pas, et on ne fabrique pas un test a la hate pour en faire
 tomber une sans dire ce qu'elle a appris.
 
+**LA PASSE DE BASE, ET LE MODE DE DEFAILLANCE QU'ELLE FERME.** Cet outil lit des ECARTS : il
+compare une suite mutee a une suite non mutee. Jusqu'au 23/08/2026 il ne mesurait jamais le
+second terme. `principal` verifiait que le depot etait propre, puis ecrivait `detectee` des
+que `rouges` etait non nul -- **sans jamais savoir si ce rouge venait de la mutation**.
+
+Le calcul se fait, il ne se craint pas : **un seul rouge preexistant fait que la campagne
+entiere rapporte zero survivante.** Les 57 lignes portent alors `rouges >= 1`, les 57 sont
+etiquetees `detectee`, et les 57 sont fausses. C'est le pire mode de defaillance possible pour
+un tel outil : **il annonce une suite parfaite exactement quand la suite est cassee.**
+
+Et ce n'etait pas une hypothese. Le releve d'etape 0 de la phase 4 a ete commite avec un
+document que `test_les_documents_de_mesure_...` exigeait de nommer ; la suite est passee au
+rouge, et une campagne rejouee sur ce depot aurait rendu **56 detectees, 0 survivante, 1
+expiree** -- un feu vert integral et faux, sur l'instrument meme qui venait de publier onze
+survivantes.
+
+**`_passe_de_base` joue donc la suite NON MUTEE une fois, en tete de campagne, et l'outil
+REFUSE de commencer si elle n'est pas verte.** Un instrument qui mesure des ecarts doit refuser
+de tourner quand son zero n'est pas a zero. Son compte est rapporte en tete du releve, pour que
+tout lecteur voie le zero sur lequel les 57 ecarts sont lus.
+
 **Toute correction de defaut arrive avec sa mutation.** Les cinq dernieres de la liste
 remettent, une a une, les defauts trouves par l'audit de la phase 0 : un correctif dont la
 mutation survit n'est tenu par aucun test, et il repartira au prochain refactoring.
@@ -890,6 +911,61 @@ def _jouer(cible: str, delai: float = DELAI_DE_GARDE) -> tuple[int, int] | None:
     return verts, rouges
 
 
+def refus_de_la_passe_de_base(
+    verts: int, rouges: int, nb_mutations: int
+) -> str | None:
+    """Le motif de refus si la passe de base n'est pas verte, ou `None` si elle l'est.
+
+    **Publique et pure, pour qu'un cas puisse l'eprouver.** La regle vivait dans le corps de
+    `principal`, qui joue 57 passes de 169 s : personne ne peut la mettre a l'epreuve la ou
+    elle est. Une regle qu'aucun cas ne peut exercer est du meme genre que les onze trous que
+    cet outil vient de trouver -- et ce serait le comble, ici.
+
+    Ce qu'elle etablit : **un outil qui lit des ecarts refuse de tourner quand son zero n'est
+    pas a zero.** Elle ne juge pas la qualite de la suite, elle juge si un ecart y est lisible.
+    """
+    if rouges:
+        return (
+            f"la suite NON MUTEE est ROUGE : {rouges} test(s) en echec sur "
+            f"{verts + rouges}. **L'outil refuse de commencer.** Il lit des ECARTS contre "
+            f"cette passe ; avec un rouge preexistant, les {nb_mutations} mutations "
+            f"sortiraient toutes `detectee` -- y compris celles qui ne changent rien -- et le "
+            f"releve annoncerait une suite parfaite au moment precis ou elle est cassee. "
+            f"Repare la suite, puis relance."
+        )
+    if verts <= 0:
+        return (
+            f"la passe de base n'a compte aucun test vert ({verts}). Une cible qui ne "
+            f"collecte rien rend `0 vert, 0 rouge`, ce qui passerait pour un zero sain : "
+            f"les mutations seraient alors toutes lues contre une suite vide."
+        )
+    return None
+
+
+def _passe_de_base(cible: str, delai: float) -> tuple[int, int]:
+    """Joue la suite **non mutee** et rend `(verts, rouges)`. **Le zero de l'instrument.**
+
+    Appelee une fois, en tete de campagne. `principal` leve si `rouges` n'est pas nul : les
+    57 verdicts qui suivent sont des ECARTS lus contre ce compte-la, et un ecart ne se lit pas
+    contre un zero inconnu.
+
+    **Elle n'attrape pas un rouge de plus.** Elle rend le compte tel quel ; c'est l'appelant
+    qui refuse. La distinction compte : une fonction qui leverait ici ne pourrait pas etre
+    utilisee pour simplement *rapporter* la ligne de base.
+
+    Raises:
+        SystemExit: si la suite non mutee expire. Un zero qu'on ne peut pas mesurer n'est pas
+            un zero ; continuer rapporterait 57 ecarts contre rien.
+    """
+    resultat = _jouer(cible, delai)
+    if resultat is None:
+        raise SystemExit(
+            f"la suite NON MUTEE a expire apres {delai:.0f} s. La ligne de base de l'outil "
+            f"n'est pas mesurable, donc aucun des ecarts qui suivraient ne serait lisible."
+        )
+    return resultat
+
+
 def principal() -> int:
     analyseur = argparse.ArgumentParser(description=__doc__)
     analyseur.add_argument("--cible", default="tests", help="selection pytest a rejouer")
@@ -944,6 +1020,19 @@ def principal() -> int:
     if not mutations:
         raise SystemExit(f"aucune mutation nommee {arguments.nom!r}")
 
+    # **Le zero de l'instrument, mesure avant le premier ecart.** Voir la docstring du module :
+    # sans cette passe, un seul rouge preexistant fait rapporter « toutes detectees » a une
+    # campagne dont les 57 verdicts sont faux.
+    verts_base, rouges_base = _passe_de_base(arguments.cible, arguments.delai)
+    print(
+        f"passe de BASE, sans mutation : {verts_base} verts, {rouges_base} rouges "
+        f"(cible {arguments.cible!r})"
+    )
+    refus = refus_de_la_passe_de_base(verts_base, rouges_base, len(mutations))
+    if refus is not None:
+        raise SystemExit(refus)
+    print()
+
     print(f"{'mutation':40s} {'verts':>6s} {'rouges':>7s}  verdict")
     print("-" * 86)
     survivantes = []
@@ -987,7 +1076,10 @@ def principal() -> int:
         return 1
     if expirees:
         return 1
-    print(f"{len(mutations)} mutation(s), toutes detectees.")
+    print(
+        f"{len(mutations)} mutation(s), toutes detectees -- lues contre une passe de base a "
+        f"{verts_base} verts et {rouges_base} rouges."
+    )
     return 0
 
 
