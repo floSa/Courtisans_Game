@@ -67,6 +67,16 @@ RACINE = Path(__file__).resolve().parent.parent
 #: c'est la seule forme d'exemption qui resiste a un ajout distrait de mutation.
 FICHIERS_EXEMPTS: frozenset[str] = frozenset({"agents/greedy.py"})
 
+#: Le delai de garde d'une passe de la suite, en secondes. **MESURE** : la suite complete
+#: prend 169 s sur la machine du projet (une passe -- le paragraphe 0.2 en exige trois avant
+#: qu'une duree se CITE ; celle-ci ne se cite pas, elle dimensionne une marge). Le delai est
+#: pose a **15 minutes**, soit plus de cinq fois la passe la plus lente observee : assez large
+#: pour qu'une machine chargee ne le franchisse pas, assez court pour qu'un blocage se voie.
+#:
+#: Sans lui, `masse-binomiale-part-de-zero` a fait tourner une passe **2 h 48** sans rendre la
+#: main. Une mutation qui bloque la suite n'est pas un verdict : c'est un troisieme etat.
+DELAI_DE_GARDE = 15 * 60
+
 
 @dataclass(frozen=True)
 class Mutation:
@@ -833,17 +843,43 @@ def _appliquer(mutation: Mutation) -> None:
     chemin.write_text(source.replace(mutation.avant, mutation.apres), encoding="utf-8")
 
 
-def _jouer(cible: str) -> tuple[int, int]:
-    """Rejoue la suite et rend (verts, rouges)."""
-    sortie = subprocess.run(
-        [sys.executable, "-m", "pytest", cible, "-q", "--tb=no", "-p", "no:cacheprovider"],
-        cwd=RACINE,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    derniere = [ligne for ligne in sortie.stdout.splitlines() if ligne.strip()][-1]
+def _jouer(cible: str, delai: float = DELAI_DE_GARDE) -> tuple[int, int] | None:
+    """Rejoue la suite et rend `(verts, rouges)`, ou `None` si le delai de garde expire.
+
+    **Le delai existe parce qu'une mutation l'a exige, et le cas est instructif.**
+    `masse-binomiale-part-de-zero` fait partir la recurrence de la loi binomiale de `k = 0`
+    au lieu du mode. Pour les `n` de l'ordre de 10 000 que les calculs de puissance
+    emploient, le premier terme vaut `1e-1760` -- zero en flottant -- et toute la loi se
+    normalise a partir de rien. Un balayage qui cherche le `n` d'une puissance cible ne
+    converge alors **jamais**. La suite n'a pas fini : elle a tourne **2 h 48** la ou elle
+    prend 169 s, et l'outil l'a attendue sans rien dire.
+
+    **Un blocage n'est ni « detectee » ni « survit », et le confondre avec l'un des deux
+    serait faux dans les deux sens.** L'appeler « detectee » compterait comme un succes de la
+    suite ce qui est un arret sans verdict ; l'appeler « survit » designerait un trou de test
+    qui n'est pas celui-la. C'est un troisieme etat, `EXPIRE`, et il se rapporte comme tel.
+
+    **Et il dit quelque chose de la suite, pas seulement de la mutation** : la suite n'a
+    aucun delai de garde propre, donc un blocage y est indiscernable d'une lenteur. C'est
+    exactement ce qui a coute presque trois heures ici.
+    """
+    try:
+        sortie = subprocess.run(
+            [sys.executable, "-m", "pytest", cible, "-q", "--tb=no", "-p", "no:cacheprovider"],
+            cwd=RACINE,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=delai,
+        )
+    except subprocess.TimeoutExpired:
+        return None
+    lignes = [ligne for ligne in sortie.stdout.splitlines() if ligne.strip()]
+    if not lignes:
+        return None
+    derniere = lignes[-1]
     verts = rouges = 0
+    valeur = 0
     for morceau in derniere.replace(",", " ").split():
         if morceau.isdigit():
             valeur = int(morceau)
@@ -858,6 +894,21 @@ def principal() -> int:
     analyseur = argparse.ArgumentParser(description=__doc__)
     analyseur.add_argument("--cible", default="tests", help="selection pytest a rejouer")
     analyseur.add_argument("--nom", default=None, help="ne jouer qu'une mutation")
+    analyseur.add_argument(
+        "--noms",
+        default=None,
+        help=(
+            "liste de mutations separees par des virgules. **Sert a REPRENDRE** une campagne "
+            "interrompue sans rejouer ce qui a deja rendu un verdict : rejouer 44 passes de "
+            "169 s pour en obtenir 13 couterait deux heures pour rien."
+        ),
+    )
+    analyseur.add_argument(
+        "--delai",
+        type=float,
+        default=DELAI_DE_GARDE,
+        help=f"delai de garde d'une passe, en secondes (defaut {DELAI_DE_GARDE:.0f})",
+    )
     arguments = analyseur.parse_args()
 
     if not _depot_propre():
@@ -879,25 +930,52 @@ def principal() -> int:
     if doublons:
         raise SystemExit(f"deux mutations portent le meme nom : {', '.join(doublons)}")
 
-    mutations = [m for m in MUTATIONS if arguments.nom in (None, m.nom)]
+    if arguments.nom and arguments.noms:
+        raise SystemExit("--nom et --noms s'excluent : choisir l'un des deux")
+    if arguments.noms:
+        demandes = [n.strip() for n in arguments.noms.split(",") if n.strip()]
+        connus = {m.nom for m in MUTATIONS}
+        inconnus = [n for n in demandes if n not in connus]
+        if inconnus:
+            raise SystemExit(f"mutation(s) inconnue(s) : {', '.join(inconnus)}")
+        mutations = [m for m in MUTATIONS if m.nom in set(demandes)]
+    else:
+        mutations = [m for m in MUTATIONS if arguments.nom in (None, m.nom)]
     if not mutations:
         raise SystemExit(f"aucune mutation nommee {arguments.nom!r}")
 
-    print(f"{'mutation':32s} {'verts':>6s} {'rouges':>7s}  verdict")
-    print("-" * 78)
+    print(f"{'mutation':40s} {'verts':>6s} {'rouges':>7s}  verdict")
+    print("-" * 86)
     survivantes = []
+    expirees = []
     for mutation in mutations:
         _appliquer(mutation)
         try:
-            verts, rouges = _jouer(arguments.cible)
+            resultat = _jouer(arguments.cible, arguments.delai)
         finally:
             _restaurer(mutation.fichier)
+        if resultat is None:
+            expirees.append(mutation)
+            print(
+                f"{mutation.nom:40s} {'-':>6s} {'-':>7s}  "
+                f"EXPIRE apres {arguments.delai:.0f} s -- la suite ne rend pas la main"
+            )
+            continue
+        verts, rouges = resultat
         verdict = "detectee" if rouges else "SURVIT -- trou de test"
         if not rouges:
             survivantes.append(mutation)
-        print(f"{mutation.nom:32s} {verts:6d} {rouges:7d}  {verdict}")
+        print(f"{mutation.nom:40s} {verts:6d} {rouges:7d}  {verdict}")
 
-    print("-" * 78)
+    print("-" * 86)
+    if expirees:
+        print(
+            f"{len(expirees)} mutation(s) ont fait EXPIRER la suite. **Ce n'est ni une "
+            f"detection ni une survie** : la suite n'a rendu aucun verdict, et elle n'a pas de "
+            f"delai de garde propre -- un blocage y est indiscernable d'une lenteur."
+        )
+        for mutation in expirees:
+            print(f"  - {mutation.nom} ({mutation.fichier}) : {mutation.vise}")
     if survivantes:
         print(
             f"{len(survivantes)} mutation(s) non detectee(s) sur {len(mutations)}. "
@@ -906,6 +984,8 @@ def principal() -> int:
         )
         for mutation in survivantes:
             print(f"  - {mutation.nom} ({mutation.fichier}) : {mutation.vise}")
+        return 1
+    if expirees:
         return 1
     print(f"{len(mutations)} mutation(s), toutes detectees.")
     return 0
