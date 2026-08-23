@@ -40,7 +40,7 @@ Controle : les trois parts somment a **1.000000**, soit 1 exactement.
 
 ### Part de victoire stricte -- niveau neutre **inconnu d'avance**
 
-Elle vaut `(1 - P(ex aequo)) / 3` et **ne peut donc pas servir de seuil**. Rapportee parce que c'est la lecture spontanee de « gagner une partie ».
+Elle vaut `(1 - P(ex aequo)) / 3` et **ne peut donc pas servir de seuil**. Rapportee parce que c'est la lecture spontanee de Â« gagner une partie Â».
 
 | Siege | Part stricte |
 |---|---:|
@@ -91,7 +91,7 @@ Controle : les trois parts somment a **1.000000**, soit 1 exactement.
 
 ### Part de victoire stricte -- niveau neutre **inconnu d'avance**
 
-Elle vaut `(1 - P(ex aequo)) / 3` et **ne peut donc pas servir de seuil**. Rapportee parce que c'est la lecture spontanee de « gagner une partie ».
+Elle vaut `(1 - P(ex aequo)) / 3` et **ne peut donc pas servir de seuil**. Rapportee parce que c'est la lecture spontanee de Â« gagner une partie Â».
 
 | Siege | Part stricte |
 |---|---:|
@@ -133,7 +133,7 @@ La precision de l'ecart-type a cette taille est de **0.707 % relatif** (`1 / sqr
 
 ### Correlation intra-donne -- le cinquieme trou du protocole
 
-Le paragraphe 1 du protocole affirme que l'appariement « divise par cinq a dix » le nombre de parties necessaires, ce qui implique `rho` dans `[0,80 ; 0,90]`. **Aucune mesure du depot ne l'appuyait.** Voici la mesure.
+Le paragraphe 1 du protocole affirme que l'appariement Â« divise par cinq a dix Â» le nombre de parties necessaires, ce qui implique `rho` dans `[0,80 ; 0,90]`. **Aucune mesure du depot ne l'appuyait.** Voici la mesure.
 
 | Grandeur | Siege 0 | Siege 1 | Siege 2 |
 |---|---:|---:|---:|
@@ -158,11 +158,11 @@ Pour chaque ecart de gain moyen qu'on voudrait etablir, les parties necessaires 
 | +0.20 | 259 | 257 |
 | +0.30 | 115 | 115 |
 
-**Lecture inverse, pour la phase 3** : a 1 000 parties appariees -- le budget que le paragraphe 3 du protocole lui fixe --, l'ecart de gain moyen detectable est **+0.1013**. C'est le chiffre qui dira si son seuil de « > 55 % contre le greedy » est atteignable a ce budget.
+**Lecture inverse, pour la phase 3** : a 1 000 parties appariees -- le budget que le paragraphe 3 du protocole lui fixe --, l'ecart de gain moyen detectable est **+0.1013**. C'est le chiffre qui dira si son seuil de Â« > 55 % contre le greedy Â» est atteignable a ce budget.
 
 ## 4. M3 -- winrate du greedy contre l'aleatoire
 
-**Les deux niveaux neutres, a nouveau, parce que c'est ici que la confusion coute le plus cher.** `0,0000` pour le gain moyen, `33,3333 %` pour la part de victoire fractionnee. Le chiffre de reference du protocole -- « si le greedy est a 60 % » -- est une part de victoire, et son point de comparaison est **33,33 %, pas 50 %** : a trois joueurs, 50 % est deja une domination.
+**Les deux niveaux neutres, a nouveau, parce que c'est ici que la confusion coute le plus cher.** `0,0000` pour le gain moyen, `33,3333 %` pour la part de victoire fractionnee. Le chiffre de reference du protocole -- Â« si le greedy est a 60 % Â» -- est une part de victoire, et son point de comparaison est **33,33 %, pas 50 %** : a trois joueurs, 50 % est deja une domination.
 
 ### Gain moyen `returns()` -- niveau neutre **0,0000**
 
@@ -220,26 +220,26 @@ Contraste entre les deux sieges extremes, **apparie par donne** : **+0.5717**, I
 
 Contraste entre les deux sieges extremes, **apparie par donne** : **+0.2038**, IC 99 % [+0.1744 ; +0.2347] -- **etabli**. Chaque donne fournit les deux sieges, donc la difference ne contient plus la variance de distribution.
 
-**Consequence sur l'arbitrage de la phase 2.** Permuter les sieges inconditionnellement etait la bonne decision, et pour une raison que M1 seul ne pouvait pas donner : l'avantage de siege est **negligeable sous jeu aleatoire et massif sous jeu greedy**. Un protocole qui aurait teste le seuil de 38 % sur des agents aleatoires aurait conclu « inutile de neutraliser » -- et se serait trompe des la premiere mesure d'agent.
+**Consequence sur l'arbitrage de la phase 2.** Permuter les sieges inconditionnellement etait la bonne decision, et pour une raison que M1 seul ne pouvait pas donner : l'avantage de siege est **negligeable sous jeu aleatoire et massif sous jeu greedy**. Un protocole qui aurait teste le seuil de 38 % sur des agents aleatoires aurait conclu Â« inutile de neutraliser Â» -- et se serait trompe des la premiere mesure d'agent.
 
-### Le departage change 61 % des refus et ne change pas le gain
+### Le departage change 61.22 % des refus et ne change pas le gain
 
 **Ce n'est pas un doublon, c'est une mesure de consequence nulle**, et elle ne se lit qu'en juxtaposant les deux nombres :
 
 | | |
 |---|---:|
-| part des refus du greedy que le **departage** decide (section 5) | voir `B4-departage` |
+| part des refus du greedy que le **departage** decide (`B4-departage`, section 5) | **61.22 %** (2922/4773) |
 | ecart de gain entre departage aleatoire et deterministe | **+0.0011** |
 | demi-largeur de l'IC 99 % du gain de reference | 0.0122 |
 | l'ecart, en demi-largeurs | **0.09** |
 
 Autrement dit : **une majorite des decisions de refus du greedy sont strategiquement indifferentes sur cette instance.** C'est un fait du JEU, pas de l'implementation, et il n'est nulle part ailleurs dans ce depot.
 
-Deux usages immediats. Il **desarme** la lecture « le greedy refuse dans X % des cas » en montrant que la majorite de ces refus ne coutent rien. Et il donne a la phase 3 un **etalon** : un agent qui refuse dans les memes proportions n'a rien appris ; un agent dont les refus deplacent son gain a appris quelque chose.
+Deux usages immediats. Il **desarme** la lecture Â« le greedy refuse dans X % des cas Â» en montrant que la majorite de ces refus ne coutent rien. Et il donne a la phase 3 un **etalon** : un agent qui refuse dans les memes proportions n'a rien appris ; un agent dont les refus deplacent son gain a appris quelque chose.
 
 ## 4 bis. Le greedy et sa specification -- le ciblage est myope, et de combien
 
-La **pose** du greedy est evaluee avec ses Assassins resolus **conjointement** (arbitrage G-combine, paragraphe 5.3 de l'instrument). Ses **ciblages** se decident **un nœud a la fois**, et `Perception` ne porte pas les Assassins encore en attente : la politique **ne peut pas** regarder plus loin.
+La **pose** du greedy est evaluee avec ses Assassins resolus **conjointement** (arbitrage G-combine, paragraphe 5.3 de l'instrument). Ses **ciblages** se decident **un nÅ“ud a la fois**, et `Perception` ne porte pas les Assassins encore en attente : la politique **ne peut pas** regarder plus loin.
 
 **L'incoherence est structurelle, pas un accident de code.** L'action de pose de l'adaptateur est **atomique** -- un identifiant encode le bloc de trois cartes entier, fait etabli en phase 0 --, donc le bloc est choisi d'un coup sous une evaluation conjointe pendant que le ciblage se decide apres, sans memoire de ce que le bloc contenait.
 
@@ -247,28 +247,28 @@ La **pose** du greedy est evaluee avec ses Assassins resolus **conjointement** (
 
 | Compteur | Taux | IC 99 % exact | Grain du denominateur |
 |---|---:|---|---|
-| `incoherence/argmax-differents` | 4.23 % (172/4063) | [3.46 % ; 5.11 %] | nœuds de ciblage a >= 1 Assassin en attente |
-| `incoherence/myope-non-optimal` | 3.13 % (127/4063) | [2.47 % ; 3.90 %] | nœuds de ciblage a >= 1 Assassin en attente |
-| `incoherence/argmax-differents-tous-noeuds` | 0.72 % (172/23991) | [0.58 % ; 0.87 %] | nœuds de ciblage, tous |
+| `incoherence/argmax-differents` | 4.23 % (172/4063) | [3.46 % ; 5.11 %] | nÅ“uds de ciblage a >= 1 Assassin en attente |
+| `incoherence/myope-non-optimal` | 3.13 % (127/4063) | [2.47 % ; 3.90 %] | nÅ“uds de ciblage a >= 1 Assassin en attente |
+| `incoherence/argmax-differents-tous-noeuds` | 0.72 % (172/23991) | [0.58 % ; 0.87 %] | nÅ“uds de ciblage, tous |
 
-**Les deux numerateurs ne disent pas la meme chose.** « argmax differents » compte les nœuds ou les deux ensembles d'argmax diffèrent ; « myope non optimal » compte ceux ou l'argmax myope contient une action que l'argmax coherent **rejette** -- c'est la lecture qui **coute**, puisque le departage uniforme du greedy peut alors tirer une action coherentement dominee. Le premier majore le second par construction : 172 >= 127.
+**Les deux numerateurs ne disent pas la meme chose.** Â« argmax differents Â» compte les nÅ“uds ou les deux ensembles d'argmax diffÃ¨rent ; Â« myope non optimal Â» compte ceux ou l'argmax myope contient une action que l'argmax coherent **rejette** -- c'est la lecture qui **coute**, puisque le departage uniforme du greedy peut alors tirer une action coherentement dominee. Le premier majore le second par construction : 172 >= 127.
 
 **Le sens du biais, et il n'est pas le meme pour M3 et pour M4.**
 
 - **M3 : plancher.** Un agent plus myope que sa specification est plus **faible**, donc le gain moyen et la part de victoire de la section 4 sont un **plancher** du greedy, pas une estimation de ce qu'un G-combine complet obtiendrait. Un plancher place la barre de la phase 3 plus bas, jamais plus haut.
 - **M4 : aucun sens determine.** **Quatre** compteurs de B4 sont juges **par cette meme evaluation myope** -- `B4-strict`, `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`**, voir la section 5. Leur zero ou leur partage ne se lit pas comme un jugement sur le jeu du greedy, mais comme un jugement sur sa **coherence interne**. Les **deux zeros absolus** sont dans ce lot : ni l'un ni l'autre ne dit que le greedy n'a jamais mal joue, seulement qu'il n'a jamais contredit sa propre evaluation.
 
-**Ce comportement est tenu par un test** (`tests/agents/test_greedy.py`), sur une position construite a la main ou l'argmax myope est a egalite et l'argmax coherent strictement meilleur de 2 points. Un « correctif » futur casserait ce test bruyamment, et c'est le but : la ligne de base de toutes les phases suivantes est celle de **cet** agent.
+**Ce comportement est tenu par un test** (`tests/agents/test_greedy.py`), sur une position construite a la main ou l'argmax myope est a egalite et l'argmax coherent strictement meilleur de 2 points. Un Â« correctif Â» futur casserait ce test bruyamment, et c'est le but : la ligne de base de toutes les phases suivantes est celle de **cet** agent.
 
 ## 5. M4 -- B1 a B7, ligne de base du greedy ET du hasard
 
-**Deux points de comparaison, pas un.** « Le greedy fait B4 dans X % des cas » n'est pas interpretable sans savoir ce que le hasard donne. La colonne « hasard » vient de la campagne A, tous sieges confondus ; la colonne « greedy » de la campagne B, siege du greedy seul.
+**Deux points de comparaison, pas un.** Â« Le greedy fait B4 dans X % des cas Â» n'est pas interpretable sans savoir ce que le hasard donne. La colonne Â« hasard Â» vient de la campagne A, tous sieges confondus ; la colonne Â« greedy Â» de la campagne B, siege du greedy seul.
 
 Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux dont le sujet grammatical n'est pas l'unite comptee n'est pas auditable.
 
-**B1 a deux grains, et un seul se compare.** C'est le seul des sept dont le denominateur naturel est la partie et non une action, donc agreger les sieges mesures par un « au moins un » gonfle son numerateur **sans toucher au denominateur**. La colonne « hasard » porte trois sieges, la colonne « greedy » un seul : seules les lignes au grain `(partie, siege)` se comparent. Les lignes `-par-partie` repondent a une autre question -- *cette partie contient-elle le motif quelque part* -- et leur valeur monte mecaniquement avec le nombre de sieges agreges. **Ce defaut a ete trouve par l'audit de l'etape 4, apres une premiere lecture qui concluait l'inverse.**
+**B1 a deux grains, et un seul se compare.** C'est le seul des sept dont le denominateur naturel est la partie et non une action, donc agreger les sieges mesures par un Â« au moins un Â» gonfle son numerateur **sans toucher au denominateur**. La colonne Â« hasard Â» porte trois sieges, la colonne Â« greedy Â» un seul : seules les lignes au grain `(partie, siege)` se comparent. Les lignes `-par-partie` repondent a une autre question -- *cette partie contient-elle le motif quelque part* -- et leur valeur monte mecaniquement avec le nombre de sieges agreges. **Ce defaut a ete trouve par l'audit de l'etape 4, apres une premiere lecture qui concluait l'inverse.**
 
-**Et B1 n'est pas homogene par siege.** MESURE sur 500 donnes x 6 replicats, politique uniforme : 37,93 % au siege 0, 36,80 % au siege 1, 33,50 % au siege 2, soit 4,4 points d'etendue -- le siege 0 pose en premier, donc son « nourrir » laisse plus de nœuds ulterieurs disponibles pour un « baisser ». **Une ligne de base B1 doit donc etre equilibree sur les sieges**, et les deux colonnes ci-dessous le sont : la campagne A compte les trois sieges, la campagne B fait tourner le greedy sur les trois. Un chiffre de 37,58 % a circule en cours d'audit -- c'etait 451/1200, **siege 0 seul**, sur un echantillon de 200 donnes ; il n'a pas cours et ne doit pas etre compare a la colonne greedy.
+**Et B1 n'est pas homogene par siege.** MESURE sur 500 donnes x 6 replicats, politique uniforme : 37,93 % au siege 0, 36,80 % au siege 1, 33,50 % au siege 2, soit 4,4 points d'etendue -- le siege 0 pose en premier, donc son Â« nourrir Â» laisse plus de nÅ“uds ulterieurs disponibles pour un Â« baisser Â». **Une ligne de base B1 doit donc etre equilibree sur les sieges**, et les deux colonnes ci-dessous le sont : la campagne A compte les trois sieges, la campagne B fait tourner le greedy sur les trois. Un chiffre de 37,58 % a circule en cours d'audit -- c'etait 451/1200, **siege 0 seul**, sur un echantillon de 200 donnes ; il n'a pas cours et ne doit pas etre compare a la colonne greedy.
 
 | Compteur | Greedy | Hasard | Grain du denominateur | Vue |
 |---|---|---|---|---|
@@ -294,14 +294,14 @@ Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux d
 | `B3-expose` | 33.27 % (13309/40008) | 46.72 % (56075/120024) | poses en domaine adverse | decideur |
 | `B3-expose-vraie` | 38.33 % (15334/40008) | 50.33 % (60403/120024) | poses en domaine adverse | vraie |
 | `B3-simultane` | 9.84 % (3935/40008) | 15.07 % (18088/120024) | poses en domaine adverse | decideur |
-| `B4-brut` | 23.65 % (4773/20179) | 30.28 % (18059/59645) | nœuds de ciblage a >= 1 cible | decideur |
+| `B4-brut` | 23.65 % (4773/20179) | 30.28 % (18059/59645) | nÅ“uds de ciblage a >= 1 cible | decideur |
 | `B4-strict` | 38.78 % (1851/4773) | 7.96 % (1437/18059) | refus | decideur |
 | `B4-departage` | 61.22 % (2922/4773) | 58.32 % (10532/18059) | refus | decideur |
 | `B4-contre-nature` | 0.00 % (0/4773) | 33.72 % (6090/18059) | refus | decideur |
-| `B4-tout-dos` | 3.89 % (784/20179) | 5.02 % (2994/59645) | nœuds de ciblage a >= 1 cible | decideur |
+| `B4-tout-dos` | 3.89 % (784/20179) | 5.02 % (2994/59645) | nÅ“uds de ciblage a >= 1 cible | decideur |
 | `B4-meurtre-couteux` | 0.00 % (0/15406) | 4.77 % (1983/41586) | meurtres | decideur |
-| `B5-renfort` | 20.41 % (3811/18671) | 21.44 % (11096/51742) | couples (nœud, famille) | decideur |
-| `B5-pire-cas` | 19.00 % (2651/13956) | 21.58 % (8563/39674) | couples (nœud, famille) | decideur |
+| `B5-renfort` | 20.41 % (3811/18671) | 21.44 % (11096/51742) | couples (nÅ“ud, famille) | decideur |
+| `B5-pire-cas` | 19.00 % (2651/13956) | 21.58 % (8563/39674) | couples (nÅ“ud, famille) | decideur |
 | `B7-gaspillage` | 0.15 % (61/40008) | 0.17 % (203/120024) | poses au banquet | decideur |
 | `B7-gaspillage-vraie` | 0.20 % (82/40008) | 0.24 % (289/120024) | poses au banquet | vraie |
 | `B7-lumiere` | 11.81 % (4723/40008) | 13.45 % (16140/120024) | poses au banquet | decideur |
@@ -315,9 +315,9 @@ Chaque ligne porte son **denominateur**, son **grain** et sa **vue** : un taux d
 |---|---:|---:|
 | somme des trois | 4773 = 4773 refus | 18059 = 18059 refus |
 
-**3.89 % des nœuds de ciblage du greedy n'offrent que des dos.** Sur ceux-la son evaluation est **plate** -- un dos ne compte pas dans l'influence percue, donc le tuer ne change rien -- et c'est la **regle de departage** qui choisit, pas l'heuristique : elle refuse avec probabilite `1/(k+1)`. C'est la part de `B4-brut` qui ne mesure pas un comportement, et elle se lit a cet endroit.
+**3.89 % des nÅ“uds de ciblage du greedy n'offrent que des dos.** Sur ceux-la son evaluation est **plate** -- un dos ne compte pas dans l'influence percue, donc le tuer ne change rien -- et c'est la **regle de departage** qui choisit, pas l'heuristique : elle refuse avec probabilite `1/(k+1)`. C'est la part de `B4-brut` qui ne mesure pas un comportement, et elle se lit a cet endroit.
 
-**QUATRE de ces compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela change ce qu'ils disent.** `B4-strict`, `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`** se definissent tous les quatre par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins du meme bloc encore en attente** (voir la section « le greedy et sa specification » ci-dessus). Consequence a lire mot pour mot :
+**QUATRE de ces compteurs sont juges par l'evaluation myope du greedy lui-meme, et cela change ce qu'ils disent.** `B4-strict`, `B4-departage`, `B4-contre-nature` et **`B4-meurtre-couteux`** se definissent tous les quatre par rapport a `greedy.evaluer_actions`, qui **ne regarde pas les Assassins du meme bloc encore en attente** (voir la section Â« le greedy et sa specification Â» ci-dessus). Consequence a lire mot pour mot :
 
 > Le zero de `B4-contre-nature` **ne dit pas** que le greedy n'a jamais commis de refus contre-productif, et le zero de `B4-meurtre-couteux` **ne dit pas** qu'il n'a jamais commis de meurtre contre-productif. Les deux disent qu'il n'a jamais **contredit sa propre evaluation**.
 
@@ -333,15 +333,15 @@ Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax
 
 ### Deux choses que la mesure a corrigees dans ma propre lecture
 
-**Le departage explique 61.22 % des refus du greedy, mais les nœuds tout-dos n'en sont que 3.89 %.** Le paragraphe 5.4.1 de la pre-inscription designait les nœuds tout-dos comme le mecanisme de l'egalite : c'est un mecanisme, ce n'est pas **le** mecanisme. La majorite des egalites vient de nœuds ou une cible identifiable existe mais dont le meurtre ne change pas l'ecart evalue -- typiquement une carte d'une famille Indifferente. Ma pre-inscription avait raison sur la necessite de separer les trois nombres, et incomplete sur la cause.
+**Le departage explique 61.22 % des refus du greedy, mais les nÅ“uds tout-dos n'en sont que 3.89 %.** Le paragraphe 5.4.1 de la pre-inscription designait les nÅ“uds tout-dos comme le mecanisme de l'egalite : c'est un mecanisme, ce n'est pas **le** mecanisme. La majorite des egalites vient de nÅ“uds ou une cible identifiable existe mais dont le meurtre ne change pas l'ecart evalue -- typiquement une carte d'une famille Indifferente. Ma pre-inscription avait raison sur la necessite de separer les trois nombres, et incomplete sur la cause.
 
-**B7 n'a presque pas d'occasion de se manifester** : 1.22 % des poses au banquet du greedy surviennent alors qu'au moins une famille est hors d'atteinte, soit 488 poses sur 40008. Le gaspillage mesure, 0.15 %, se lit **sur ce fond-la** : sur cette instance a 4 tours, une famille devient rarement hors d'atteinte avant la fin. B7 est donc quasi inmesurable ici, et c'est un fait de l'instance, pas un defaut du compteur -- `B7-occasions` existe precisement pour que ce zero ne se lise pas comme « il ne gaspille pas ».
+**B7 n'a presque pas d'occasion de se manifester** : 1.22 % des poses au banquet du greedy surviennent alors qu'au moins une famille est hors d'atteinte, soit 488 poses sur 40008. Le gaspillage mesure, 0.15 %, se lit **sur ce fond-la** : sur cette instance a 4 tours, une famille devient rarement hors d'atteinte avant la fin. B7 est donc quasi inmesurable ici, et c'est un fait de l'instance, pas un defaut du compteur -- `B7-occasions` existe precisement pour que ce zero ne se lise pas comme Â« il ne gaspille pas Â».
 
 ### B6 -- distance de variation totale entre le tour 1 et le tour 4
 
 **Elle n'est pas nulle chez le greedy, et ce n'est pas une preuve de comprehension** : l'etat du plateau change avec le tour, donc un agent a horizon un tour joue mecaniquement differemment sans rien savoir de la pioche. La phase 3 ne conclura que sur l'**ecart** entre sa distance et celles-ci.
 
-**La concurrente est publiee a cote, et son ecart avec la retenue est un resultat.** **B6-dernier-contre-reste** compare le tour 4 aux tours 1 a 3 **agreges** : son terme de comparaison porte trois fois plus de nœuds, donc il est plus stable -- et il melange trois etats de plateau differents, donc il **dilue** l'ecart. Le choix du paragraphe 6.6 de la pre-inscription se lit sur les deux colonnes de droite.
+**La concurrente est publiee a cote, et son ecart avec la retenue est un resultat.** **B6-dernier-contre-reste** compare le tour 4 aux tours 1 a 3 **agreges** : son terme de comparaison porte trois fois plus de nÅ“uds, donc il est plus stable -- et il melange trois etats de plateau differents, donc il **dilue** l'ecart. Le choix du paragraphe 6.6 de la pre-inscription se lit sur les deux colonnes de droite.
 
 | Groupe de categories | Greedy, tour 1 vs 4 | Hasard, tour 1 vs 4 | Greedy, dernier vs reste | Hasard, dernier vs reste |
 |---|---:|---:|---:|---:|
@@ -353,9 +353,9 @@ Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax
 
 **Pourquoi cette population existe.** `B1-collectif` est le seul des compteurs dont le **numerateur peut etre produit entierement par les adversaires** : son `t2` -- la bascule -- peut etre l'action de n'importe qui. Mesure avec **un** greedy contre **deux aleatoires**, il melange donc la bascule du greedy et celles de deux politiques uniformes. Or la phase 3 fera jouer les trois sieges par des agents entraines : une ligne de base collective mesuree contre deux hasards **n'est pas la ligne de base de ce que la phase 3 comparera**. C'est le mode de defaut de ce projet -- une ligne de base fausse ne se voit jamais, elle rend les progres incomparables, et personne ne sait pourquoi.
 
-**Et elle repare une seconde chose, pour une raison differente.** Les lignes `-par-partie` agregent « au moins un siege mesure » : a un siege et a trois, ce n'est pas le meme grain, donc la colonne greedy de reference **ne se compare pas** a la colonne hasard (paragraphe 6). A trois greedys, les deux colonnes agregent **trois** sieges : le grain coincide et la comparaison existe. Deux reparations, deux raisons -- **composition des adversaires** pour `B1-collectif`, **grain** pour les `-par-partie` --, et il ne faut pas les confondre.
+**Et elle repare une seconde chose, pour une raison differente.** Les lignes `-par-partie` agregent Â« au moins un siege mesure Â» : a un siege et a trois, ce n'est pas le meme grain, donc la colonne greedy de reference **ne se compare pas** a la colonne hasard (paragraphe 6). A trois greedys, les deux colonnes agregent **trois** sieges : le grain coincide et la comparaison existe. Deux reparations, deux raisons -- **composition des adversaires** pour `B1-collectif`, **grain** pour les `-par-partie` --, et il ne faut pas les confondre.
 
-**Plan.** `campagne_b(nb_greedys=3)`, memes donnes que la campagne B, decalage de graine `6000000`. Plus rien a permuter : les trois parties d'une donne ne diffèrent que par l'alea de **departage** du greedy, donc trois replicats sur la meme pioche -- exactement la structure de la campagne A. Les **trois** sieges sont mesures. **M3 n'a pas d'objet ici** et `mesurer_m3` le refuse : trois politiques identiques rendent un tiers de part de victoire par symetrie.
+**Plan.** `campagne_b(nb_greedys=3)`, memes donnes que la campagne B, decalage de graine `6000000`. Plus rien a permuter : les trois parties d'une donne ne diffÃ¨rent que par l'alea de **departage** du greedy, donc trois replicats sur la meme pioche -- exactement la structure de la campagne A. Les **trois** sieges sont mesures. **M3 n'a pas d'objet ici** et `mesurer_m3` le refuse : trois politiques identiques rendent un tiers de part de victoire par symetrie.
 
 | Compteur | 1 greedy, 2 hasards | 3 greedys | Hasard | Grain |
 |---|---:|---:|---:|---|
@@ -366,7 +366,7 @@ Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax
 | `B1-strict-par-partie` | 38.66 % (3867/10002) | **59.16 %** (5917/10002) | 56.83 % (5684/10002) | parties (au moins un des 3 sieges mesures) |
 | `B1-savoir-commun-par-partie` | 48.27 % (4828/10002) | **82.87 %** (8289/10002) | 71.98 % (7199/10002) | parties (au moins un des 3 sieges mesures) |
 
-**Ce qui se compare, et ce qui ne se compare pas.** Les cellules ci-dessous sont calculees par `comportements.ecart_de_taux`, qui **leve** quand les grains diffèrent : la colonne « 1 greedy » des lignes `-par-partie` ne peut donc pas etre soustraite du hasard, et la colonne « 3 greedys » peut l'etre.
+**Ce qui se compare, et ce qui ne se compare pas.** Les cellules ci-dessous sont calculees par `comportements.ecart_de_taux`, qui **leve** quand les grains diffÃ¨rent : la colonne Â« 1 greedy Â» des lignes `-par-partie` ne peut donc pas etre soustraite du hasard, et la colonne Â« 3 greedys Â» peut l'etre.
 
 | Compteur | 3 greedys - hasard | Obs. / partie | Parties pour l'etablir | 1 greedy - hasard |
 |---|---:|---:|---:|---|
@@ -377,11 +377,11 @@ Pour un agent de la phase 3, ce meme zero cesse d'etre tautologique : son argmax
 | `B1-strict-par-partie` | +2.33 pt | 1.0000 | 10400 **(hors budget)** | **non comparable : grains differents** |
 | `B1-savoir-commun-par-partie` | +10.90 pt | 1.0000 | 280 | **non comparable : grains differents** |
 
-Le denominateur par partie est celui que `phase2.observations_par_partie` rend, `total / 10002 parties`, et **rien d'autre** : il vaut **1,0** pour une ligne `-par-partie` -- « au moins un des trois sieges » est **un seul** booleen par partie, l'agregation etant dans le numerateur -- et **3,0** au grain du couple `(partie, siege)`, ou trois sieges sont mesures. Une version precedente de cette table divisait en plus par le nombre de sieges : ses six budgets etaient gonfles d'un facteur exactement trois. Marqueur `(hors budget)` calcule sur les 1000 parties de la phase 3.
+Le denominateur par partie est celui que `phase2.observations_par_partie` rend, `total / 10002 parties`, et **rien d'autre** : il vaut **1,0** pour une ligne `-par-partie` -- Â« au moins un des trois sieges Â» est **un seul** booleen par partie, l'agregation etant dans le numerateur -- et **3,0** au grain du couple `(partie, siege)`, ou trois sieges sont mesures. Une version precedente de cette table divisait en plus par le nombre de sieges : ses six budgets etaient gonfles d'un facteur exactement trois. Marqueur `(hors budget)` calcule sur les 1000 parties de la phase 3.
 
 **Le critere du perimetre se decide sur le TEXTE de la definition, sans mesurer : la definition nomme-t-elle un autre joueur ?** `B1-collectif` exige que `t1` et `t2` soient de joueurs **differents** -- le mot est dans la definition. Aucun autre compteur ne nomme personne.
 
-**Pourquoi ce critere-la et pas un critere de degre.** Un critere qui distingue « les adversaires produisent le numerateur » de « les adversaires faconnent le plateau » est un critere de **degre**, et un critere de degre au bord d'un perimetre derive toujours vers l'exterieur : le lecteur suivant ajoutera un compteur de plus avec une raison aussi bonne. Le plateau est faconne par les adversaires dans les **dix-sept** compteurs, donc il n'y a pas d'arret apres deux. Un critere textuel, lui, s'arrete ou le texte s'arrete.
+**Pourquoi ce critere-la et pas un critere de degre.** Un critere qui distingue Â« les adversaires produisent le numerateur Â» de Â« les adversaires faconnent le plateau Â» est un critere de **degre**, et un critere de degre au bord d'un perimetre derive toujours vers l'exterieur : le lecteur suivant ajoutera un compteur de plus avec une raison aussi bonne. Le plateau est faconne par les adversaires dans les **dix-sept** compteurs, donc il n'y a pas d'arret apres deux. Un critere textuel, lui, s'arrete ou le texte s'arrete.
 
 **`B4-tout-dos` et `B5-renfort` ne sont donc PAS ajoutes** -- ni ici, ni ailleurs. Leur dependance a la composition est reelle et n'est pas jetee : elle est portee a l'entree de journal comme **question ouverte pour la phase 3**, parce qu'elle concerne la lecture de leurs taux par un agent entraine, pas le perimetre de cette table.
 
@@ -393,7 +393,7 @@ La phase 3 se donne **1000 parties appariees** (paragraphe 3 du protocole). Pour
 
 Le `denominateur par partie` est ce qui decide : un compteur d'action en offre plusieurs par partie, un compteur d'occasion rare beaucoup moins d'une.
 
-**Deux colonnes de cette table refusent de se remplir, et c'est un defaut corrige.** L'ecart observe et les parties pour l'etablir soustraient la colonne greedy -- **un** siege -- de la colonne hasard -- **trois** sieges. Au grain du couple `(partie, siege)` c'est licite : l'unite comptee est la meme. Au grain `-par-partie`, non : « au moins un des 1 sieges » et « au moins un des 3 sieges » ne comptent pas la meme chose, et le signe de l'ecart s'en inversait -- `+11,82` point au meme grain, `-23,97` en melangeant les deux. `comportements.ecart_de_taux` **leve** desormais dans ce cas, et ces cellules portent « non comparable : grains differents ». Ce n'est pas un tiret : un tiret se lit « pas encore mesure », et quelqu'un le remplirait.
+**Deux colonnes de cette table refusent de se remplir, et c'est un defaut corrige.** L'ecart observe et les parties pour l'etablir soustraient la colonne greedy -- **un** siege -- de la colonne hasard -- **trois** sieges. Au grain du couple `(partie, siege)` c'est licite : l'unite comptee est la meme. Au grain `-par-partie`, non : Â« au moins un des 1 sieges Â» et Â« au moins un des 3 sieges Â» ne comptent pas la meme chose, et le signe de l'ecart s'en inversait -- `+11,82` point au meme grain, `-23,97` en melangeant les deux. `comportements.ecart_de_taux` **leve** desormais dans ce cas, et ces cellules portent Â« non comparable : grains differents Â». Ce n'est pas un tiret : un tiret se lit Â« pas encore mesure Â», et quelqu'un le remplirait.
 
 **Le meme defaut etait deja sorti au meme endroit** -- une reserve du tour 2 de la phase 1 portait sur cette section. C'est pourquoi la correction est une **levee** et non une cellule corrigee.
 
@@ -440,9 +440,9 @@ Le `denominateur par partie` est ce qui decide : un compteur d'action en offre p
 
 Compteurs marques : `B7-gaspillage`, `B7-gaspillage-vraie`.
 
-### Les deux zeros ne sont pas « rien a detecter »
+### Les deux zeros ne sont pas Â« rien a detecter Â»
 
-`B4-contre-nature` et `B4-meurtre-couteux` valent **exactement 0** chez le greedy, par construction : `choisir` prend un argmax. Un taux nul a une variance estimee nulle, donc la formule normale rendrait un ecart detectable de zero -- « tout est detectable » --, ce qui est exactement faux. Ce qui se dit d'un zero, c'est sa **borne haute exacte** de Clopper-Pearson : au budget de 1000 parties, un agent dont ce compteur depasse la borne ci-dessus est **separable** du greedy ; en dessous, il ne l'est pas. C'est ce qui empeche de lire « le greedy ne le fait jamais » comme « aucun agent ne peut faire mieux ».
+`B4-contre-nature` et `B4-meurtre-couteux` valent **exactement 0** chez le greedy, par construction : `choisir` prend un argmax. Un taux nul a une variance estimee nulle, donc la formule normale rendrait un ecart detectable de zero -- Â« tout est detectable Â» --, ce qui est exactement faux. Ce qui se dit d'un zero, c'est sa **borne haute exacte** de Clopper-Pearson : au budget de 1000 parties, un agent dont ce compteur depasse la borne ci-dessus est **separable** du greedy ; en dessous, il ne l'est pas. C'est ce qui empeche de lire Â« le greedy ne le fait jamais Â» comme Â« aucun agent ne peut faire mieux Â».
 
 ### B7 n'a aucun pouvoir discriminant a ce budget, et ce n'est pas une opinion
 
@@ -450,14 +450,14 @@ L'occasion ne survient que dans 1.22 % des poses au banquet, soit 488 occasions 
 
 L'ecart greedy-hasard observe vaut -0.02 point, quand l'ecart detectable a 1000 parties est de 0.30 %. **B7 ne peut donc rien separer au budget de la phase 3**, et il faudrait 320163 parties pour esperer trancher l'ecart observe.
 
-**C'est le meme defaut que les quatre criteres de non-degenerescence de la phase 1 et que le seuil de 38 % de M1** : un critere qui constate au lieu de tester. Ca fait trois fois dans ce projet. La colonne « ecart detectable » ci-dessus existe pour que la quatrieme n'arrive pas -- un lecteur de la phase 3 qui comparerait son agent au 0.15 % de B7 comparerait du bruit.
+**C'est le meme defaut que les quatre criteres de non-degenerescence de la phase 1 et que le seuil de 38 % de M1** : un critere qui constate au lieu de tester. Ca fait trois fois dans ce projet. La colonne Â« ecart detectable Â» ci-dessus existe pour que la quatrieme n'arrive pas -- un lecteur de la phase 3 qui comparerait son agent au 0.15 % de B7 comparerait du bruit.
 
 ## 7. Ce que ces chiffres n'etablissent PAS
 
-1. **Le greedy ne planifie rien.** Son horizon est d'un tour, par construction. Les 47.93 % de parties portant le motif B1 mesurent la frequence a laquelle le MOTIF apparait par **coincidence** -- deux actions separees, chacune localement optimale, qui forment apres coup la figure d'un plan. Ecrire « le greedy planifie des retournements dans 47.93 % des parties » serait **faux**. Le chiffre s'intitule *frequence du motif B1*, jamais *frequence de planification*.
+1. **Le greedy ne planifie rien.** Son horizon est d'un tour, par construction. Les 47.93 % de parties portant le motif B1 mesurent la frequence a laquelle le MOTIF apparait par **coincidence** -- deux actions separees, chacune localement optimale, qui forment apres coup la figure d'un plan. Ecrire Â« le greedy planifie des retournements dans 47.93 % des parties Â» serait **faux**. Le chiffre s'intitule *frequence du motif B1*, jamais *frequence de planification*.
 2. **Le meme avertissement vaut mot pour mot pour B3.** Le greedy ne modelise pas l'interet qu'il cree en donnant une carte : son B3 mesure la coincidence entre ce qu'il detient et ce qu'il donne.
 3. **B1 a un plafond que rien ne franchira.** La phase 1 a mesure que 7,40 % des parties portent une perte d'acquis qu'aucun des trois sieges ne pouvait voir. Ces retournements sont invulnerables a toute planification, par n'importe quel agent : une ligne de base B1 basse est un **plafond du mesurable**, pas un defaut d'agent.
-4. **Une part de B4 mesure le departage, pas le jeu** -- 3.89 % des nœuds de ciblage. Le taux brut ne se publie donc jamais seul.
+4. **Une part de B4 mesure le departage, pas le jeu** -- 3.89 % des nÅ“uds de ciblage. Le taux brut ne se publie donc jamais seul.
 5. **M3 ne dit pas que le greedy est fort.** Il dit qu'il bat le hasard. Aucun chiffre ici ne borne la distance entre le greedy et un bon joueur.
 6. **M1 ne dit rien de l'avantage de siege sous d'autres politiques.** La permutation systematique rend la question sans consequence pratique ; elle ne la resout pas.
 7. **Aucun de ces chiffres ne dit quoi que ce soit de `complet-3j`** -- 6 familles, 3 exemplaires, 10 tours. Rien ne se transporte par un facteur.
@@ -467,11 +467,11 @@ L'ecart greedy-hasard observe vaut -0.02 point, quand l'ecart detectable a 1000 
 
 | Campagne | Duree |
 |---|---:|
-| A | 98.3 s |
-| A controle | 91.0 s |
-| B | 110.6 s |
-| B, 2 greedys contre 1 aleatoire | 137.8 s |
-| B, 1 greedy, departage deterministe | 115.6 s |
-| B, 3 greedys (M4 seulement) | 151.8 s |
+| A | 76.8 s |
+| A controle | 75.4 s |
+| B | 96.1 s |
+| B, 2 greedys contre 1 aleatoire | 107.6 s |
+| B, 1 greedy, departage deterministe | 101.5 s |
+| B, 3 greedys (M4 seulement) | 124.9 s |
 
-<!-- duree totale : 916.6 s -->
+<!-- duree totale : 758.2 s -->

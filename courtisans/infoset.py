@@ -93,7 +93,41 @@ def vue_du_joueur(etat: State, joueur: int) -> VueDuJoueur:
     posee par quelqu'un d'autre est un dos, tout le reste est connu. `chaine` et `tenseur` ne
     consomment que cette partition -- verifie par `tests/infoset/test_vue_du_joueur.py`, qui
     permute l'identite des dos et exige que les deux sorties ne bougent pas.
+
+    Elle **valide son argument**, et par la parade qui existait deja
+    ---------------------------------------------------------------
+    `State._joueur_observe` a ete ecrite en phase 0 pour ce piege exact, et sa docstring le
+    decrit mot pour mot : « le moteur rend une observation bien formee, de la bonne taille,
+    qui n'egale la vue d'aucun joueur -- et rien ne leve », en nommant `mains[-1]`. Cette
+    fonction, rendue publique en phase 2, ne l'appelait simplement pas : ce n'est pas une
+    validation qui manque, c'est **le defaut 2 de la phase 0 rouvert par une entree neuve qui
+    contourne une parade existante**.
+
+    Elle est **appelee** et non reecrite : le paragraphe 2 des conventions interdit deux
+    definitions de la meme regle, et c'est la seule facon que le controle ne derive pas d'un
+    site a l'autre. Elle est appelee **ici** parce que `_blocs` est le seul chemin de `chaine`,
+    `tenseur` et `disposition`, et que `agents.perception.percevoir` passe par la aussi : un
+    controle place ici couvre les quatre entrees, un controle place dans chacune en laisserait
+    une derriere au prochain ajout.
+
+    Ce que le defaut produisait, MESURE le 20/08/2026 sur `entrainement-3j`, seed 0 avancee de
+    14 coups par `legal_actions()[0]` : `vue_du_joueur(etat, -1)` rendait une partition de
+    19 connues et 4 dos sans lever, `tenseur(etat, -1)` rendait 205 flottants qui n'etaient le
+    tenseur d'aucun siege -- 35, 25 et 3 composantes de difference avec les sieges 0, 1 et 2 --
+    et `chaine(etat, -1)` differait de `chaine(etat, 2)`. Un hybride : l'indexation relative
+    resolvait -1 en « le dernier siege » par l'arithmetique modulaire de Python, pendant que la
+    partition ci-dessous le resolvait en « personne ». Et **-1 n'est pas une valeur
+    arbitraire** : `engine.JOUEUR_HASARD` vaut -1, donc une boucle d'entrainement ecrivant
+    `tenseur(etat, etat.current_player())` sur un nœud de distribution entrainait son reseau
+    sur le tenseur de personne, sans que rien ne le signale.
+
+    Raises:
+        ValueError: si `joueur` ne designe aucun siege -- identifiants reserves
+            `JOUEUR_HASARD` et `JOUEUR_TERMINAL` compris. Une levee explicite qui nomme la
+            cause, la ou `tenseur` levait auparavant un `IndexError` par accident pour 3 et 7,
+            et ne levait pas du tout pour -1.
     """
+    etat._joueur_observe(joueur)
     vue = etat.vue_privilegiee()
     connues = []
     dos = []

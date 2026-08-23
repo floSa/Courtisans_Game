@@ -31,7 +31,29 @@ greedy, et c'est voulu.
 ## 0. Les douze sens annoncés d'avance, et leur verdict
 
 Une définition concurrente sans direction attendue n'est pas falsifiable. La pré-inscription en a
-donc annoncé douze. **Onze tiennent, une est infirmée.**
+donc annoncé douze. **Mais deux des douze ne pouvaient pas être infirmés**, et les compter comme
+tenus gonflait le score.
+
+> **Corrigé le 20/08/2026 — défaut mineur 3 de la phase 2.** Ce texte annonçait « onze tiennent,
+> une est infirmée ». Les sens **8** et **9** — `B4-contre-nature` et `B4-meurtre-coûteux`
+> « exactement 0 chez le greedy » — sont déclarés **nuls par construction par la pré-inscription
+> elle-même**, au §6.4 : « **B4-contre-nature doit valoir exactement 0 chez le greedy**, puisque
+> `choisir` prend un argmax : un refus strictement dominé est impossible ». Un énoncé qui ne peut
+> pas être faux n'est pas une direction annoncée : c'est un **contrôle**. Les deux sont d'ailleurs
+> publiés comme tels — le §4 bis du rapport dit que leur zéro ne signifie pas que le greedy n'a
+> jamais mal joué, seulement qu'il n'a jamais contredit sa propre évaluation.
+>
+> Le compte juste : **dix sens falsifiables — neuf tiennent, un est infirmé** — plus **deux
+> contrôles**, qui valent bien 0 comme annoncé. Ce n'est pas une nuance de forme : un score de
+> 11/12 et un score de 9/10 ne portent pas la même information sur la qualité des prédictions,
+> et le premier empruntait sa marge à deux énoncés que rien ne risquait.
+>
+> **Les deux contrôles restent publiés**, et le rester est le bon choix : un zéro qu'on n'imprime
+> pas n'est pas un zéro vérifié. Ils cessent d'être nuls par construction dès la phase 3, dont
+> l'agent n'a pas l'argmax du greedy — ils y redeviennent de vraies directions.
+
+**Dix sens falsifiables : neuf tiennent, un est infirmé. Plus deux contrôles nuls par
+construction, tous deux vérifiés.**
 
 | # | Concurrente | Sens annoncé | Mesuré | Verdict |
 |---|---|---|---|---|
@@ -42,14 +64,19 @@ donc annoncé douze. **Onze tiennent, une est infirmée.**
 | 5 | `B2-fragile-2` | plus grande | 78,83 % contre 68,32 % | ✅ |
 | 6 | `B2-cibles` | plus grande encore, borne haute | 80,84 %, la plus grande des trois | ✅ |
 | 7 | `B3-simultané` | plus petite | 9,84 % contre 33,27 % | ✅ |
-| 8 | `B4-contre-nature` | **exactement 0** chez le greedy | 0/4773 | ✅ |
-| 9 | `B4-meurtre-coûteux` | **exactement 0** chez le greedy | 0/15406 | ✅ |
+| 8 | `B4-contre-nature` | **exactement 0** chez le greedy | 0/4773 | ⚙️ **contrôle — nul par construction, vérifié** |
+| 9 | `B4-meurtre-coûteux` | **exactement 0** chez le greedy | 0/15406 | ⚙️ **contrôle — nul par construction, vérifié** |
 | 10 | `B5-pire-cas` | sélectionne **d'autres** nœuds | dénominateur 13 956 contre 18 671, −25,3 % | ✅ |
 | 11 | `B6-dernier-contre-reste` | plus stable, mais mélange trois états | dilue d'un facteur **1,9 à 2,8** selon le groupe | ✅ |
 | 12 | `B7-lumière` | nettement plus grande | 11,81 % contre 0,15 %, soit **×77,4** | ✅ |
 
 Une seule concurrente était annoncée **sans** direction — `B1-savoir-commun`, « inconnu, à
 mesurer » — et son chiffre est au §1.
+
+**Récapitulatif du compte, décomposé.** Douze énoncés au total : `⚙️` sur les lignes 8 et 9, donc
+**deux contrôles** ; `❌` sur la ligne 4, donc **un sens infirmé** ; `✅` sur les neuf autres —
+lignes 1, 2, 3, 5, 6, 7, 10, 11, 12 — donc **neuf sens tenus**. `2 + 1 + 9 = 12`. Les neuf sont
+**nommés** plutôt que comptés : c'est la faute que cette phase a commise cinq fois.
 
 **Le sens infirmé, et pourquoi il était faux d'avance.** J'annonçais `B2-banquet` « beaucoup plus
 grande » que `B2-contestée`, en raisonnant comme si la zone à enjeu était toujours le banquet. Une

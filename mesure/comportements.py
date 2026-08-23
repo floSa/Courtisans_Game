@@ -747,13 +747,27 @@ def verifier_inclusion_b1(comptes: dict[str, Compte]) -> None:
     Les deux grains sont controles quand ils sont presents. `-par-partie` compris : l'inclusion
     tient a tous les grains, puisqu'elle tient nœud par nœud.
 
+    **Elle compare deux numerateurs, donc elle exige d'abord le meme grain**, et elle passe par
+    la garde commune plutot que de la reecrire. C'est un mineur de l'audit du tour 1 : elle ne
+    consultait `grain` que pour composer son message d'erreur, si bien que deux comptes de
+    grains differents s'y comparaient en silence. Comparer « 50 parties » a « 40 familles x
+    parties » n'a pas de sens -- pas meme un signe --, exactement comme pour `ecart_de_taux`.
+
     Raises:
+        GrainsIncomparables: si les deux compteurs d'un meme grain ne comptent pas la meme
+            chose.
         ValueError: si l'inclusion tombe sur l'un des grains presents.
     """
     for suffixe in ("", "-par-partie"):
         collectif, motif = comptes.get(f"B1-collectif{suffixe}"), comptes.get(f"B1-motif{suffixe}")
         if collectif is None or motif is None:
             continue
+        if collectif.grain != motif.grain:
+            raise GrainsIncomparables(
+                f"« B1-collectif{suffixe} » et « B1-motif{suffixe} » ne se majorent pas : le "
+                f"premier compte des {collectif.grain}, le second des {motif.grain}. Une "
+                f"inclusion entre deux numerateurs suppose le meme denominateur."
+            )
         if collectif.succes < motif.succes:
             raise ValueError(
                 f"inclusion tombee sur le grain « {collectif.grain} » : "

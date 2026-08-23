@@ -286,11 +286,25 @@ def test_vue_du_joueur_publique_refuse_un_identifiant_qui_n_est_pas_un_siege(jou
     """Une fonction publique est appelable par n'importe qui : elle doit se defendre.
 
     `_joueur_observe` protege `information_state_string` ; `vue_du_joueur`, devenue une API
-    d'agent, est appelable **sans** passer par lui.
+    d'agent, etait appelable **sans** passer par lui. Elle l'appelle depuis le 20/08/2026.
+
+    **Ce cas affirmait l'inverse de ce que son nom annonce, et c'est un defaut a part
+    entiere.** Ecrit au tour 1 de l'audit de la phase 2, il s'appelait deja
+    `..._refuse_un_identifiant_qui_n_est_pas_un_siege` et son corps assertait le contraire :
+    il appelait `vue_du_joueur(etat, joueur)` pour -1, 3 et 99, et verifiait que la partition
+    rendue **totalisait bien toutes les cartes posees** -- c'est-a-dire qu'elle ne levait pas.
+    Il documentait le defaut sous un nom qui promettait sa correction, si bien que le defaut
+    mineur 2 de la phase 2 avait a la fois un releve et un test **vert** qui l'entretenait.
+    Un nom qui ment est pire qu'un test absent : une recherche par nom le compte comme une
+    parade.
+
+    Le corps dit maintenant ce que le nom a toujours dit. La contrepartie -- que la vue
+    rendue pour -1 n'etait celle d'aucun siege, donc que ce qu'on refuse n'etait pas
+    inoffensif -- est etablie separement par
+    `tests/infoset/test_vue_du_joueur.py::test_ce_que_la_parade_interdit_existait_vraiment_avant_elle`.
     """
     from courtisans.infoset import vue_du_joueur
 
     etat = Engine(INSTANCE).reset(0)
-    vue = vue_du_joueur(etat, joueur)
-    total = len(vue.connues) + len(vue.dos_adverses)
-    assert total == len(etat.vue_privilegiee().posees)
+    with pytest.raises(ValueError, match="ne designe aucun joueur"):
+        vue_du_joueur(etat, joueur)
