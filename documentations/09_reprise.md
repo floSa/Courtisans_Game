@@ -48,35 +48,32 @@ Il s'est fâché deux fois pour la même raison : le manque de clarté.
   construction. **Le pilote a lu la phrase et a continué**, et l'audit croisé a perdu son
   indépendance pour tout un tour. Une phrase d'agent qui décrit un rôle qu'on ne lui a pas
   attribué est une alerte, pas une formalité.
-- **Tout bloc final porte une ESTIMATION DE DURÉE, et elle dit ce qu'elle compte.** Exigé par
-  Florian le 24/08/2026 : « c'est insupportable de partir pour dix heures sachant qu'à chaque
-  fois on te dit deux heures et que ça finit en dix heures ». La règle vaut pour le pilote **et
-  pour toute conversation d'agent** ; elle s'écrit dans chaque prompt.
+- **Tout bloc final porte une ESTIMATION, elle regarde DEVANT, et elle se donne en HEURE DE
+  MONTRE.** Exigé par Florian les 24/08/2026. Première formulation le matin : « c'est
+  insupportable de partir pour dix heures sachant qu'à chaque fois on te dit deux heures ».
+  Correction le soir, et elle annule la moitié de la règle : **« Je m'en fous des durées qui
+  sont passées. Ce qui m'intéresse, c'est les durées à venir, pouvoir estimer parce que j'ai
+  envie d'éteindre mon PC de temps en temps. »**
 
-  Le défaut n'est pas l'absence d'estimation — l'étape 0 de la phase 4 en portait une, « ~2 h 45 »,
-  et elle était juste **pour la passe qu'elle nommait**. Le défaut est qu'elle ne nommait qu'une
-  passe, alors que le travail a coûté 4 h 47 de campagne bloquée, plus 2 h 45 de rejeu invalidé,
-  plus 2 h 20 de rejeu valide. Chaque chiffre était exact ; leur somme n'a jamais été dite.
-  **C'est la faute de signature du projet appliquée au temps : un chiffre exact sur une
-  population que sa phrase ne nomme pas.**
+  Le besoin n'est pas un bilan, c'est une **décision** : peut-il éteindre sa machine, et à
+  quelle heure. Une durée l'oblige à faire l'addition lui-même ; une heure de montre, non.
 
-  Une estimation conforme porte donc **quatre** choses :
-  1. **Le temps déjà écoulé depuis le début de l'étape**, tout compris — les tentatives ratées,
-     les reprises, les campagnes jetées. C'est le chiffre qu'il ressent, et c'est celui qu'on
-     omet.
-  2. **Le temps restant pour ce qui tourne maintenant**, avec le coût unitaire mesuré qui le
-     fonde (« 57 passes × 2,8 min mesurées »), pas un ordre de grandeur.
-  3. **Le temps restant pour tout ce qui est déjà décidé et pas encore commencé** — les étapes
-     suivantes du plan en cours. Une fourchette est acceptable ; le silence ne l'est pas.
-  4. **Ce que l'estimation NE COUVRE PAS**, nommé. « Ne compte pas un rejeu si un cas sort
-     rouge sur le code non muté. » Une estimation sans cette ligne est une estimation du seul
-     chemin heureux, et c'est très exactement celle qui a trompé trois fois.
+  Une estimation conforme porte donc :
+  1. **L'heure à laquelle il pourra éteindre**, en clair, sur la première ligne. Pas une durée.
+  2. **Le prochain point d'arrêt, nommé** — l'endroit du plan où le travail s'interrompt pour
+     de bon et non entre deux passes. C'est là qu'il éteint, pas au milieu d'une campagne.
+  3. **Ce qui tourne et ce qui est décidé**, chacun avec son heure de fin prévue et le coût
+     unitaire mesuré qui la fonde (« 57 passes × 3,03 min mesurées »).
+  4. **Ce qui n'est pas couvert**, nommé, et **chiffré en retard sur l'heure annoncée** : « si
+     un test sort rouge sur du code sain, tout s'arrête et l'heure ne tient plus » ; « une
+     campagne à refaire repousse de 2 h 55, donc à telle heure ».
 
-  Le total des points 1 à 3 se donne en clair, en une ligne, avant le détail.
+  **Le temps écoulé ne se donne pas**, sauf s'il le demande. Il ne s'en sert pas, et il occupe
+  la place de ce qui l'intéresse.
 
-- **Commiter une modification de document tout de suite.** Deux règles de cette liste ont été
-  écrites puis perdues, laissées non commitées et effacées par un `git reset --hard` sur une
-  branche d'agent. Un document du pilote se commite dans la foulée de son édition.
+  La règle vaut pour le pilote **et pour toute conversation d'agent** ; elle s'écrit dans chaque
+  prompt.
+
 - **Le pilote travaille dans SON PROPRE répertoire de travail, jamais dans celui de l'agent.**
   `/home/florian/mes_projets/Courtisans_pilote`, créé par `git worktree add`, sur `main`. Le
   répertoire `Courtisans_Game` appartient à la conversation d'agent en cours.
