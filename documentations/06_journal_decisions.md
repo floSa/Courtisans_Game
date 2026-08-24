@@ -16,6 +16,150 @@ Impact plan : phases invalidées ou modifiées
 
 ---
 
+## [2026-08-24] Phase 4, itération 1 — La tête de valeur : hypothèse réfutée avant l'entraînement
+
+**Hypothèse.** *Pré-inscrite dans `prompts/18_phase4_iteration_1.md`, avant tout code.* Le
+critique de la phase 3 n'apprend pas — `perte_valeur` 0,3923 → 0,3908, `R² = +0,093` quand
+**0,57** est calculé comme atteignable — et **ce n'est pas la faute du jeu** : à l'avant-dernière
+décision le plancher irréductible vaut 0,0075 pendant que le critique fait 0,30, un facteur
+quarante. Donc : **le critique est mal spécifié ou sous-entraîné, et le réparer est un levier**.
+
+**Instrument.** Le seuil qui devait décider n'était pas le R² : c'était le gain moyen contre
+**deux copies de l'agent de la phase 3**, sièges permutés, borne basse de l'IC 99 % bootstrap par
+donne strictement positive. Le R² n'était qu'un seuil **intermédiaire, diagnostique**, et
+`prompts/21` §1 l'a formulé comme un **écart apparié** contre le critique de la phase 3 sur le
+même échantillon hors plage — jamais comme un niveau. Le piège était écrit dès la première ligne
+du prompt : **on peut faire monter le R² sans que l'agent joue mieux.**
+
+**Résultat. L'hypothèse est RÉFUTÉE, et elle l'est sans qu'un seul entraînement ait été lancé.**
+
+- **Le critique de la phase 3 est à ~0,02 du plafond de ce qu'un observateur aveugle atteint dans
+  ce jeu.** Un régresseur supervisé ordinaire, ajusté hors ligne sur `(info-set, retour)` avec
+  accès libre aux mêmes données, ne le dépasse que de **+0,0205**.
+- **Le critique, +0,1012** — sur le jeu de test **fixe** : 76 799 nœuds issus de 4 000 parties de
+  self-play à trois copies de `models/phase3/final.pt` (SHA-256 `772a869f…f0217`), **hors plage
+  d'entraînement**, seeds 7 400 000+. Mesuré aussi à +0,1008 sur 76 842 nœuds, seeds 7 000 000+,
+  et +0,1033 sur un troisième bloc.
+- **Le plafond, +0,1217** — même test fixe, régresseur à deux couches cachées de largeur 128,
+  ajusté sur **1 536 135 nœuds** (80 000 parties, seeds 7 000 000+). **L'arrêt précoce est choisi
+  SUR LE JEU DE TEST : c'est une borne haute optimiste**, délibérément, parce qu'une borne haute
+  optimiste qui reste basse est un résultat plus fort qu'une mesure honnête qui reste basse.
+- **La pente : +0,0079 de R² par DOUBLEMENT des données**, stable sur trois intervalles — +0,0082
+  (76 842 → 307 273 nœuds), +0,0081 (→ 767 906), +0,0075 (→ 1 536 135).
+- **Conséquence chiffrée : atteindre 0,545 demanderait 53 doublements, soit 1,8 × 10²² nœuds.**
+  **Ce n'est pas une prédiction, c'est une réduction à l'absurde** — elle établit que 0,545 n'est
+  pas une question de volume, pas que le nombre 53 signifie quoi que ce soit.
+
+**Et voici ce que tout ce résultat porte, en toutes lettres. Le plancher de 0,545 est calculé sur
+l'état COMPLET. L'écart entre +0,12 et 0,545 n'est ni un manque de données, ni un défaut de
+modèle, ni une tête de valeur mal faite : c'est ce que le jeu CACHE à un joueur honnête.** Le
+prompt de la phase l'avait écrit d'avance — « un critique qui voit l'état complet n'est pas
+utilisable à l'inférence, et le plancher de 0,57 est calculé sur l'état complet précisément pour
+cette raison ». La mesure lui donne raison et chiffre l'écart.
+
+**Ce que la mesure INFIRME.** Le soupçon « la tête de valeur manque de capacité » est **faux dans
+le sens attendu : plus de capacité EMPIRE la généralisation.** Largeur 256 sur 76 818 nœuds
+descend à **−0,9161** en test pendant que son R² d'apprentissage monte à +0,4630. Chez le pilote,
+qui a réimplémenté indépendamment, la largeur 128 fait moins bien que la largeur 32 **aux trois
+volumes**. Le critique ne sous-ajuste pas : il est au bord du sur-ajustement.
+
+**Ce qui garde son diagnostic et perd son remède.** Le soupçon « la cible terminale vue depuis
+n'importe quelle profondeur » reste juste sur le constat — le critique est presque nul tôt,
+`R² = +0,0086` au rang 0. Mais **les nœuds tardifs, ceux du facteur quarante, pèsent 8,2 % de la
+perte** (76 842 nœuds, seeds 7 000 000+), et la marge `MSE − plancher` pondérée par la population
+est **répartie** : les rangs 0–3 en portent 53 %. **Pondérer la perte vers la profondeur viserait
+8 % du problème.** Au passage, la pondération évidente par `1/plancher` donne **93 % de la masse**
+au rang 8, qui est mesuré sur **un seul état**.
+
+**Corroboration indépendante du 0,57.** Le plancher par rang, mesuré à la méthode de l'auditeur —
+300 états × 24 replicats, 7 200 parties — recombiné avec la population donne
+`E[plancher] = 0,193` pour `Var(R) = 0,4239`, soit **0,545 atteignable**. L'auditeur publiait
+**0,57** par une autre méthode et un autre découpage.
+
+**Audit. Le pilote a refait la mesure avec sa propre implémentation, et elle tient.** Régresseur,
+séparation des seeds, arrêt précoce et R² écrits par lui sans lire `mesure/phase4.py` ; seeds
+d'apprentissage 500 000+, de test 900 000+, disjoints et tous deux hors plage. Critique à
+**+0,0958** chez lui contre +0,1012 chez moi ; pente **+0,0078 à +0,0091** contre +0,0079 ; et
+**extrapolée depuis son point à 461 k nœuds, sa pente prédit +0,121 à 1,54 M quand ma mesure
+donne +0,1217**. Deux implémentations indépendantes sur la même courbe, à la troisième décimale.
+
+**L'audit croisé de la phase 4 — conversation n° 9 — reste à faire, et son travail sera de refaire
+ce plafond sans lire une ligne de `mesure/phase4.py`.** Un résultat qui **ferme une direction**
+mérite d'être établi deux fois.
+
+**Décision. L'ITÉRATION 1 EST CLOSE SUR LE CONSTAT. Le run de 2 h ne se lance pas.** Le
+raisonnement, pour qu'il soit auditable : le seuil intermédiaire **est franchissable**, la marge
+existe et vaut ~+0,02 ; mais **le seuil intermédiaire ne décide rien**, et rien n'établit qu'une
+précision de 0,12 fasse gagner là où 0,10 fait perdre. Lancer le run reviendrait à payer 2 h pour
+déplacer une grandeur intermédiaire dont on ignore si elle commande le résultat. C'est le piège de
+la phase sous une forme plus fine : non plus « faire monter le R² sans jouer mieux », mais **faire
+monter le R² de deux centièmes en espérant que ça compte**.
+
+**Ce que la phase 4 itération 1 produit n'est donc pas un agent, c'est un résultat négatif
+solide** — et `prompts/18` le désignait d'avance comme publiable : *« un critique réparé qui ne
+fait pas gagner établirait que le critique n'était pas la limite »*. La mesure fait mieux : elle
+établit **qu'il n'y avait presque rien à réparer**.
+
+**Ce que ce constat N'ÉTABLIT PAS.**
+
+1. **Qu'un R² plus élevé ferait gagner.** Rien ici ne mesure le jeu. Le lien entre la précision du
+   critique et le gain de l'agent n'est ni mesuré ni supposé — il est **inconnu**, et c'est
+   exactement pourquoi le seuil décisif est le gain et pas le R².
+2. **Que l'architecture testée soit la meilleure possible.** Un perceptron à deux couches cachées
+   sous Adam, trois largeurs, jusqu'à 1,5 M nœuds. Une autre classe de modèle, une autre
+   représentation ou un objectif auxiliaire pourraient faire mieux — et la tête auxiliaire est
+   explicitement l'itération 2.
+3. **Que la pente reste linéaire au-delà de 1,5 M nœuds.** Trois intervalles ne font pas une loi.
+4. **Que `E[Var(R | info-set)]` ait été mesuré.** Le plancher de 0,193 est conditionné à l'état
+   **complet**. Le vrai plafond d'un critique aveugle est **estimé par ajustement**, ce qui en
+   fait une borne **basse** : un meilleur modèle ferait mieux.
+5. **Que la tête de valeur soit sans défaut.** Elle est près de son plafond d'information ; ce
+   n'est pas la même chose qu'être bien faite.
+
+**Impact plan.**
+
+1. **La direction « réparer le critique » est FERMÉE pour cet agent et cette observation.** Elle
+   ne se rouvre que par un changement de ce que l'agent VOIT — donc par le paragraphe 4.2 de la
+   spécification, qui est un arbitrage de périmètre et non une itération.
+2. **L'itération 2 — tête auxiliaire, régression sur l'écart de score final — n'est pas invalidée
+   par ce constat**, parce qu'elle ne prédit pas la même quantité. Mais elle hérite de la
+   question : *ce qu'elle prédirait est-il visible depuis un info-set ?* **Elle se mesure avant de
+   se pré-inscrire.**
+3. **Le budget d'entraînement n'est toujours pas désigné**, et ce constat ne le désigne pas
+   davantage.
+4. **`mesure/phase4.py` et ses 11 cas restent** : ils servent au constat et serviront à l'audit.
+   Ils portent l'empreinte SHA-256 de l'adversaire du seuil décisif, sa recette, et l'égalité
+   d'échelle de l'avantage.
+
+**Ce que l'étape 0 de la phase a produit, et qui vaut au-delà d'elle.** Le périmètre des mutations
+est passé de **20 à 57** motifs, `agents/` et `mesure/` compris, `agents/greedy.py` excepté :
+**45 détectées, 11 survivantes, 1 expirée**, relevé reproduit à l'identique par deux campagnes
+valides. **Les onze sont aujourd'hui toutes tombées**, et `EXPIRE` a disparu — la suite a
+désormais un délai de garde **par test**, 58,8 s = 4 × 14,70 s mesurées sur trois passes. Les
+**trois réserves de la phase 3** sont levées, chacune avec sa parade. Cinq jeux de campagne ont
+été payés, **quatre pour des défauts de l'instrument** et un seul du premier coup.
+
+**Quatre enseignements de méthode.**
+
+- **Quand une phase repose sur une marge supposée, la marge se mesure AVANT de se pré-inscrire.**
+  Le plan disait : pré-inscrire, puis entraîner. En mesurant le plafond d'abord, la marge est
+  apparue à ~+0,02 au lieu du ~+0,45 que le 0,57 laissait croire. **En suivant le plan, on aurait
+  pré-inscrit un seuil sur une marge crue large, payé 2 h d'entraînement, et découvert la marge
+  ensuite.** L'ordre du plan n'était pas faux : il était incomplet d'une étape.
+- **Un invariant se tient à TOUS ses sites, pas à un site.** Deux mutations ont survécu au cas
+  écrit pour elles, pour la même raison les deux fois : `agents/politique_reseau.py` a **trois**
+  sites et le cas n'en visitait qu'un ; l'intitulé du garde-fou demandait **deux parades qui ne se
+  remplacent pas** — l'une contre les collisions, l'autre contre un nom qui ne dit rien. Écrire un
+  test depuis l'invariant et non depuis la mutation est nécessaire, et **ne suffit pas**.
+- **Un prédicat ne se teste pas sur les seules données qui le rendent vrai.** Les quatre cas du
+  taux dégénéré étaient testés — tous avec des données **séparables** du côté à un seul dégénéré.
+  Un calcul qui aurait rendu « disjoints » quoi qu'il arrive passait les quatre.
+- **Une conclusion tirée trop tôt porte la même faute qu'un chiffre sans population.** À 307 000
+  nœuds la marge a été annoncée à +0,005 ; à 1,5 M elle vaut +0,0205, quatre fois plus. Le chiffre
+  était exact **sur sa population**, et la phrase qui l'annonçait ne la nommait pas.
+
+---
+
 ## [2026-08-21] Phase 3 — Le premier agent entraîné
 
 **Hypothèse.** *Écrite et commitée avant tout entraînement,
