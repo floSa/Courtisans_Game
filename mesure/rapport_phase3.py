@@ -87,6 +87,7 @@ def _phrase_de_borne_exacte(comparaison) -> str:
         taux_de_l_autre = taux_agent if cote == "ligne de base" else taux_base
 
     zero = taux_du_cote is not None and taux_du_cote <= 0.0
+    cote = "l'agent" if cote == "agent" else "la ligne de base"
     quoi = "le zero" if zero else "le cent pour cent"
     sens = "borne haute" if zero else "borne basse"
     ou = "en deca" if zero else "au-dela"

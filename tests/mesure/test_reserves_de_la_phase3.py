@@ -232,3 +232,66 @@ def test_un_seul_cote_a_CENT_dont_les_bornes_se_croisent_n_est_pas_separable_non
         f"borne basse du cent {separation.borne:.4%}, borne haute de l'autre "
         f"{separation.borne_de_l_autre:.4%} : elles se croisent"
     )
+
+
+# ---------------------------------------------------------------------------------
+# Reserve 3 -- le nom du garde-fou porte sa POPULATION, et pas seulement sa composition
+# ---------------------------------------------------------------------------------
+
+
+def test_le_nom_du_garde_fou_porte_le_nombre_de_donnes_et_le_depart_des_seeds():
+    """ETABLIT : l'intitule contient l'agent, le nombre de donnes et le depart des seeds.
+
+    POPULATION : `intitule_du_garde_fou` a son defaut et a trois autres nombres de donnes.
+
+    La docstring l'ecrit en toutes lettres : « Le nom porte donc desormais **l'agent, le
+    nombre de donnes et le depart des seeds** ». Rien ne le tenait.
+
+    **C'est une parade DIFFERENTE de celle des doublons, et le rejeu du 24/08 l'a montre.**
+    La parade des intitules ne mord que sur une COLLISION : deux campagnes qui portent le meme
+    nom. Un nom vide de sa population ne collisionne avec rien tant que son quasi-jumeau du
+    pool -- « 1 agent entraine FINAL contre 2 aleatoires, 500 donnes, seeds 70000+ » -- garde
+    le sien. La mutation `intitule-du-garde-fou-sans-population` a donc survecu a l'elargissement
+    de la parade des doublons, qui traitait pourtant bien l'angle mort que la reserve nommait.
+
+    **Deux parades pour un meme defaut, et elles ne se remplacent pas** : l'une empeche deux
+    campagnes de porter le meme nom, l'autre empeche un nom de ne rien dire. La faute de la
+    phase 3 -- 70,13 % et 70,03 % publies sous le meme intitule -- demandait les deux.
+    """
+    from agents import campagne as campagne_module
+
+    nom = campagne_module.intitule_du_garde_fou()
+    assert str(campagne_module.DONNES_GARDE_FOU) in nom, (
+        f"le nom ne porte pas son nombre de donnes ({campagne_module.DONNES_GARDE_FOU}) : "
+        f"{nom!r}"
+    )
+    assert str(campagne_module.DEPART_DONNE_GARDE_FOU) in nom, (
+        f"le nom ne porte pas le depart de ses seeds "
+        f"({campagne_module.DEPART_DONNE_GARDE_FOU}) : {nom!r}"
+    )
+    assert "agent" in nom, f"le nom ne dit pas quel agent est mesure : {nom!r}"
+
+
+def test_deux_populations_differentes_ne_peuvent_pas_porter_le_meme_nom_de_garde_fou():
+    """ETABLIT : changer le nombre de donnes change l'intitule.
+
+    POPULATION : quatre appels a `intitule_du_garde_fou`, a 100, 500, 600 et 1200 donnes.
+
+    C'est la propriete qui compte, et elle est plus forte que « le nom contient tel nombre » :
+    **deux campagnes qui ne partagent pas leur population ne doivent pas partager leur nom.**
+    C'est exactement la faute de la phase 3 -- 600 donnes en 40000+ d'un cote, 500 donnes en
+    70000+ de l'autre, 70,13 % et 70,03 % publies sous le meme intitule, et le controle R2
+    « les noms sont distincts » qui ne voyait rien.
+
+    Un nom qui ne varie pas avec sa population rend cette faute reproductible sans qu'aucun
+    controle ne bouge.
+    """
+    from agents import campagne as campagne_module
+
+    noms = {
+        donnes: campagne_module.intitule_du_garde_fou(donnes)
+        for donnes in (100, 500, 600, 1200)
+    }
+    assert len(set(noms.values())) == len(noms), (
+        f"deux populations distinctes portent le meme nom : {noms}"
+    )
