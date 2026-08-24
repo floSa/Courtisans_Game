@@ -94,6 +94,108 @@ def test_la_politique_du_reseau_observe_le_siege_QUI_DECIDE_et_pas_un_siege_fixe
     )
 
 
+def test_la_politique_STOCHASTIQUE_observe_elle_aussi_le_siege_qui_decide():
+    """ETABLIT : la porte d'entree ECHANTILLONNEE lit l'info-set du decideur, elle aussi.
+
+    POPULATION : tous les nœuds de decision de 12 parties completes, joues par
+    `politique_reseau` -- **la variante qui echantillonne**, celle que `evaluer_le_garde_fou`
+    et la mesure appellent reellement. La deterministe, elle, est « rapportee a cote, jamais a
+    sa place ».
+
+    **Ce cas existe parce que le premier ne suffisait pas, et le rejeu du 24/08 l'a montre.**
+    Un cas avait ete ecrit pour ce trou, et la mutation `politique-reseau-observe-le-siege-zero`
+    **a survecu quand meme** : le cas ne parcourait que `politique_reseau_deterministe`. Le
+    module a DEUX portes d'entree, la docstring enonce son invariant pour les deux -- « cette
+    fonction ecrit `tenseur(etat, etat.current_player())` » -- et un cas qui n'en visite qu'une
+    laisse l'autre a decouvert. Celle qui restait a decouvert etait celle qui mesure.
+
+    La comparaison porte sur le COLLAGE et non sur le tirage : le choix est refait en passant
+    a `reseau.choisir` l'info-set du decideur et un generateur de meme graine. Ce qui est
+    tenu ici est « quel info-set est passe », qui est tout ce que ce module decide.
+    """
+    modele = entrainement.construire(APPAREIL)
+    moteur = Engine(CONFIG)
+
+    noeuds = 0
+    noeuds_hors_siege_zero = 0
+    for donne in range(12):
+        etat = moteur.reset(donne)
+        while not etat.is_terminal():
+            decideur = etat.current_player()
+            graine = 7_000 + 97 * donne + noeuds
+            obtenu = pr.politique_reseau(modele, random.Random(graine))(etat)
+            attendu = reseau_module.choisir(
+                modele,
+                tenseur(etat, decideur),
+                etat.legal_actions(),
+                random.Random(graine),
+            )
+            assert obtenu == attendu, (
+                f"donne {donne}, decideur {decideur} : la politique echantillonnee a joue "
+                f"{obtenu}, l'info-set du decideur avec le meme alea donne {attendu}"
+            )
+            noeuds += 1
+            if decideur != 0:
+                noeuds_hors_siege_zero += 1
+            etat.apply(obtenu)
+
+    assert noeuds > 0
+    assert noeuds_hors_siege_zero > 0, (
+        f"{noeuds} nœuds parcourus et pas un seul dont le decideur ne soit le siege 0"
+    )
+
+
+def test_toute_observation_construite_par_ce_module_porte_le_siege_QUI_DECIDE():
+    """ETABLIT : sur les deux portes d'entree, `tenseur` n'est jamais appele sur un autre siege.
+
+    POPULATION : tous les appels a `tenseur` faits par `agents/politique_reseau.py` pendant
+    12 parties jouees par la politique echantillonnee et 12 par la deterministe.
+
+    Les deux cas precedents tiennent chacun une porte, en refaisant le calcul. Celui-ci tient
+    **la regle**, en regardant l'argument lui-meme : quel que soit le nombre de portes que ce
+    module gagnera, aucune ne peut demander l'info-set d'un siege qui ne decide pas sans que
+    ce cas tombe. Les deux formes ne sont pas redondantes -- une reimplementation prouve que
+    le resultat est le bon, un temoin prouve que la REGLE est tenue partout.
+    """
+    vrai = pr.tenseur
+    demandes: list[tuple[int, int]] = []
+
+    def temoin(etat, joueur):
+        demandes.append((etat.current_player(), joueur))
+        return vrai(etat, joueur)
+
+    moteur = Engine(CONFIG)
+    modele = entrainement.construire(APPAREIL)
+    fabriques = (
+        lambda: pr.politique_reseau(modele, random.Random(4242)),
+        lambda: pr.politique_reseau_deterministe(modele),
+    )
+
+    ancien = pr.tenseur
+    pr.tenseur = temoin
+    try:
+        for fabrique in fabriques:
+            politique = fabrique()
+            for donne in range(12):
+                etat = moteur.reset(donne)
+                while not etat.is_terminal():
+                    etat.apply(politique(etat))
+    finally:
+        pr.tenseur = ancien
+
+    assert demandes, "aucune observation construite : le cas ne teste rien"
+    fautifs = [(decideur, joueur) for decideur, joueur in demandes if decideur != joueur]
+    assert not fautifs, (
+        f"{len(fautifs)} observation(s) sur {len(demandes)} portent un siege qui ne decide "
+        f"pas -- (decideur, siege observe) : {sorted(set(fautifs))}"
+    )
+    hors_zero = [d for d, _ in demandes if d != 0]
+    assert hors_zero, (
+        f"{len(demandes)} observations et pas une seule hors du siege 0 : le cas ne separe "
+        f"pas 'le siege qui decide' de 'le siege 0'"
+    )
+
+
 def test_l_observation_du_reseau_ne_coincide_pas_avec_celle_du_siege_zero():
     """ETABLIT : sur les nœuds a decideur non nul, l'info-set du siege 0 n'est PAS le meme.
 
