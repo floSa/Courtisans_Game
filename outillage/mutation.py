@@ -55,6 +55,28 @@ REFUSE de commencer si elle n'est pas verte.** Un instrument qui mesure des ecar
 de tourner quand son zero n'est pas a zero. Son compte est rapporte en tete du releve, pour que
 tout lecteur voie le zero sur lequel les 57 ecarts sont lus.
 
+**TROIS CONTROLES, ET AUCUN NE COUVRE CE QUE LES DEUX AUTRES COUVRENT.** Ils sont nes l'un
+apres l'autre, chacun d'un defaut que le precedent ne pouvait pas voir, et il faut savoir
+lequel dit quoi :
+
+**`_passe_de_base`** etablit que le zero est a zero avant la premiere mutation. Il ne peut
+pas voir un test qui ne rougit **que** sous mutation.
+
+**`temoins_des_fichiers_mutes`** etablit qu'aucun test ne reagit a l'**edition** d'un des 20
+fichiers mutes. Il ne dit rien d'un changement de comportement reel -- ce n'est pas son role.
+
+**`tombes_sous_TOUTES_les_mutations`** etablit qu'aucun test ne tombe sous les 57 a la fois.
+Il ne voit pas un test qui ne tombe que sous les mutations d'**un seul** fichier.
+
+Le troisieme et le deuxieme se completent exactement la ou l'autre est aveugle : un test
+sensible a l'edition de `agents/reseau.py` ne tomberait que sous les 4 mutations de ce fichier,
+donc **jamais** dans l'intersection des 57 -- et c'est le temoin de ce fichier-la qui l'attrape.
+
+**Et un quatrieme controle vit dans la suite**, pas ici : `tests/outillage/test_mutation.py`
+tient la liste nommee des tests qui lisent la source d'un fichier mute, avec la raison ecrite
+pour laquelle chacun ne reagit pas a l'edition. Il ne coute aucune passe et il attrape le
+couple **au moment ou on l'ecrit**, pas au bout de deux heures et demie de campagne.
+
 **Toute correction de defaut arrive avec sa mutation.** Les cinq dernieres de la liste
 remettent, une a une, les defauts trouves par l'audit de la phase 0 : un correctif dont la
 mutation survit n'est tenu par aucun test, et il repartira au prochain refactoring.
@@ -137,36 +159,6 @@ class Mutation:
     vise: str
 
 
-#: **Le temoin negatif : une mutation qui ne change RIEN.** Elle insere un commentaire, donc
-#: le comportement du depot est identique au caractere pres apres application.
-#:
-#: **Ce qu'elle attrape, et pourquoi la passe de base ne suffisait pas.** La passe de base
-#: mesure le zero *avant* la premiere mutation. Elle ne voit donc pas un test qui reagit au
-#: FAIT QU'UN FICHIER A ETE EDITE plutot qu'a un changement de comportement -- un tel test est
-#: vert tant qu'aucune mutation n'est en place, et rouge sous **toutes** a la fois.
-#:
-#: Ce n'est pas theorique. Le 23/08/2026, deux cas de `tests/outillage/test_mutation.py`
-#: verifiaient les invariants du catalogue en lisant le DISQUE : « ce motif apparait
-#: exactement une fois dans sa source ». Sous mutation, le fichier ne contient plus son
-#: `avant`, les deux tombaient, et la campagne a rendu **56 detectees, 0 survivante** --
-#: exactement `+2 rouges` sur chaque ligne, les onze survivantes reelles effacees.
-#:
-#: **C'est le mode de defaillance que la passe de base venait de fermer, refait par la
-#: correction elle-meme.** Le temoin le ferme comme CLASSE : si la suite n'est pas verte avec
-#: une mutation qui ne change rien, un test reagit a l'edition et non au comportement, et tout
-#: verdict de la campagne serait faux.
-MUTATION_TEMOIN = Mutation(
-    nom="TEMOIN-ne-change-rien",
-    fichier="mesure/instance.py",
-    avant="ENTRAINEMENT_3J = GameConfig(",
-    apres="# Temoin du test de mutation : cette ligne ne change aucun comportement.\n"
-    "ENTRAINEMENT_3J = GameConfig(",
-    vise=(
-        "RIEN -- c'est le temoin negatif. La suite doit rester VERTE sous cette mutation ; "
-        "si elle rougit, un test reagit a l'edition d'un fichier et non a un changement de "
-        "comportement, et il se deguiserait en detection sur toutes les lignes a la fois."
-    ),
-)
 
 
 MUTATIONS: tuple[Mutation, ...] = (
@@ -887,6 +879,74 @@ MUTATIONS: tuple[Mutation, ...] = (
 )
 
 
+#: L'ancre des temoins. **Presente dans les 20 fichiers mutes** -- verifie, pas suppose --,
+#: donc un temoin peut se poser dans n'importe lequel sans anrage sur mesure.
+ANCRE_DU_TEMOIN = "from __future__ import annotations"
+
+#: Le texte insere par un temoin. Un commentaire : **invisible a `ast.parse`, visible a
+#: `read_text`, et il DECALE LES NUMEROS DE LIGNE**. Le decalage est voulu : un test qui
+#: s'appuierait sur un numero de ligne le sentirait.
+LIGNE_DU_TEMOIN = "# Temoin du test de mutation : cette ligne ne change aucun comportement."
+
+
+def temoins_des_fichiers_mutes() -> tuple[Mutation, ...]:
+    """Un temoin par fichier mute. **Un temoin ne parle que des fichiers qu'il edite.**
+
+    Ce que c'est
+    ------------
+    Un temoin **negatif** : une mutation qui n'ajoute qu'un commentaire, donc dont le
+    comportement est identique au caractere pres. La suite doit rendre **exactement** le compte
+    de la passe de base. Si elle ne le rend pas, un test reagit au FAIT QU'UN FICHIER A ETE
+    EDITE plutot qu'a un changement de comportement -- et un tel test se deguiserait en
+    detection, effacant des survivantes du releve.
+
+    **Ce qu'il etablit, et sur quelle population.** Un temoin pose dans le fichier `F` etablit
+    qu'aucun test ne reagit a l'edition de `F`. **Il n'etablit rien sur les autres fichiers**,
+    et c'est la correction du 24/08/2026 : le temoin unique vivait dans `mesure/instance.py`,
+    **qui ne porte aucune des 57 mutations**. Il mesurait donc que la suite ne reagit pas a
+    l'edition d'un fichier que la campagne n'edite jamais -- un chiffre exact sur une population
+    que sa phrase ne nommait pas, la faute de signature de ce projet, glissee dans l'instrument
+    construit pour l'empecher.
+
+    **Et la place est peuplee.** MESURE le 24/08/2026 : `tests/mesure/test_phase3_audit.py`
+    parse **tout** `agents/*.py` et `mesure/*.py` -- 14 des 20 fichiers mutes, **37 des 57
+    mutations** ; `tests/agents/test_aveuglement_reseau.py` lit `agents/reseau.py`, qui porte
+    `valeur-non-aplatie` ; `tests/audit_phase2/test_reverification.py` lit
+    `mesure/comportements.py`. `agents/campagne.py` porte a lui seul **quatre des onze
+    survivantes**.
+
+    **Ni la passe de base ni `tombes_sous_TOUTES_les_mutations` ne verraient un tel test.** La
+    passe de base mesure le zero avant toute mutation. Et un test qui ne reagirait qu'a
+    l'edition de `agents/reseau.py` ne tomberait que sous les 4 mutations de ce fichier -- donc
+    **jamais sous les 57**, donc jamais dans l'intersection.
+
+    Pourquoi UN par fichier, et pourquoi ils se jouent ENSEMBLE
+    -----------------------------------------------------------
+    Un par fichier, parce que la population a couvrir est l'ensemble des fichiers que la
+    campagne edite -- les 20, pas les 3 qu'un croisement rapide designe.
+
+    Ensemble en **une seule passe**, parce que 20 passes couteraient ~55 minutes a chaque
+    campagne pour une reponse qui est « vert » dans le cas normal. La passe combinee repond
+    « aucun test ne reagit a l'edition d'aucun des 20 » en 2,8 minutes. **Quand elle rougit**,
+    elle ne dit pas lequel : `--temoins-un-par-un` les rejoue separement pour le nommer. C'est
+    le bon compromis -- la precision ne se paie que quand elle sert.
+    """
+    return tuple(
+        Mutation(
+            nom=f"TEMOIN-{fichier}",
+            fichier=fichier,
+            avant=ANCRE_DU_TEMOIN,
+            apres=f"{LIGNE_DU_TEMOIN}\n{ANCRE_DU_TEMOIN}",
+            vise=(
+                f"RIEN -- temoin negatif sur {fichier}. La suite doit rester au compte de la "
+                f"passe de base ; si elle rougit, un test reagit a l'edition de ce fichier et "
+                f"non a un changement de comportement."
+            ),
+        )
+        for fichier in sorted({m.fichier for m in MUTATIONS})
+    )
+
+
 def _depot_propre() -> bool:
     sortie = subprocess.run(
         ["git", "status", "--porcelain"],
@@ -1071,6 +1131,14 @@ def principal() -> int:
         ),
     )
     analyseur.add_argument(
+        "--temoins-un-par-un",
+        action="store_true",
+        help=(
+            "jouer un temoin par fichier mute au lieu d'un seul temoin combine. "
+            "20 passes au lieu d'une : sert a NOMMER le fichier quand le temoin combine rougit."
+        ),
+    )
+    analyseur.add_argument(
         "--delai",
         type=float,
         default=DELAI_DE_GARDE,
@@ -1124,32 +1192,47 @@ def principal() -> int:
     if refus is not None:
         raise SystemExit(refus)
 
-    # **Le temoin negatif.** Voir `MUTATION_TEMOIN` : la passe de base ne peut pas voir un
-    # test qui reagit a l'EDITION d'un fichier plutot qu'a un changement de comportement,
-    # parce qu'un tel test est vert tant qu'aucune mutation n'est en place.
-    _appliquer(MUTATION_TEMOIN)
-    try:
-        temoin = _jouer(arguments.cible, arguments.delai)
-    finally:
-        _restaurer(MUTATION_TEMOIN.fichier)
-    if temoin is None:
-        raise SystemExit(
-            f"le TEMOIN a expire apres {arguments.delai:.0f} s alors qu'il ne change rien : "
-            f"la suite n'est pas stable, aucun ecart n'y est lisible."
+    # **Les temoins negatifs.** Voir `temoins_des_fichiers_mutes` : ni la passe de base ni
+    # `tombes_sous_TOUTES_les_mutations` ne peuvent voir un test qui reagit a l'EDITION d'un
+    # fichier -- la premiere mesure avant toute mutation, le second ne voit que ce qui tombe
+    # sous les 57. Un test sensible a l'edition d'un seul fichier echappe aux deux.
+    temoins = temoins_des_fichiers_mutes()
+    groupes = [[t] for t in temoins] if arguments.temoins_un_par_un else [list(temoins)]
+    for groupe in groupes:
+        for temoin_mutation in groupe:
+            _appliquer(temoin_mutation)
+        try:
+            temoin = _jouer(arguments.cible, arguments.delai)
+        finally:
+            for temoin_mutation in groupe:
+                _restaurer(temoin_mutation.fichier)
+        etiquette = (
+            groupe[0].fichier if len(groupe) == 1 else f"{len(groupe)} fichiers mutes"
         )
-    verts_temoin, rouges_temoin = temoin.verts, temoin.rouges
-    print(
-        f"TEMOIN, mutation qui ne change rien : {verts_temoin} verts, {rouges_temoin} rouges"
-    )
-    if (verts_temoin, rouges_temoin) != (verts_base, rouges_base):
-        raise SystemExit(
-            f"le TEMOIN ne rend pas la passe de base : {verts_temoin}/{rouges_temoin} contre "
-            f"{verts_base}/{rouges_base}. **Un ou plusieurs tests reagissent a l'EDITION d'un "
-            f"fichier et non a un changement de comportement.** Ils tomberaient sous les "
-            f"{len(mutations)} mutations a la fois, se deguiseraient en detections, et "
-            f"effaceraient toutes les survivantes du releve. C'est exactement ce qui est "
-            f"arrive le 23/08/2026 -- voir `MUTATION_TEMOIN`. L'outil refuse de commencer."
+        if temoin is None:
+            raise SystemExit(
+                f"le TEMOIN ({etiquette}) a expire apres {arguments.delai:.0f} s alors qu'il "
+                f"ne change rien : la suite n'est pas stable, aucun ecart n'y est lisible."
+            )
+        print(
+            f"TEMOIN, edition sans effet ({etiquette}) : {temoin.verts} verts, "
+            f"{temoin.rouges} rouges"
         )
+        if (temoin.verts, temoin.rouges) != (verts_base, rouges_base):
+            details = (
+                ""
+                if arguments.temoins_un_par_un
+                else " Relance avec `--temoins-un-par-un` pour nommer le fichier en cause."
+            )
+            raise SystemExit(
+                f"le TEMOIN ({etiquette}) ne rend pas la passe de base : {temoin.verts}/"
+                f"{temoin.rouges} contre {verts_base}/{rouges_base}. **Un ou plusieurs tests "
+                f"reagissent a l'EDITION d'un fichier et non a un changement de "
+                f"comportement.** Un tel test se deguise en detection et efface des "
+                f"survivantes du releve, sans que la passe de base ni le detecteur de miroir "
+                f"puissent le voir.{details} L'outil refuse de commencer.\n"
+                f"Tests tombes : {sorted(temoin.tombes) or '(non nommes par pytest)'}"
+            )
     print()
 
     print(f"{'mutation':40s} {'verts':>6s} {'rouges':>7s}  verdict")

@@ -224,3 +224,201 @@ def test_le_detecteur_de_miroir_ne_leve_pas_sur_ZERO_passe():
     qui ne fabrique pas un signalement a partir d'une absence de mesure.
     """
     assert tombes_sous_TOUTES_les_mutations([]) == frozenset()
+
+
+# ---------------------------------------------------------------------------------
+# La parade STATIQUE : quels tests lisent la source d'un fichier mute
+# ---------------------------------------------------------------------------------
+
+#: Les sites de lecture de source connus, **nommes**, avec ce qui les rend inoffensifs.
+#:
+#: **Pourquoi une liste et pas un compte.** Un test qui lit la source d'un fichier mute peut
+#: tomber parce que le fichier a ete EDITE, et non parce que son comportement a change. Un tel
+#: test se deguise en detection et efface des survivantes du releve -- c'est ce qui est arrive
+#: le 23/08/2026. Ni la passe de base ni `tombes_sous_TOUTES_les_mutations` ne le voient : la
+#: premiere mesure avant toute mutation, le second ne voit que ce qui tombe sous les 57, et un
+#: test sensible a UN fichier ne tombe que sous les mutations de ce fichier.
+#:
+#: Les temoins de `outillage.mutation` couvrent la population des 20 fichiers mutes. Cette
+#: liste-ci couvre autre chose et ne coute aucune passe : elle oblige **celui qui ajoute un
+#: site de lecture** a dire pourquoi il est inoffensif, au moment ou il l'ajoute. C'est la
+#: seule des deux qui attrape un couple **avant** qu'une campagne de deux heures ne le
+#: rencontre.
+#:
+#: Chaque entree : `(fichier de test, ce qu'il lit, pourquoi il ne reagit pas a l'edition)`.
+SITES_DE_LECTURE_DE_SOURCE: tuple[tuple[str, str, str], ...] = (
+    (
+        "tests/agents/test_aveuglement_reseau.py",
+        "agents/reseau.py",
+        "cherche des NOMS interdits dans la source -- `vue_privilegiee`, `State` -- pour "
+        "etablir l'aveuglement. Un commentaire ajoute n'en introduit aucun ; et une mutation "
+        "qui en introduirait un DOIT le faire tomber, c'est le but de ce cas.",
+    ),
+    (
+        "tests/audit_phase2/test_reverification.py",
+        "mesure/comportements.py",
+        "cherche la presence d'un motif de definition dans la source ; l'ajout d'une ligne "
+        "ne retire aucun motif, donc il est insensible a l'edition.",
+    ),
+    (
+        "tests/mesure/test_phase3_audit.py",
+        "agents/*.py (glob)",
+        "parse l'AST et ne lit que les mots-cles `intitule=` ; un commentaire est invisible "
+        "a `ast.parse`. **Site le plus large du depot avec le suivant : 14 des 20 fichiers "
+        "mutes, 37 des 57 mutations.**",
+    ),
+    (
+        "tests/mesure/test_phase3_audit.py",
+        "mesure/*.py (glob)",
+        "meme site, second repertoire : AST et mots-cles `intitule=` seulement, donc "
+        "insensible aux commentaires et aux numeros de ligne.",
+    ),
+    (
+        "tests/mesure/test_phase3_audit.py",
+        "agents/campagne.py",
+        "le chemin sert a RESOUDRE un module pour en appeler une fonction "
+        "(`_cle_d_un_intitule`), pas a lire la source : c'est l'import qui porte le "
+        "comportement, et un commentaire ajoute n'en change aucun.",
+    ),
+    (
+        "tests/outillage/test_mutation.py",
+        "git show HEAD: -- les 20 fichiers mutes",
+        "lit la source COMMITEE et non le disque, donc l'etat mute lui est invisible **par "
+        "construction** -- c'est la correction du defaut du 23/08/2026, ou deux cas lisant "
+        "le disque tombaient sous les 56 mutations et effacaient onze survivantes.",
+    ),
+)
+
+
+def _sites_de_lecture_trouves() -> set[tuple[str, str]]:
+    """Les couples `(test, cible)` reellement presents dans `tests/`, par lecture de l'AST.
+
+    Un module compte comme site s'il lit une source -- `read_text`, `read_bytes`, `ast.parse`,
+    `inspect.getsource`, `git show` -- **et** designe un fichier mute.
+
+    **Les chaines de `SITES_DE_LECTURE_DE_SOURCE` elle-meme sont exclues**, et c'est necessaire
+    plutot que commode : la liste NOMME les fichiers dont elle parle, donc un scan naif la lit
+    comme un site pour chacun d'eux. Ce serait un compteur qui compte sa propre declaration --
+    exactement le motif que le §0.2 nomme « un test qui verifie la coherence entre deux sorties
+    du meme calcul ne teste rien ». L'exclusion porte sur les NŒUDS de cette affectation, pas
+    sur le fichier : le reste de ce module reste inspecte comme les autres.
+    """
+    import pathlib
+
+    mutes = sorted({m.fichier for m in MUTATIONS})
+    dossiers = sorted({f.split("/")[0] for f in mutes})
+    verbes = {"read_text", "read_bytes", "getsource"}
+
+    trouves: set[tuple[str, str]] = set()
+    for chemin in sorted(pathlib.Path("tests").rglob("*.py")):
+        texte = chemin.read_text(encoding="utf-8")
+        arbre = ast.parse(texte)
+        nom = str(chemin).replace("\\", "/")
+
+        exclus: set[int] = set()
+        for noeud in ast.walk(arbre):
+            cible_nommee = (
+                isinstance(noeud, ast.AnnAssign)
+                and isinstance(noeud.target, ast.Name)
+                and noeud.target.id == "SITES_DE_LECTURE_DE_SOURCE"
+            ) or (
+                isinstance(noeud, ast.Assign)
+                and any(
+                    isinstance(c, ast.Name) and c.id == "SITES_DE_LECTURE_DE_SOURCE"
+                    for c in noeud.targets
+                )
+            )
+            if cible_nommee:
+                exclus |= {id(sous) for sous in ast.walk(noeud)}
+
+        lit = any(
+            isinstance(n, ast.Attribute) and n.attr in verbes for n in ast.walk(arbre)
+        ) or "git show" in texte or "ast.parse" in texte
+        if not lit:
+            continue
+
+        for noeud in ast.walk(arbre):
+            if (
+                isinstance(noeud, ast.Constant)
+                and isinstance(noeud.value, str)
+                and noeud.value in mutes
+                and id(noeud) not in exclus
+            ):
+                trouves.add((nom, noeud.value))
+            # `Path("agents").glob("*.py")` : un site qui couvre tout un repertoire.
+            if (
+                isinstance(noeud, ast.Call)
+                and isinstance(noeud.func, ast.Attribute)
+                and noeud.func.attr in {"glob", "rglob"}
+                and noeud.args
+                and isinstance(noeud.args[0], ast.Constant)
+                and noeud.args[0].value == "*.py"
+                and isinstance(noeud.func.value, ast.Call)
+                and noeud.func.value.args
+                and isinstance(noeud.func.value.args[0], ast.Constant)
+                and noeud.func.value.args[0].value in dossiers
+            ):
+                trouves.add((nom, f"{noeud.func.value.args[0].value}/*.py (glob)"))
+        # `git show HEAD:` lit la source COMMITEE de tous les fichiers du catalogue.
+        if "git show" in texte:
+            trouves.add((nom, "git show HEAD: -- les 20 fichiers mutes"))
+    return trouves
+
+
+def test_tout_site_qui_lit_la_source_d_un_fichier_MUTE_est_inscrit():
+    """Etablit : aucun site de lecture de source non inscrit. Population : `tests/**/*.py`.
+
+    **Ce que ce cas empeche.** Ecrire un test qui lit `agents/reseau.py` depuis le disque est
+    la pente naturelle quand on veut tenir un invariant de forme -- et c'est exactement ce qui
+    a produit, le 23/08/2026, deux cas qui tombaient sous les 56 mutations a la fois et
+    effacaient onze survivantes du releve.
+
+    **Ce qu'il n'etablit PAS.** Il ne dit pas qu'un site inscrit est inoffensif : c'est la
+    justification ecrite a cote qui l'affirme, et c'est un humain qui la relit. Il dit qu'aucun
+    site n'est arrive sans que personne ne se pose la question. « Un compte se perime, une
+    liste non. »
+    """
+    connus = {(test, cible) for test, cible, _ in SITES_DE_LECTURE_DE_SOURCE}
+    trouves = _sites_de_lecture_trouves()
+    assert trouves, (
+        "aucun site de lecture trouve : le detecteur n'inspecte plus ce qu'il croit "
+        "inspecter, et cette parade est devenue decorative"
+    )
+    nouveaux = trouves - connus
+    assert not nouveaux, (
+        f"des tests lisent la source d'un fichier MUTE sans etre inscrits : {sorted(nouveaux)}\n"
+        f"Un tel test peut tomber parce que le fichier a ete EDITE, pas parce que son "
+        f"comportement a change -- il se deguiserait alors en detection sur toutes les "
+        f"mutations de ce fichier, et effacerait des survivantes du releve.\n"
+        f"Inscris-le dans `SITES_DE_LECTURE_DE_SOURCE` avec, en une ligne, POURQUOI il ne "
+        f"reagit pas a l'edition. Un compte se perime, une liste non."
+    )
+
+
+def test_la_liste_des_sites_de_lecture_ne_PERIME_pas():
+    """Etablit : aucun site inscrit n'a disparu. Population : `SITES_DE_LECTURE_DE_SOURCE`.
+
+    Le symetrique du cas precedent, et il ne fait pas double emploi. Une entree qui ne
+    correspond plus a rien -- test supprime, lecture retiree -- laisse croire qu'une
+    justification couvre un site qui n'existe plus, et masque le jour ou un site du meme nom
+    revient sous une autre forme.
+    """
+    connus = {(test, cible) for test, cible, _ in SITES_DE_LECTURE_DE_SOURCE}
+    disparus = connus - _sites_de_lecture_trouves()
+    assert not disparus, (
+        f"ces sites sont inscrits mais n'existent plus : {sorted(disparus)}. Retire-les, "
+        f"sinon la liste decrit un depot qui n'est plus celui-ci."
+    )
+
+
+@pytest.mark.parametrize(
+    "site", SITES_DE_LECTURE_DE_SOURCE, ids=lambda s: f"{s[0]}->{s[1]}"
+)
+def test_chaque_site_inscrit_DIT_pourquoi_il_est_inoffensif(site):
+    """Etablit : chaque entree porte une justification substantielle. Population : la liste.
+
+    Une liste de noms sans motif est un compte deguise : elle laisse passer l'inscription
+    reflexe, qui est precisement la facon dont une parade devient decorative.
+    """
+    _, _, motif = site
+    assert len(motif.strip()) > 40, f"justification trop courte pour {site[0]} : {motif!r}"
