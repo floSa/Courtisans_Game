@@ -48,6 +48,32 @@ Il s'est fâché deux fois pour la même raison : le manque de clarté.
   construction. **Le pilote a lu la phrase et a continué**, et l'audit croisé a perdu son
   indépendance pour tout un tour. Une phrase d'agent qui décrit un rôle qu'on ne lui a pas
   attribué est une alerte, pas une formalité.
+- **Tout bloc final porte une ESTIMATION DE DURÉE, et elle dit ce qu'elle compte.** Exigé par
+  Florian le 24/08/2026 : « c'est insupportable de partir pour dix heures sachant qu'à chaque
+  fois on te dit deux heures et que ça finit en dix heures ». La règle vaut pour le pilote **et
+  pour toute conversation d'agent** ; elle s'écrit dans chaque prompt.
+
+  Le défaut n'est pas l'absence d'estimation — l'étape 0 de la phase 4 en portait une, « ~2 h 45 »,
+  et elle était juste **pour la passe qu'elle nommait**. Le défaut est qu'elle ne nommait qu'une
+  passe, alors que le travail a coûté 4 h 47 de campagne bloquée, plus 2 h 45 de rejeu invalidé,
+  plus 2 h 20 de rejeu valide. Chaque chiffre était exact ; leur somme n'a jamais été dite.
+  **C'est la faute de signature du projet appliquée au temps : un chiffre exact sur une
+  population que sa phrase ne nomme pas.**
+
+  Une estimation conforme porte donc **quatre** choses :
+  1. **Le temps déjà écoulé depuis le début de l'étape**, tout compris — les tentatives ratées,
+     les reprises, les campagnes jetées. C'est le chiffre qu'il ressent, et c'est celui qu'on
+     omet.
+  2. **Le temps restant pour ce qui tourne maintenant**, avec le coût unitaire mesuré qui le
+     fonde (« 57 passes × 2,8 min mesurées »), pas un ordre de grandeur.
+  3. **Le temps restant pour tout ce qui est déjà décidé et pas encore commencé** — les étapes
+     suivantes du plan en cours. Une fourchette est acceptable ; le silence ne l'est pas.
+  4. **Ce que l'estimation NE COUVRE PAS**, nommé. « Ne compte pas un rejeu si un cas sort
+     rouge sur le code non muté. » Une estimation sans cette ligne est une estimation du seul
+     chemin heureux, et c'est très exactement celle qui a trompé trois fois.
+
+  Le total des points 1 à 3 se donne en clair, en une ligne, avant le détail.
+
 - **Commiter une modification de document tout de suite.** Deux règles de cette liste ont été
   écrites puis perdues, laissées non commitées et effacées par un `git reset --hard` sur une
   branche d'agent. Un document du pilote se commite dans la foulée de son édition.
