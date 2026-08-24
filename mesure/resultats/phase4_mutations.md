@@ -1,12 +1,12 @@
 # Phase 4, etape 0 -- le perimetre des mutations, etendu a `agents/` et `mesure/`
 
-**MESURE le 24/08/2026**, `uv run python outillage/mutation.py`, commit `11be1ca`.
+**MESURE le 24/08/2026**, `uv run python outillage/mutation.py`, commit `b3e0bbe`.
 Une mutation = une passe entiere de la suite.
 
 | | |
 |---|---|
-| **passe de BASE, sans mutation** | **1240 verts, 0 rouge** (cible `tests`) |
-| **TEMOIN, mutation qui ne change rien** | **1240 verts, 0 rouge** -- identique a la base |
+| **passe de BASE, sans mutation** | **1251 verts, 0 rouge** (cible `tests`) |
+| **TEMOINS, les 20 fichiers mutes edites sans effet** | **1251 verts, 0 rouge** -- identique a la base |
 | mutations jouees | 57 |
 
 > **Le compte de base est en tete parce que les 57 verdicts sont des ECARTS lus contre lui.**
@@ -124,9 +124,60 @@ Trois reponses, dont une seule ferme la classe :
    coute **aucune passe** -- les noms sont deja dans la sortie de pytest -- et il **signale
    sans condamner** : un test tres general peut legitimement tomber partout.
 
-**Le releve ci-dessous est le TROISIEME jeu de la campagne.** Il reproduit les 57 verdicts
-de la campagne du 23/08 **a l'identique, ligne pour ligne** -- ce qui etablit qu'ils
-etaient bons, et qu'ils sont desormais reproductibles.
+### 3. Un HEAD qui bouge pendant la campagne rend une mutation PERMANENTE
+
+**Le troisieme etage du meme escalier, et le plus couteux.** Le 24/08 a 08:05 une campagne
+demarre ; a 08:11 elle joue sa premiere mutation, `espions-adverses-visibles`, qui edite
+`courtisans/infoset.py`. A **08:11:24**, un commit tombe. Il porte deux fichiers : le document
+qui est son objet, et `courtisans/infoset.py`, qui ne l'est pas -- un `git add -A` a balaye le
+fichier **mute** en vol.
+
+`_restaurer` fait alors `git checkout -- courtisans/infoset.py`, **qui restaure vers HEAD** :
+donc vers la version mutee. La mutation devient permanente.
+
+Ce que ca a casse, mesure :
+
+- **l'invariant I7 saute dans HEAD** -- l'identite des Espions adverses fuite dans l'encodage,
+  donc dans l'observation que voit tout agent ;
+- la suite complete tombe de **1248/0 a 1169 verts / 79 rouges** sur arbre propre ;
+- **les 56 mutations suivantes tournent sur un moteur casse** : ~79 rouges parasites sur
+  chaque ligne, **zero survivante**, releve a jeter.
+
+**C'est `tombes_sous_TOUTES_les_mutations` qui l'a fait remonter** -- il a nomme les 78 tests
+qui tombaient partout, et c'est en les lisant que la cause est apparue. Le controle ne du
+defaut precedent a attrape le suivant.
+
+Deux parades, et il faut les deux. `_restaurer` restaure depuis le **SHA fige au demarrage**,
+ce qui **empeche** la contamination meme si HEAD bouge ; `refus_si_head_a_bouge` compare le SHA
+a chaque tour et **arrete** la campagne, parce qu'un HEAD qui bouge invalide la passe de base et
+donc tous les ecarts. C'est le symetrique du controle de depot propre : celui-la protege le
+travail en cours contre l'outil, celui-ci protege l'outil contre le travail en cours.
+
+> **Consequence pratique, a lire avant de lancer une campagne : ne rien commiter pendant
+> qu'elle tourne.** L'outil s'arrete desormais au lieu de se contaminer, mais il perd la
+> campagne en cours.
+
+**Le releve ci-dessous est le CINQUIEME jeu de la campagne.** Il reproduit les 57 verdicts
+des jeux precedents valides **a l'identique, rouge pour rouge** -- les verts montent de +11,
+qui est exactement le nombre de cas ajoutes depuis. C'est ce qui etablit qu'ils sont
+reproductibles, et non seulement justes.
+
+### Le compte des jeux, puisqu'il fait partie du resultat
+
+**Cinq jeux ont ete payes, quatre pour des defauts de l'instrument, un seul du premier coup.**
+
+| Jeu | Duree | Issue |
+|---|---:|---|
+| 1 | 4 h 47 + 48 min | bloque : pas de delai de garde. Verdicts bons mais non reproductibles |
+| 2 | 2 h 45 | **invalide** : deux cas lisaient le disque, +2 rouges partout |
+| 3 | 2 h 46 | valide -- le premier releve reproductible |
+| 4 | 2 h 32 | **invalide** : HEAD empoisonne par un commit en vol |
+| 5 | 2 h 50 | valide, et reproduit le jeu 3 rouge pour rouge |
+
+**Aucun de ces quatre defauts n'etait dans les mutations ni dans la suite.** Tous les quatre
+etaient dans l'instrument qui les mesure. C'est la lecon la plus chere de cette etape, et elle
+vaut d'etre lue a cote du tableau des onze survivantes : **un outil qui juge une suite de tests
+demande le meme soin que ce qu'il juge.**
 
 ## Le troisieme verdict : `EXPIRE`
 
