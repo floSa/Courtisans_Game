@@ -158,6 +158,14 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     # preexistant aurait fait rapporter « 56 detectees, 0 survivante » a la campagne suivante.
     # Voir `outillage/mutation.py`, `_passe_de_base`.
     "mesure/resultats/phase4_mutations.md",
+    # Ajoute le 24/08/2026 : le mode d'emploi des journaux bruts de la phase 4.
+    #
+    # **Il a fait tomber ce cas a son tour, et c'est la seconde fois en deux jours.** Un
+    # document depose dans `mesure/` sans etre inscrit ici est un document que personne ne
+    # nomme -- et celui-la porte les deux commandes qui permettent de recompter la
+    # reproduction des 57 verdicts sans rejouer la campagne. Le cas ne demande pas qu'un
+    # document soit important : il demande qu'il soit NOMME.
+    "mesure/resultats/phase4_journaux/README.md",
 )
 
 
