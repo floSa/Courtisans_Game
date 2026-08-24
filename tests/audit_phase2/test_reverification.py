@@ -168,6 +168,8 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     "mesure/resultats/phase4_journaux/README.md",
     # Ajoute le 24/08/2026 : le releve de l'etape 0 ter, les neuf trous combles.
     "mesure/resultats/phase4_etape0ter.md",
+    # Ajoute le 24/08/2026 : le releve de l'etape 0 bis, les trois reserves de la phase 3.
+    "mesure/resultats/phase4_etape0bis.md",
 )
 
 
