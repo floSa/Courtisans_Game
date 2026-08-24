@@ -132,9 +132,10 @@ def vue_du_joueur(etat: State, joueur: int) -> VueDuJoueur:
     connues = []
     dos = []
     for posee in vue.posees:
-        connues.append(posee)
         if posee.carte.role in ROLES_CACHES and posee.poseur != joueur:
             dos.append(posee)
+        else:
+            connues.append(posee)
     return VueDuJoueur(tuple(connues), tuple(dos))
 
 
