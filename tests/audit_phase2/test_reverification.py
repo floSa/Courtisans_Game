@@ -166,6 +166,8 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     # reproduction des 57 verdicts sans rejouer la campagne. Le cas ne demande pas qu'un
     # document soit important : il demande qu'il soit NOMME.
     "mesure/resultats/phase4_journaux/README.md",
+    # Ajoute le 24/08/2026 : le releve de l'etape 0 ter, les neuf trous combles.
+    "mesure/resultats/phase4_etape0ter.md",
 )
 
 
