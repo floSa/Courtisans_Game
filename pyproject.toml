@@ -16,6 +16,7 @@ pythonpath = ["."]
 markers = [
     "lent: cas qui joue un gros volume de parties (critere A3)",
     "refus: cas qui exige le refus d'une construction non conforme (critere A8) -- leur compte EST le chiffre annonce pour A8",
+    "minuteur(secondes): delai de garde propre a ce cas, en secondes. Se pose AVEC la mesure qui le justifie, ecrite dans la docstring du cas -- voir tests/conftest.py",
 ]
 
 [tool.ruff]
