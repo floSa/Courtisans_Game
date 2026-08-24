@@ -170,6 +170,9 @@ DOCUMENTS_DE_MESURE: tuple[str, ...] = (
     "mesure/resultats/phase4_etape0ter.md",
     # Ajoute le 24/08/2026 : le releve de l'etape 0 bis, les trois reserves de la phase 3.
     "mesure/resultats/phase4_etape0bis.md",
+    # Ajoute le 24/08/2026, etape 2 de l'iteration 1 : ou est le plafond du critique. Ecrit
+    # AVANT tout entrainement, et avant la pre-inscription qui le suit.
+    "mesure/resultats/phase4_le_plafond_du_critique.md",
 )
 
 
