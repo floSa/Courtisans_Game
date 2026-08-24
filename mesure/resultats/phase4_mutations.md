@@ -219,6 +219,22 @@ Reprise partielle, sans rejouer ce qui a deja rendu un verdict :
 UV_LINK_MODE=copy uv run python outillage/mutation.py --noms nom1,nom2
 ```
 
+### Recompter la reproduction sans rejouer quoi que ce soit
+
+**Les DEUX jeux valides sont dans le depot, sous des noms distincts**, parce que la
+reproduction est le resultat qui compte le plus de cette etape et qu'elle ne se verifie
+qu'en ayant les deux relevés sous la main :
+
+- `mesure/resultats/phase4_journaux/mutations_campagne_VALIDE_jeu3.log` (base 1240)
+- `mesure/resultats/phase4_journaux/mutations_campagne_VALIDE_jeu5.log` (base 1251)
+
+`mesure/resultats/phase4_journaux/README.md` porte les deux commandes qui les comparent et
+la sortie attendue de chacune : **57 lignes de meme nom, meme rouges, meme verdict** ; et
+**+11 verts uniformement** sur les 56 mutations qui rendent un compte -- exactement le
+nombre de cas ajoutes entre les deux jeux. Un ecart de verts qui varierait d'une mutation a
+l'autre dirait que les cas neufs reagissent aux mutations, et il faudrait les regarder un
+par un. Il ne varie pas.
+
 ## Le releve brut, les 57
 
 | Mutation | Fichier | Verts | Rouges | Verdict |
