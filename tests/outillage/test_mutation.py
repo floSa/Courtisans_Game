@@ -25,6 +25,7 @@ from outillage.mutation import (
     MUTATIONS,
     RACINE,
     refus_de_la_passe_de_base,
+    refus_si_head_a_bouge,
     tombes_sous_TOUTES_les_mutations,
 )
 
@@ -422,3 +423,51 @@ def test_chaque_site_inscrit_DIT_pourquoi_il_est_inoffensif(site):
     """
     _, _, motif = site
     assert len(motif.strip()) > 40, f"justification trop courte pour {site[0]} : {motif!r}"
+
+
+# ---------------------------------------------------------------------------------
+# HEAD qui bouge pendant une campagne -- le defaut du 24/08/2026
+# ---------------------------------------------------------------------------------
+
+
+def test_un_HEAD_qui_a_bouge_ARRETE_la_campagne():
+    """Etablit : deux SHA differents produisent un refus. Population : le controle de derive.
+
+    **Le cas du defaut reel.** Le 24/08/2026 a 08:11, un commit est tombe pendant la campagne
+    alors que `courtisans/infoset.py` portait la mutation `espions-adverses-visibles`. Le
+    commit l'a avalee ; `_restaurer` a fait `git checkout -- <fichier>`, **qui restaure vers
+    HEAD**, donc vers la version mutee. La mutation est devenue permanente, l'invariant I7 a
+    saute, et les 56 mutations suivantes ont tourne sur un moteur casse -- zero survivante,
+    campagne a jeter.
+    """
+    refus = refus_si_head_a_bouge("a" * 40, "b" * 40)
+    assert refus is not None
+    assert "HEAD a bouge" in refus, refus
+
+
+def test_un_HEAD_IMMOBILE_laisse_la_campagne_continuer():
+    """Etablit : deux SHA identiques ne produisent aucun refus. Population : le cas nominal.
+
+    Un controle qui refuse toujours ne controle rien.
+    """
+    assert refus_si_head_a_bouge("a" * 40, "a" * 40) is None
+
+
+def test_la_restauration_se_fait_depuis_le_SHA_FIGE_et_non_depuis_HEAD():
+    """Etablit : `_restaurer` accepte un SHA et le passe a git. Population : sa signature.
+
+    C'est la parade qui **empeche** la contamination, la ou `refus_si_head_a_bouge` ne fait
+    que la **detecter**. Il faut les deux : la detection arrive au tour suivant, quand le mal
+    est fait.
+    """
+    import inspect
+
+    from outillage import mutation as module
+
+    parametres = inspect.signature(module._restaurer).parameters
+    assert "sha" in parametres, (
+        "`_restaurer` ne prend pas de SHA : il restaurerait vers HEAD, et un HEAD qui a avale "
+        "une mutation la rendrait permanente"
+    )
+    source = inspect.getsource(module._restaurer)
+    assert '"git", "checkout", sha' in source, source

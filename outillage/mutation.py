@@ -958,8 +958,57 @@ def _depot_propre() -> bool:
     return sortie.stdout.strip() == ""
 
 
-def _restaurer(fichier: str) -> None:
-    subprocess.run(["git", "checkout", "--", fichier], cwd=RACINE, check=True)
+def sha_de_head() -> str:
+    """Le commit sur lequel la campagne tourne. **Fige au demarrage, verifie a chaque tour.**"""
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"], cwd=RACINE, capture_output=True, text=True, check=True
+    ).stdout.strip()
+
+
+def refus_si_head_a_bouge(sha_debut: str, sha_courant: str) -> str | None:
+    """Le motif de refus si `HEAD` a bouge pendant la campagne, ou `None`.
+
+    **Ce que ce controle empeche, et il a deja coute une campagne entiere.** Le 24/08/2026 a
+    08:11, un commit a ete fait pendant que la campagne tournait. A cet instant
+    `courtisans/infoset.py` portait la mutation `espions-adverses-visibles` ; un `git add -A`
+    l'a balayee dans le commit. `_restaurer` a ensuite fait `git checkout -- <fichier>`, **qui
+    restaure vers HEAD** -- donc vers la version MUTEE. La mutation est devenue permanente,
+    l'invariant I7 a saute, la suite est tombee a 1169/79 sur arbre propre, et **les 56
+    mutations suivantes ont toutes tourne sur un moteur casse** : zero survivante, releve a
+    jeter.
+
+    Deux parades, et il faut les deux. Celle-ci **detecte** et arrete. `_restaurer` restaure
+    desormais depuis le SHA fige, ce qui **empeche** la contamination meme si HEAD bouge.
+
+    C'est le symetrique du controle de depot propre qui existait deja : celui-la protege le
+    travail en cours contre l'outil, celui-ci protege l'outil contre le travail en cours.
+    """
+    if sha_courant != sha_debut:
+        return (
+            f"HEAD a bouge pendant la campagne : {sha_debut[:9]} au demarrage, "
+            f"{sha_courant[:9]} maintenant. **Tout ce qui suit serait lu contre une autre "
+            f"passe de base**, et si le commit est tombe pendant qu'une mutation etait en "
+            f"place, il l'a rendue PERMANENTE -- c'est arrive le 24/08/2026 et il a fallu "
+            f"jeter la campagne. L'outil s'arrete."
+        )
+    return None
+
+
+def _restaurer(fichier: str, sha: str | None = None) -> None:
+    """Remet le fichier dans son etat d'origine.
+
+    `sha` est le commit **fige au demarrage**. Sans lui, `git checkout -- <fichier>` restaure
+    vers `HEAD`, qui peut avoir bouge -- et restaurer vers un HEAD qui a avale une mutation
+    la rend permanente. Voir `refus_si_head_a_bouge`.
+    """
+    cible = ["git", "checkout", "--", fichier] if sha is None else [
+        "git", "checkout", sha, "--", fichier
+    ]
+    subprocess.run(cible, cwd=RACINE, check=True)
+    if sha is not None:
+        # `git checkout <sha> -- <fichier>` INDEXE le fichier. Sans ce `reset`, l'index reste
+        # sali et le controle de depot propre du prochain lancement echouerait sans raison.
+        subprocess.run(["git", "reset", "-q", "--", fichier], cwd=RACINE, check=True)
 
 
 def _appliquer(mutation: Mutation) -> None:
@@ -1152,6 +1201,11 @@ def principal() -> int:
             "avec git checkout et les detruirait. Commite d'abord."
         )
 
+    # **Le SHA est fige ici et ne bouge plus.** `_restaurer` s'en sert plutot que de `HEAD` :
+    # si un commit tombe pendant la campagne alors qu'une mutation est en place, restaurer vers
+    # HEAD la rendrait PERMANENTE. Voir `refus_si_head_a_bouge`.
+    sha_debut = sha_de_head()
+
     vises_exempts = sorted({m.nom for m in MUTATIONS if m.fichier in FICHIERS_EXEMPTS})
     if vises_exempts:
         raise SystemExit(
@@ -1205,7 +1259,7 @@ def principal() -> int:
             temoin = _jouer(arguments.cible, arguments.delai)
         finally:
             for temoin_mutation in groupe:
-                _restaurer(temoin_mutation.fichier)
+                _restaurer(temoin_mutation.fichier, sha_debut)
         etiquette = (
             groupe[0].fichier if len(groupe) == 1 else f"{len(groupe)} fichiers mutes"
         )
@@ -1241,11 +1295,14 @@ def principal() -> int:
     expirees = []
     tombes_par_mutation: list[frozenset[str]] = []
     for mutation in mutations:
+        derive = refus_si_head_a_bouge(sha_debut, sha_de_head())
+        if derive is not None:
+            raise SystemExit(f"{derive} Mutation en cours : {mutation.nom}.")
         _appliquer(mutation)
         try:
             resultat = _jouer(arguments.cible, arguments.delai)
         finally:
-            _restaurer(mutation.fichier)
+            _restaurer(mutation.fichier, sha_debut)
         if resultat is None:
             expirees.append(mutation)
             print(
